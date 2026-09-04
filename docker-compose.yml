@@ -1,0 +1,104 @@
+name: bajagas
+
+# Dos contenedores: la API y la pantalla.
+#
+# Solo se publica UN puerto util al exterior -- el 8080 -- y por ahi salen las
+# dos cosas: la pantalla en / y la API en /api. Se hace asi para que desde un
+# telefono baste una sola direccion y para no chocar con el CORS que main.py
+# tiene fijado a localhost:5173.
+
+services:
+
+  api:
+    build: ./backend
+    environment:
+      # El contenedor corre en la hora del taller, no en UTC. Importa: hay siete
+      # archivos que usan date.today(), que devuelve la fecha LOCAL del proceso.
+      # En UTC, despues de las 16:00 de Tijuana ya seria "manana" y los cortes
+      # del dia saldrian corridos.
+      TZ: America/Tijuana
+      DATABASE_URL: sqlite:////datos/bajagas.db
+      # Cambiala antes de sacar esto de la red local. El valor por omision del
+      # codigo es publico: cualquiera que lo lea puede firmarse un token.
+      SECRET_KEY: ${SECRET_KEY:-demo-local-bajagas-cambiar-antes-de-publicar}
+      TOKEN_MINUTES: ${TOKEN_MINUTES:-480}
+    volumes:
+      # Lo que se capture en el demo sobrevive a un rebuild.
+      - bajagas_db:/datos
+      # Solo lectura, y el directorio entero en vez del archivo suelto: si se
+      # montara ./backend/bajagas.db y ese archivo no existiera, Docker crearia
+      # un DIRECTORIO con ese nombre y el arranque fallaria de forma confusa.
+      - ./backend:/semilla:ro
+    ports:
+      # Directo a la API, para abrir /docs y probar endpoints a mano.
+      # La pantalla NO lo usa: ella entra por el 8080.
+      - "8000:8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3).status == 200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      # El arranque siembra, migra columnas y crea indices: darle margen.
+      start_period: 60s
+
+  web:
+    build: ./frontend
+    ports:
+      # 8081 y no 8080: el 8080 ya lo tiene ThingsBoard (su contenedor publica
+      # 8080->9090) y ese proyecto se queda donde esta.
+      #
+      # 0.0.0.0 explicito: asi el puerto queda escuchando en la IP de la red
+      # y no solo en localhost, que es lo que permite entrar desde el telefono.
+      - "0.0.0.0:8081:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # --------------------------------------------------------------------- #
+  # El tunel. NINGUNO de los dos arranca solo: hay que pedirlos por su perfil.
+  # Se conectan a `web` por la red interna, asi que no hace falta abrir el
+  # firewall de Windows ni tocar el router: la conexion sale de aqui hacia
+  # Cloudflare, no al reves.
+  # --------------------------------------------------------------------- #
+
+  # Prueba rapida, sin cuenta. Da una URL *.trycloudflare.com que CAMBIA cada
+  # vez que arranca y que Cloudflare puede cortar cuando quiera. Para ensenarle
+  # algo a alguien en diez minutos, no para las semanas que necesitas.
+  #   docker compose --profile tunel-rapido up -d
+  #   docker compose logs tunel-rapido | grep trycloudflare
+  # `--protocol http2` NO es opcional en esta red, y costo un demo entenderlo.
+  #
+  # Por omision cloudflared habla QUIC, que va sobre UDP 7844. Esta conexion
+  # deja pasar el UDP a ratos: el tunel registraba, aguantaba dos o tres
+  # minutos y se caia con "timeout: no recent network activity" -- 18 veces en
+  # media hora. Desde fuera eso se ve como un 502 y luego un Error 1033, que
+  # parecen fallos de la aplicacion y no lo son.
+  #
+  # http2 va sobre TCP 443, el mismo puerto que cualquier pagina web, asi que
+  # pasa por donde pasa todo lo demas.
+  tunel-rapido:
+    image: cloudflare/cloudflared:latest
+    profiles: ["tunel-rapido"]
+    command: tunnel --no-autoupdate --protocol http2 --url http://web:80
+    depends_on: [web]
+    restart: unless-stopped
+
+  # El de verdad: URL fija en tu dominio. Necesita una cuenta de Cloudflare y un
+  # tunel creado en el panel (Zero Trust -> Networks -> Tunnels), que te da un
+  # token. Apunta el tunel a http://web:80.
+  #   TUNNEL_TOKEN="ey..." docker compose --profile tunel up -d
+  #
+  # El token va con `:-` y no con `:?` aunque un `:?` daria mejor mensaje:
+  # Compose interpola TODO el archivo antes de mirar los perfiles, asi que un
+  # `:?` aqui rompe `docker compose up` normal, con el tunel apagado y todo.
+  tunel:
+    image: cloudflare/cloudflared:latest
+    profiles: ["tunel"]
+    command: tunnel --no-autoupdate --protocol http2 run --token ${TUNNEL_TOKEN:-}
+    depends_on: [web]
+    restart: unless-stopped
+
+volumes:
+  bajagas_db:

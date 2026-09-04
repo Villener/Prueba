@@ -250,3 +250,140 @@ contra el titular. Si la unidad estaba prestada, el que faltó fue el receptor.
    suplente asignado.
 5. **¿Se puede agendar en sábado?** El cálculo de capacidad necesita saber qué días opera el
    taller.
+
+---
+
+## 9. Estado de la implementación — 2026-08-20
+
+**Implementado** en `backend/app/modules/mantenimiento/agenda_service.py` y en los jobs
+`recalcular_agenda()` (CU-AUT-04, disparador D5) y `avisar_citas_proximas()` (CU-AUT-05).
+
+| Del diseño | Estado |
+|---|---|
+| Las dos fechas separadas, `fecha_limite` inmutable | Hecho, y probado: el test falla si `fecha_limite_origen` deja de coincidir con el programa |
+| Capacidad por tipo de espacio, nunca global | Hecho — con una corrección, ver abajo |
+| Zonas con `cuenta_para_ocupacion = false` fuera del cálculo | Hecho. Álamos: **79 espacios en el plano, 31 que cuentan** |
+| Cola con prioridad lexicográfica, 5 criterios | Hecho, con `score_prioridad` guardado para auditar |
+| Anti-inanición (criterio 3) | Hecho |
+| Horizonte de 30 días y `detectar_sin_cupo()` | Hecho, y avisa a gerencia como **problema de capacidad**, no de chofer |
+| Estabilidad: `propuesta` libre, confirmada >48 h con aviso, <48 h intocable | Hecho en `_movible()` |
+| Sábado sí, domingo no, por taller | Hecho vía `Taller.opera_sabado` |
+| D3: proyectar cuándo se libera un espacio | `OrdenServicio.fecha_salida_estimada`. Sin ETA, el espacio se considera ocupado **indefinidamente** |
+
+### Lo que el diseño no había previsto: los espacios compartidos
+
+El §4.1 propone `capacidad = espacios(T) − ocupados − citas(T)`. Con el plano real de Álamos eso
+da un número **equivocado en las dos direcciones**, porque hay dos clases de espacio:
+
+- **Dedicados** — los 8 de PIPAS solo admiten pipas.
+- **Genéricos** — ELECTRICOS y LLANTERA no declaran tipo, así que sirven para cualquiera.
+
+Los genéricos son un pozo común. Contar solo las citas del mismo tipo **sobreestima** la capacidad
+(ignora que un reparto ya se llevó un genérico); contarlas todas la **subestima** (un reparto que
+cabe en sus propios espacios no le quita nada a una pipa). En la primera versión las dos cuentas
+no coincidían y el taller quedaba con 2 de 12 lugares desperdiciados por día.
+
+Se resuelve en dos pasos, que es como lo entendería Pedro:
+
+> **1.** Cada tipo agota primero **sus** espacios dedicados.
+> **2.** Lo que le sobre a cada tipo pelea por el **pozo común**.
+
+Con eso el reparto satura exacto. Probado con 40 pipas contra 12 lugares y un servicio de 5 días:
+
+```
+2026-08-20 Thu  12      bloques de 5 dias habiles,
+2026-08-26 Wed  12      sin domingos, sin exceder
+2026-09-01 Tue  12      la capacidad, sin perder
+2026-09-07 Mon   4      ningun programa
+```
+
+### Preguntas que la implementación ya no bloquea, pero siguen abiertas
+
+La #1 quedó resuelta: el catálogo `TipoServicio` está cargado con duraciones **medidas**
+(ver [analisis-detallado-taller.md](analisis-detallado-taller.md)). Siguen abiertas la #2
+(prioridad operativa: sembrada como pipa > reparto > utilitario, **a confirmar con el gerente**),
+la #3, la #4 y la #5 (`opera_sabado` está en `true` para todos los talleres, **a confirmar**).
+
+### Endpoints y pantallas — 2026-08-24
+
+Ya está la frase completa: **el sistema propone, Víctor confirma, el chofer acepta.**
+
+| Endpoint | Caso de uso | Quién |
+|---|---|---|
+| `GET /api/agenda/citas` | CU-ADM-14 | Víctor · Gerente |
+| `POST /api/agenda/recalcular` | CU-AUT-04 (D1 y D3 a mano) | Víctor |
+| `POST /api/agenda/citas/{id}/confirmar` | CU-ADM-14 | Víctor |
+| `POST /api/agenda/citas/{id}/reprogramar` | CU-ADM-15 | Víctor |
+| `POST /api/agenda/citas/{id}/cancelar` | — | Víctor |
+| `GET /api/agenda/sin-cupo` | CU-ADM-16 | Víctor · Gerente |
+| `GET /api/agenda/capacidad` | — | Víctor · Gerente |
+| `GET /api/chofer/citas` | CU-CHO-07 | Chofer |
+| `POST /api/chofer/citas/{id}/confirmar` | CU-CHO-07 | Chofer |
+
+**84 → 93 rutas.** Pantallas: `AgendaPage.jsx` (pestaña Agenda del administrador) y el bloque
+«Tus citas de taller» en la pestaña Taller del chofer.
+
+Tres decisiones de la pantalla que vale la pena defender:
+
+- **La lista va en el orden de la cola, no por fecha.** Es el mismo `score_prioridad` con el que
+  el algoritmo decidió, así que Víctor puede ver *por qué* una unidad quedó antes que otra. Si se
+  ordenara por fecha tendría que confiar a ciegas.
+- **La holgura se muestra siempre**, al lado de la cita: días entre la cita y el límite técnico.
+  En rojo cuando es negativa. Es el dato que distingue «la agenda está cumpliendo» de «el taller
+  ya no da abasto», y sin él las dos se ven igual.
+- **Al chofer no se le enseña `estado`.** Para el sistema `confirmada` significa que confirmó el
+  *taller*, pero al chofer le leía como «ya quedó» justo al lado de un botón que le pedía
+  confirmar. Ve «Pendiente» o «✓ Ya confirmaste», que es lo que le toca a él.
+
+### Dos defectos que aparecieron al probarlo corriendo
+
+**1. La fecha se mostraba un día antes.** `new Date('2026-08-24')` se interpreta como medianoche
+UTC y al pintarla en Tijuana retrocedía al 23. Afectaba a toda fecha sin hora — `fecha_cita`,
+`fecha_limite`, `fecha_fin_prevista` del préstamo, la ETA de las piezas — no solo a la agenda.
+Corregido en `core/api.js`: una fecha de calendario se formatea **sin** convertir de zona, porque
+el 24 de agosto es el 24 de agosto en todas partes. La conversión se queda para los instantes.
+
+**2. Los planes viejos quedaron sin tipo de servicio.** `asegurar_columnas` agrega la columna pero
+no la rellena, así que en una base previa la agenda caía al valor por omisión —un día, criticidad
+media— justo la adivinanza que el catálogo medido vino a eliminar. Se rellena en
+`asegurar_tipos_servicio()`, y `recalcular()` repara además las citas que ya existían.
+
+### El movimiento manual también respeta la capacidad — 2026-08-24
+
+Al construir el modal apareció un hueco serio: **el algoritmo automático cuida la capacidad con
+detalle y un clic de Víctor se la saltaba entera.** Comprobado con el taller lleno: mover una cita
+a un día con **cero espacios libres** devolvía 200 y la cita quedaba ahí. Una agenda que se respeta
+a sí misma pero cede a cualquier clic no es una agenda, es una sugerencia.
+
+Se resolvió con el mismo patrón que la regla de las 48 h — **se rechaza por omisión, se puede
+forzar, y queda registrado que se forzó**:
+
+| | |
+|---|---|
+| Sin `forzar` | `409` con los días que no caben y `puede_forzar: true` |
+| Con `forzar: true` | Se acepta, `Reprogramacion.requirio_autorizacion = true` |
+| Bitácora | `cita_reprogramada_con_sobrecupo`, con la fecha anterior y la nueva |
+
+Se revisa el **tramo completo**, no solo el primer día: un servicio de tres días que arranca el
+lunes también necesita martes y miércoles. Y `capacidad_libre()` acepta `excluir_cita_id`, porque
+una cita no debe estorbarse a sí misma al moverse.
+
+**El calendario de cupo** ya está en el modal de mover: 30 casillas, cada una con los espacios que
+quedan **para ese tipo de unidad** —la capacidad nunca es global— y el domingo rayado igual que las
+zonas que no cuentan en el plano. Antes Víctor elegía la fecha a ciegas.
+
+Dos arreglos generales que salieron de aquí:
+
+- **`core/api.js` perdía los detalles estructurados.** Solo entendía `detail` como texto o lista,
+  así que un `409` con objeto se mostraba como «Error 409» y el usuario se quedaba sin saber qué
+  hacer. Ahora el objeto viaja en `err.datos` y el mensaje sale del propio servidor.
+- El calendario **no pide capacidad si falta el taller o el tipo**, en vez de mandar un 422 y
+  dejar la caja vacía sin explicación.
+
+### Lo que sigue faltando
+
+Los cuatro perfiles de administrador siguen compartiendo el rol técnico `administrador`, así que
+hoy **Erick podría entrar a la agenda de Víctor**. Es justo lo que `casos-de-uso.md` §2 dice que no
+debe pasar —*«Víctor no autoriza órdenes de compra y Erick no mueve vehículos de espacio»*— y es
+la separación de funciones que un sistema de control existe para hacer visible. La frontera del
+módulo ya está donde va a ir; falta separar los roles en `ROLES` y en `USUARIO_ROL`.

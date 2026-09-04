@@ -1,13 +1,16 @@
 import { useState } from 'react'
 import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
-import { clearSession, getUser, rolPrincipal } from './api.js'
-import Login from './pages/Login.jsx'
-import Chofer from './pages/Chofer.jsx'
-import Supervisor from './pages/Supervisor.jsx'
-import Administrador from './pages/Administrador.jsx'
-import Montacarguista from './pages/Montacarguista.jsx'
-import Gerente from './pages/Gerente.jsx'
-import Notificaciones from './pages/Notificaciones.jsx'
+import { clearSession, getUser, rolPrincipal } from './core/sesion.js'
+import { alternarTema, temaActual } from './core/tema.js'
+import Login from './modules/acceso/LoginPage.jsx'
+import Chofer from './modules/chofer/ChoferPage.jsx'
+import Supervisor from './modules/supervisor/SupervisorPage.jsx'
+import Administrador from './modules/administrador/AdministradorPage.jsx'
+import Capturista from './modules/capturista/CapturistaPage.jsx'
+import Montacarguista from './modules/montacarguista/MontacarguistaPage.jsx'
+import Gerente from './modules/gerente/GerentePage.jsx'
+import Notificaciones from './modules/sistema/NotificacionesPage.jsx'
+import { Logo } from './ui/Logo.jsx'
 
 /** Cada rol ve solo su modulo. El servidor lo vuelve a validar (RNF-04). */
 const MODULOS = {
@@ -25,10 +28,18 @@ const MODULOS = {
   ] },
   administrador: { titulo: 'Administrador', Componente: Administrador, tabs: [
     { to: '/', ico: '📥', txt: 'Solicitudes' },
+    { to: '/agenda', ico: '📅', txt: 'Agenda' },
     { to: '/plano', ico: '🅿️', txt: 'Plano' },
+    { to: '/almacen', ico: '📦', txt: 'Almacén' },
     { to: '/ordenes', ico: '🔧', txt: 'Órdenes' },
     { to: '/presupuestos', ico: '💰', txt: 'Presupuestos' },
+    { to: '/reportes', ico: '📋', txt: 'Reportes' },
     { to: '/hoja', ico: '🖨️', txt: 'Hoja' },
+  ] },
+  capturista: { titulo: 'Capturista', Componente: Capturista, tabs: [
+    { to: '/', ico: '📋', txt: 'Requisiciones' },
+    { to: '/capturar', ico: '✏️', txt: 'Capturar' },
+    { to: '/pendientes', ico: '🔎', txt: 'Pendientes' },
   ] },
   montacarguista: { titulo: 'Montacarguista', Componente: Montacarguista, tabs: [
     { to: '/', ico: '🚨', txt: 'Alertas' },
@@ -42,6 +53,18 @@ const MODULOS = {
     { to: '/presupuestos', ico: '💰', txt: 'Presupuestos' },
     { to: '/alertas', ico: '🔔', txt: 'Alertas' },
   ] },
+}
+
+/** Interruptor de tema. Claro por defecto; el oscuro se enciende a mano. */
+function BotonTema() {
+  const [tema, setTema] = useState(temaActual)
+  const oscuro = tema === 'dark'
+  return (
+    <button className="btn sm theme-btn" onClick={() => setTema(alternarTema())}
+            aria-pressed={oscuro} title={oscuro ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}>
+      {oscuro ? '☀' : '☾'}<span className="solo-ancho">{oscuro ? 'Claro' : 'Oscuro'}</span>
+    </button>
+  )
 }
 
 export default function App() {
@@ -68,7 +91,7 @@ export default function App() {
   return (
     <div className="app">
       <nav className="nav">
-        <span className="nav-brand">Baja<span>Gas</span></span>
+        <span className="nav-brand"><Logo alto={30} /></span>
         {modulo.tabs.map((t) => (
           <NavLink key={t.to} to={t.to} end={t.to === '/'}
                    className={({ isActive }) => (isActive ? 'active' : '')}>
@@ -80,9 +103,10 @@ export default function App() {
 
       <div className="main-col">
         <header className="topbar">
-          <span className="brand">Baja<span>Gas</span></span>
+          <span className="brand"><Logo alto={24} /></span>
           <span className="rolechip">{modulo.titulo}</span>
           <span className="spacer" />
+          <BotonTema />
           <NavLink to="/notificaciones" className="btn sm" title="Notificaciones">🔔</NavLink>
           <button className="btn sm" onClick={salir} title="Cerrar sesión">Salir</button>
         </header>

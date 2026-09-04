@@ -4,9 +4,32 @@ Prototipo funcional construido sobre los documentos de análisis que están en [
 **React** en el frontend, **Python (FastAPI)** en el backend. Responsivo: el chofer y el
 montacarguista trabajan desde el teléfono, el administrador y el gerente desde escritorio.
 
-> **v1.1** — Los mecánicos **no usan la aplicación**. Son 5 módulos, no 6. El administrador
-> captura el trabajo que el mecánico le entrega en papel, y todo dato capturado guarda dos
-> responsables: quién lo hizo y quién lo tecleó.
+> **v1.1** — Los mecánicos **no usan la aplicación**. El administrador captura el trabajo que el
+> mecánico le entrega en papel, y todo dato capturado guarda dos responsables: quién lo hizo y
+> quién lo tecleó.
+>
+> **v1.2** — Se agrega el módulo del **capturista de datos**, que es un puesto real del taller de
+> Álamos (empleado 13905). Son 6 módulos. Su trabajo diario —el libro `REQUIS`— entra al sistema
+> como entidad propia: **99 requisiciones reales con 383 renglones**, importadas del Excel.
+>
+> **v1.3** — Entra el **REPORTE DE MANTENIMIENTO**: el formato de papel que se llena en la
+> pluma de Álamos, con su revisión rápida de 11 puntos, los 10 sistemas del vehículo y las 5
+> firmas del pie. Se captura y se imprime tal como está impreso el papel.
+>
+> El formato **nace con el ingreso** —al aceptar la solicitud— y se queda abierto; el plano es su
+> puerta de entrada; y la pantalla de **Órdenes pasa a ser de consulta**, porque pedía las mismas
+> cuatro capturas que el formato.
+>
+> **v1.4** — El plano de Álamos se dibuja como el **croquis del Excel**: las dos filas de cajones
+> enfrentadas, el pasillo de circulación en medio, salida y entrada a los lados, y el patio, el
+> lavado y el yonke aparte. **Cerrar el formato ES la salida**: se libera el cajón, se cierra la
+> orden y la unidad deja de estar en el taller. Una unidad que ya está adentro **no puede pedir
+> ingreso**. Y el formato impreso **cabe en una hoja**.
+>
+> **v1.5** — El croquis se corrige contra lo que hay en el piso: la fosa son **cuatro** lugares, el
+> patio son **55** en dos bloques (diez arriba, cuarenta y cinco abajo) y el **yonke no guarda
+> vehículos**, guarda piezas y partes. Las puertas quedan fijas a los extremos aunque el croquis
+> ruede de lado. Y al asignarle lugar a una unidad, el sistema **te lleva a su formato**.
 
 ---
 
@@ -36,17 +59,38 @@ cero, borra ese archivo.
 
 Todos con la contraseña `demo1234`:
 
-| Correo | Rol | Para qué sirve en el demo |
-|---|---|---|
-| `gerente@bajagas.mx` | Gerente | Tablero, aprobar presupuestos, alertas |
-| `admin@bajagas.mx` | Administrador | Espacios, colas de trabajo, captura del mecánico |
-| `supervisor@bajagas.mx` | Supervisor | Cuadrilla, préstamos, despacho de apoyo |
-| `chofer1@bajagas.mx` | Chofer (Luis) | Titular de la U-101, presta unidades |
-| `chofer2@bajagas.mx` | Chofer (Ana) | Recibe unidades prestadas |
-| `montacargas@bajagas.mx` | Montacarguista | Arrastres |
+Todas son **personas reales** del Excel del cliente, con su número de empleado. La convención de
+correo es la misma para todos:
+
+- con número de empleado → `e<num>@bajagas.mx`
+- sin número (los supervisores no lo traen en el Excel) → `<nombre+sucursal, 12 letras>@bajagas.mx`
+
+| Correo | Rol | Persona | Para qué sirve en el demo |
+|---|---|---|---|
+| `gerente@bajagas.mx` | Gerente | Luis Siscareño | Tablero, aprobar presupuestos, alertas |
+| `e925@bajagas.mx` | Administrador | Erick Ávalos | Presupuestos, compras, enlace con gerencia |
+| `e10853@bajagas.mx` | Administrador | Pedro Montaño | Espacios, colas de trabajo, almacén |
+| `e647@bajagas.mx` | Administrador | Víctor Sallas | Agenda de mantenimiento |
+| `e13905@bajagas.mx` | **Capturista** | Jaime Yair Domínguez | Las 99 requisiciones del libro `REQUIS` |
+| `ricardoandre@bajagas.mx` | **Supervisor** | Ricardo Andrés Flores | Carranza, la cuadrilla más grande: **55 choferes** |
+| `e3145@bajagas.mx` | **Chofer** | Blas Mauricio Cota | Titular de la **1009**, Tecate |
+| `e4932@bajagas.mx` | Montacarguista | Rubén Espejo | Arrastres |
+
+**Los 297 choferes y los 13 supervisores tienen cuenta**, no solo los de arriba: los crea el
+importador desde `INFO CHOFERES 2026 ACTUAL.xlsx`. Los de la tabla son solo la puerta de entrada
+al demo; a cualquier otro se entra con su correo.
 
 Los mecánicos **no tienen cuenta**: están en el catálogo `TECNICO` y se les asigna trabajo, pero
-no inician sesión.
+no inician sesión. Por eso existe el capturista.
+
+### Cargar los datos reales
+
+Las cuentas de arriba salen del Excel, así que hay que correr el importador una vez (es
+idempotente: correrlo dos veces no duplica nada):
+
+```bash
+cd backend && python -m app.importador
+```
 
 ---
 
@@ -79,9 +123,11 @@ Como **Administrador** → *Solicitudes* → **Atender**. El sistema cuenta los 
 **admiten ese tipo de unidad**: una pipa no cabe en un espacio de reparto. Si no hay, solo puedes
 dejarla en cola o rechazarla con motivo.
 
-En *Plano* está el taller tal como viene en el Excel del cliente: 12 zonas, 44 espacios
-operativos. El **yonke (45 posiciones)** y el **área de lavado** aparecen atenuados porque no
-cuentan para la ocupación; si contaran, el indicador del gerente saldría inflado.
+En *Plano* está el taller dibujado como el croquis del Excel: 12 zonas. **31 bahías de
+reparación** —las que sí son capacidad de atención— más la fosa (4), el patio (55) y el área de
+lavado (1), que admiten unidad pero aparecen atenuados porque **no cuentan para la ocupación**;
+si contaran, el indicador del gerente saldría inflado. El **yonke no tiene cajones**: ahí hay
+piezas y partes, no vehículos.
 
 ### 4. El presupuesto pasa por el administrador (RN-07 + RN-11)
 
@@ -95,29 +141,111 @@ cuentan para la ocupación; si contaran, el indicador del gerente saldría infla
    constancia con fecha y hora.
 6. En *Hoja* imprimes la cola del día para entregarla en papel a los técnicos.
 
+### 5. El capturista teclea un papel, y el sistema ve lo que el Excel no ve
+
+Entra como **Jaime Yair** (`e13905@bajagas.mx`). Abre con **99 requisiciones reales** de julio y
+agosto —las que ya tecleó en `REQUIS 2026 2.xlsx`—, no con una tabla vacía.
+
+1. *Requisiciones* → busca **J332**. Salen **cinco**, con cinco unidades y tres fechas distintas:
+   el folio se reutiliza en el libro real. Por eso el sistema **avisa** de un folio repetido pero
+   no lo prohíbe.
+2. Abre cualquiera: cada renglón dice si su código **casó contra el catálogo**. En la importación
+   limpia casan 362 de 383 (94.5 %).
+3. *Pendientes* → los códigos que el catálogo no reconoce, **ordenados por cuántas veces se
+   pidieron**. El primero es `237334` (FILTRO DIESEL CNJ 4T) con **20 pedidos**: no es un error de
+   dedo, es una refacción que el taller usa y `MATERIALES` no tiene dada de alta.
+4. *Capturar* → teclea un papel. Si repites folio, fecha y unidad, el sistema te enseña la
+   anterior y te obliga a decir «sí es otro papel» para guardarlo igual — la misma lógica que el
+   sobrecupo de la agenda: duplicar queda como una decisión con dueño.
+
+Lo que el Excel no puede hacer y esto sí: detectar el papel tecleado dos veces (pasó una vez,
+`J299`), ligar cada renglón a la pieza del catálogo, y dejar constancia de **quién** tecleó cada
+documento.
+
+### 6. El formato de la pluma deja de ser solo papel
+
+El `REPORTE DE MANTENIMIENTO` **no se levanta**: nace solo cuando se le da acceso al vehículo.
+
+1. Como **Blas** (chofer) → *Taller* → **Solicitar ingreso**. Como **Pedro** → *Solicitudes* →
+   **Atender**: ahí sale el croquis para elegir la casilla. Al asignarla, el sistema **te lleva
+   directo al formato** de esa unidad —ya abierto, ligado a la orden, con sus 11 puntos y sus 10
+   sistemas, el poseedor (RN-01) y el kilometraje—. Aceptar el ingreso y empezar el formato son el
+   mismo movimiento: dejarlo en la bandeja significaba que alguien tenía que acordarse de ir a
+   buscarlo a *Reportes*.
+2. *Plano* → toca la casilla donde quedó. Sale **su formato**, **quién la está atendiendo** y
+   **qué administrador la colocó ahí**. Cada uno atiende sus vehículos; sin ese dato nadie sabe
+   a quién preguntarle.
+3. **Abrir el formato** → *Capturar* llena los diez sistemas con lo que el mecánico entregó en
+   papel, cada uno con su responsable. Cada renglón guarda quién lo hizo y quién lo tecleó
+   (RN-11).
+4. **Reasignar** un sistema: exige motivo. Se le atravesó otro trabajo al mecánico, y eso hay que
+   poder explicarlo en un mes. Queda en bitácora con el nombre anterior.
+5. *Reportes* → **Buscar** por unidad, por rango de fechas y por trabajador. Los tres se
+   combinan.
+6. **Cerrar y sellar salida** sin firmas: el sistema dice *cuáles* faltan, no «Error 409». Con el
+   Vo. Bo. y la firma de quien recibe, se cierra — y ya no se puede reescribir.
+7. **Imprimir**: sale la hoja sola, sin menú ni botones, con el logo en la esquina, en tinta
+   negra y con los renglones en blanco donde el mecánico escribe a mano.
+
+El **patio** es la sala de espera: admite unidades pero no cuenta como capacidad de atención, así
+que estacionar ahí no infla el indicador de ocupación del gerente. Desde el menú de la casilla,
+**Mover a otro espacio** lista los cajones libres agrupados por zona —con la sala de espera
+marcada— y mueve la unidad ahí mismo.
+
+### 7. Lo que el croquis dejó ver
+
+El plano de Álamos ya no es una lista de zonas: es el dibujo del Excel. Y al dibujarlo salieron a
+la luz varios datos que llevaban tiempo mal en la base, porque mientras el plano era una lista
+nadie los notaba:
+
+| | Estaba | Es |
+|---|---|---|
+| Fosa | 1 lugar | **4** |
+| Patio | 12 lugares | **55**: diez arriba y cuarenta y cinco abajo |
+| Yonke | 45 cajones para vehículos | **ninguno**: ahí hay piezas y partes |
+
+El bloque de 45 del croquis, que estaba etiquetado como yonke, es en realidad **la parte de abajo
+del patio**. `asegurar_plano` ahora cuadra el conteo contra `LAYOUT_TALLER` al arrancar: agrega lo
+que falta y quita lo que sobra **solo si está libre** —una casilla de más con una unidad adentro se
+deja y se reporta, porque borrarla dejaría huérfana una ocupación abierta.
+
 ---
 
 ## Estructura
 
+Un paquete por área del diagrama de clases, con sus modelos y su controlador juntos.
+
 ```
 backend/
   app/
-    models.py       38 entidades — implementa docs/modelo-er.md
+    core/           database, security (JWT y RBAC), migraciones, tiempo
+    models.py       fachada: reexporta las entidades de modules/
     services.py     reglas de negocio y restricciones RI-01..RI-13
-    security.py     JWT, hash de contraseñas, RBAC por rol
-    jobs.py         CU-AUT-01..03: penalizaciones, alertas, préstamos vencidos
-    seed.py         datos semilla, incluido el plano del taller
-    routers/        un archivo por módulo
+    jobs.py         CU-AUT-*: penalizaciones, alertas, préstamos vencidos
+    seed.py         catálogos, plano del taller y cuentas reales
+    importador.py   carga datos/*.xlsx: personas, flota, refacciones, requisiciones
+    modules/
+      organizacion/ Usuario, Rol, Chofer, Supervisor, Técnico + auth
+      flota/        Unidad, Préstamo, Jornada + chofer y supervisor
+      taller/       Zonas, espacios, ocupación + administrador
+      mantenimiento/ Planes, citas, agenda
+      ordenes/      Solicitud de ingreso, orden de servicio, traslados,
+                    reporte de mantenimiento (el formato de papel)
+      piezas/       Pieza, Presupuesto, Compra, Requisición + capturista
+      emergencias/  Avería, auxilio, arrastre + montacarguista
+      sistema/      Notificaciones, bitácora + gerente
+datos/              los .xlsx del cliente, versionados con el proyecto
 frontend/
   src/
-    api.js          cliente HTTP, sesión y formatos
+    core/           api.js (HTTP), sesion.js, tema.js
+    ui/             Card, Tabla, Modal, Badge, useApi, toasts, BuscadorPieza
     App.jsx         ruteo por rol (nav inferior en móvil, lateral en escritorio)
-    components/ui.jsx  Card, Tabla, Modal, Badge, useApi, toasts
-    pages/          Chofer, Supervisor, Administrador, Montacarguista, Gerente
+    modules/        acceso, chofer, supervisor, administrador, capturista,
+                    montacarguista, gerente, sistema
 docs/
-  requerimientos.md   88 requerimientos con MoSCoW y roadmap
+  requerimientos.md   requerimientos con MoSCoW y roadmap
   modelo-er.md        modelo entidad-relación
-  casos-de-uso.md     63 casos de uso
+  casos-de-uso.md     catálogo de casos de uso
   diagramas/          SVG de casos de uso + index.html para verlos
 ```
 
@@ -160,7 +288,7 @@ Para que quede claro qué falta antes de llamarlo producto:
 | RF-GEN-09 Modo offline | **No** | La app del chofer necesita service worker y cola de sincronización. |
 | RF-GEN-10 Evidencia fotográfica | **Parcial** | `EVIDENCIA` existe en el modelo y se guarda texto; falta la subida de archivos. |
 | RF-SUP-06 Mapa de la cuadrilla | **Parcial** | Se muestran coordenadas y enlace a Google Maps; no hay mapa embebido. |
-| RF-GEN-11 Exportar a PDF/Excel | **No** | La hoja de trabajo usa la impresión del navegador. |
+| RF-GEN-11 Exportar a PDF/Excel | **No** | La hoja de trabajo y el reporte usan la impresión del navegador. El reporte está medido para caber en una carta. |
 | Los jobs automáticos | **Manual** | Se disparan con el botón del gerente. En producción van en un cron diario. |
 
 Los tres primeros son *Should* en el MoSCoW, no *Must*: el sistema es usable sin ellos.

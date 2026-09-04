@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1250" height="820" viewBox="0 0 1250 820">
+<svg xmlns="http://www.w3.org/2000/svg" width="1250" height="940" viewBox="0 0 1250 940">
 <defs>
   <marker id="oarrow" markerWidth="10" markerHeight="10" refX="9" refY="3.5" orient="auto">
     <path d="M0,0 L9,3.5 L0,7" fill="none" stroke="#6b7280" stroke-width="1.2"/>
@@ -7,16 +7,16 @@
     <path d="M0,0 L11,5 L0,10 Z" fill="#ffffff" stroke="#6b7280" stroke-width="1.2"/>
   </marker>
 </defs>
-<rect width="1250" height="820" fill="#ffffff"/>
-<text x="24" y="30" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#1f2933">Diagrama 2 - Modulo Supervisor</text>
-<rect x="296" y="62" width="660" height="720" rx="10" fill="#f8fafc" stroke="#1f2933" stroke-width="1.4"/>
+<rect width="1250" height="940" fill="#ffffff"/>
+<text x="24" y="30" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#1f2933">Diagrama 2 - Modulo Supervisor (v2.0)</text>
+<rect x="296" y="62" width="660" height="810" rx="10" fill="#f8fafc" stroke="#1f2933" stroke-width="1.4"/>
 <text x="626.0" y="86" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12.5" font-weight="700" fill="#1f2933" text-anchor="middle" letter-spacing="0.6">MODULO SUPERVISOR</text>
-<circle cx="155" cy="349" r="9" fill="none" stroke="#1f2933" stroke-width="2"/>
-<line x1="155" y1="358" x2="155" y2="384" stroke="#1f2933" stroke-width="2"/>
-<line x1="140" y1="367" x2="170" y2="367" stroke="#1f2933" stroke-width="2"/>
-<line x1="155" y1="384" x2="142" y2="404" stroke="#1f2933" stroke-width="2"/>
-<line x1="155" y1="384" x2="168" y2="404" stroke="#1f2933" stroke-width="2"/>
-<text x="155" y="420" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2933" text-anchor="middle">Supervisor</text>
+<circle cx="155" cy="389" r="9" fill="none" stroke="#1f2933" stroke-width="2"/>
+<line x1="155" y1="398" x2="155" y2="424" stroke="#1f2933" stroke-width="2"/>
+<line x1="140" y1="407" x2="170" y2="407" stroke="#1f2933" stroke-width="2"/>
+<line x1="155" y1="424" x2="142" y2="444" stroke="#1f2933" stroke-width="2"/>
+<line x1="155" y1="424" x2="168" y2="444" stroke="#1f2933" stroke-width="2"/>
+<text x="155" y="460" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2933" text-anchor="middle">Supervisor</text>
 <circle cx="1105" cy="385" r="9" fill="none" stroke="#6b7280" stroke-width="2"/>
 <line x1="1105" y1="394" x2="1105" y2="420" stroke="#6b7280" stroke-width="2"/>
 <line x1="1090" y1="403" x2="1120" y2="403" stroke="#6b7280" stroke-width="2"/>
@@ -29,25 +29,25 @@
 <line x1="1105" y1="580" x2="1092" y2="600" stroke="#6b7280" stroke-width="2"/>
 <line x1="1105" y1="580" x2="1118" y2="600" stroke="#6b7280" stroke-width="2"/>
 <text x="1105" y="616" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#6b7280" text-anchor="middle">Montacarguista</text>
-<circle cx="1105" cy="673" r="9" fill="none" stroke="#6b7280" stroke-width="2"/>
-<line x1="1105" y1="682" x2="1105" y2="708" stroke="#6b7280" stroke-width="2"/>
-<line x1="1090" y1="691" x2="1120" y2="691" stroke="#6b7280" stroke-width="2"/>
-<line x1="1105" y1="708" x2="1092" y2="728" stroke="#6b7280" stroke-width="2"/>
-<line x1="1105" y1="708" x2="1118" y2="728" stroke="#6b7280" stroke-width="2"/>
-<text x="1105" y="744" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#6b7280" text-anchor="middle">Mecanico (no usa</text>
-<text x="1105" y="758" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#6b7280" text-anchor="middle">la app)</text>
-<line x1="155.0" y1="372.0" x2="394.8" y2="152.3" stroke="#6b7280" stroke-width="1.3"/>
-<line x1="155.0" y1="372.0" x2="377.2" y2="246.0" stroke="#6b7280" stroke-width="1.3"/>
-<line x1="155.0" y1="372.0" x2="339.1" y2="331.8" stroke="#6b7280" stroke-width="1.3"/>
-<line x1="155.0" y1="372.0" x2="327.2" y2="394.5" stroke="#6b7280" stroke-width="1.3"/>
-<line x1="155.0" y1="372.0" x2="370.1" y2="475.3" stroke="#6b7280" stroke-width="1.3"/>
-<line x1="155.0" y1="372.0" x2="391.5" y2="568.1" stroke="#6b7280" stroke-width="1.3"/>
-<line x1="155.0" y1="372.0" x2="402.1" y2="663.1" stroke="#6b7280" stroke-width="1.3"/>
-<line x1="155.0" y1="372.0" x2="736.4" y2="574.4" stroke="#6b7280" stroke-width="1.3"/>
-<line x1="155.0" y1="372.0" x2="751.4" y2="667.0" stroke="#6b7280" stroke-width="1.3"/>
+<circle cx="1105" cy="657" r="9" fill="none" stroke="#6b7280" stroke-width="2"/>
+<line x1="1105" y1="666" x2="1105" y2="692" stroke="#6b7280" stroke-width="2"/>
+<line x1="1090" y1="675" x2="1120" y2="675" stroke="#6b7280" stroke-width="2"/>
+<line x1="1105" y1="692" x2="1092" y2="712" stroke="#6b7280" stroke-width="2"/>
+<line x1="1105" y1="692" x2="1118" y2="712" stroke="#6b7280" stroke-width="2"/>
+<text x="1105" y="728" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#6b7280" text-anchor="middle">Mecanico</text>
+<text x="1105" y="742" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#6b7280" text-anchor="middle">autonomo</text>
+<line x1="155.0" y1="412.0" x2="399.2" y2="152.7" stroke="#6b7280" stroke-width="1.3"/>
+<line x1="155.0" y1="412.0" x2="386.1" y2="247.3" stroke="#6b7280" stroke-width="1.3"/>
+<line x1="155.0" y1="412.0" x2="358.2" y2="338.1" stroke="#6b7280" stroke-width="1.3"/>
+<line x1="155.0" y1="412.0" x2="318.1" y2="409.6" stroke="#6b7280" stroke-width="1.3"/>
+<line x1="155.0" y1="412.0" x2="354.7" y2="478.8" stroke="#6b7280" stroke-width="1.3"/>
+<line x1="155.0" y1="412.0" x2="384.5" y2="568.9" stroke="#6b7280" stroke-width="1.3"/>
+<line x1="155.0" y1="412.0" x2="398.4" y2="663.4" stroke="#6b7280" stroke-width="1.3"/>
+<line x1="155.0" y1="412.0" x2="406.0" y2="758.8" stroke="#6b7280" stroke-width="1.3"/>
+<line x1="155.0" y1="412.0" x2="728.6" y2="576.6" stroke="#6b7280" stroke-width="1.3"/>
 <line x1="1105.0" y1="408.0" x2="542.0" y2="408.0" stroke="#6b7280" stroke-width="1.3"/>
 <line x1="1105.0" y1="568.0" x2="915.5" y2="588.6" stroke="#6b7280" stroke-width="1.3"/>
-<line x1="1105.0" y1="696.0" x2="922.0" y2="696.0" stroke="#6b7280" stroke-width="1.3" stroke-dasharray="5 5"/>
+<line x1="1105.0" y1="680.0" x2="893.5" y2="622.7" stroke="#6b7280" stroke-width="1.3"/>
 <line x1="542.0" y1="600.0" x2="698.0" y2="600.0" stroke="#6b7280" stroke-width="1.2" stroke-dasharray="6 4" marker-end="url(#oarrow)"/>
 <rect x="588.0" y="592.0" width="64" height="15" fill="#ffffff" opacity="0.95"/>
 <text x="620.0" y="603.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="9.5" fill="#6b7280" text-anchor="middle">&#171;extend&#187;</text>
@@ -80,13 +80,14 @@
 <text x="430" y="695" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11.5" fill="#1f2933" text-anchor="middle">mantenimiento de la</text>
 <text x="430" y="709" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11.5" fill="#1f2933" text-anchor="middle">cuadrilla</text>
 <text x="430" y="724" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#6b7280" text-anchor="middle" letter-spacing="0.4">CU-SUP-08</text>
+<ellipse cx="430" cy="792" rx="112" ry="34" fill="#ffffff" stroke="#1d4ed8" stroke-width="1.6"/>
+<text x="430" y="784" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11.5" fill="#1f2933" text-anchor="middle">Consultar citas de taller</text>
+<text x="430" y="798" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11.5" fill="#1f2933" text-anchor="middle">de mi cuadrilla</text>
+<text x="430" y="813" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#6b7280" text-anchor="middle" letter-spacing="0.4">CU-SUP-09</text>
 <ellipse cx="810" cy="600" rx="112" ry="34" fill="#ffffff" stroke="#1d4ed8" stroke-width="1.6"/>
-<text x="810" y="592" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11.5" fill="#1f2933" text-anchor="middle">Despachar apoyo a la</text>
-<text x="810" y="606" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11.5" fill="#1f2933" text-anchor="middle">unidad varada</text>
+<text x="810" y="592" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11.5" fill="#1f2933" text-anchor="middle">Escalar auxilio sin</text>
+<text x="810" y="606" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11.5" fill="#1f2933" text-anchor="middle">respuesta</text>
 <text x="810" y="621" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#6b7280" text-anchor="middle" letter-spacing="0.4">CU-SUP-07</text>
-<ellipse cx="810" cy="696" rx="112" ry="34" fill="#ffffff" stroke="#1d4ed8" stroke-width="1.6"/>
-<text x="810" y="688" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11.5" fill="#1f2933" text-anchor="middle">Registrar envio de</text>
-<text x="810" y="702" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11.5" fill="#1f2933" text-anchor="middle">mecanico a sitio</text>
-<text x="810" y="717" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#6b7280" text-anchor="middle" letter-spacing="0.4">CU-SUP-09</text>
-<text x="24" y="802" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10.5" fill="#6b7280">CU-SUP-09 absorbe al antiguo CU-MEC-07: como el mecanico no tiene app, el supervisor registra el envio a sitio. La linea punteada marca un actor que no opera el sistema.</text>
+<text x="24" y="898" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10.5" fill="#6b7280">CU-SUP-07 solo ocurre si nadie acepto la orden de auxilio difundida. CU-SUP-09 es nuevo: como la agenda es automatica, el supervisor necesita ver cuando le toca</text>
+<text x="24" y="913" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10.5" fill="#6b7280">taller a cada unidad de su cuadrilla.</text>
 </svg>

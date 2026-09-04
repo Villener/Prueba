@@ -1,0 +1,917 @@
+<title>Procesos de Flota y Taller</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --papel:#FBFCFD;
+  --bg:#EEF1F4; --sup:#FFFFFF; --sup-2:#F5F7F9;
+  --linea:rgba(15,26,34,.13); --linea-2:rgba(15,26,34,.07);
+  --ink:#0F1A22; --ink-2:#485966; --tenue:#78899A;
+  --acero:#0E5F8F; --acero-2:#2683BC; --acero-suave:#DCE9F3;
+  --marina:#0D4273; --verde:#0B7C3E;
+  --ambar:#9C6B08; --ambar-bg:#FBF2DE; --rojo:#B62E2E; --rojo-bg:#FAE8E8;
+  --r:4px;
+  --disp:"Archivo","Bahnschrift","DIN Alternate",system-ui,sans-serif;
+  --texto:"Source Sans 3","Segoe UI",system-ui,sans-serif;
+  --dato:"IBM Plex Mono",Consolas,ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0D1319; --sup:#151E25; --sup-2:#1A242C;
+    --linea:rgba(226,235,241,.15); --linea-2:rgba(226,235,241,.08);
+    --ink:#E4EDF3; --ink-2:#9DB0BE; --tenue:#7A8B99;
+    --acero:#4EA3D8; --acero-2:#75BCE8; --acero-suave:#183246;
+    --marina:#7FB6DE; --verde:#4CC47F;
+    --ambar:#E5B345; --ambar-bg:#2A2415; --rojo:#E9807F; --rojo-bg:#2B1A1B;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0D1319; --sup:#151E25; --sup-2:#1A242C;
+  --linea:rgba(226,235,241,.15); --linea-2:rgba(226,235,241,.08);
+  --ink:#E4EDF3; --ink-2:#9DB0BE; --tenue:#7A8B99;
+  --acero:#4EA3D8; --acero-2:#75BCE8; --acero-suave:#183246;
+  --marina:#7FB6DE; --verde:#4CC47F;
+  --ambar:#E5B345; --ambar-bg:#2A2415; --rojo:#E9807F; --rojo-bg:#2B1A1B;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--texto); font-size:16px; line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+.env{max-width:1120px; margin:0 auto; padding:34px 22px 90px; display:flex; flex-direction:column; gap:30px}
+a{color:var(--acero)}
+
+/* -------------------------------------------------------------- cabecera -- */
+.cab{border-top:3px solid var(--acero); background:var(--sup); border:1px solid var(--linea);
+     border-top:3px solid var(--acero); border-radius:var(--r); padding:26px 26px 22px;
+     display:flex; flex-direction:column; gap:12px}
+.ojo{font-family:var(--disp); font-size:.7rem; font-weight:600; letter-spacing:.19em;
+     text-transform:uppercase; color:var(--acero)}
+.cab h1{font-family:var(--disp); font-weight:700; font-size:clamp(1.7rem,4vw,2.4rem);
+        margin:0; letter-spacing:-.015em; text-wrap:balance; line-height:1.12}
+.cab p{margin:0; max-width:66ch; color:var(--ink-2)}
+.pie-cab{display:flex; flex-wrap:wrap; gap:8px 20px; padding-top:12px;
+         border-top:1px solid var(--linea-2); font-family:var(--dato);
+         font-size:.74rem; color:var(--tenue)}
+
+/* --------------------------------------------------------------- resumen -- */
+.tira{display:grid; grid-template-columns:repeat(auto-fit,minmax(132px,1fr)); gap:1px;
+      background:var(--linea); border:1px solid var(--linea); border-radius:var(--r); overflow:hidden}
+.tira div{background:var(--sup); padding:14px 16px}
+.tira b{display:block; font-family:var(--disp); font-size:1.75rem; font-weight:700;
+        line-height:1; font-variant-numeric:tabular-nums}
+.tira span{font-size:.75rem; color:var(--tenue); letter-spacing:.03em}
+
+.panel{background:var(--sup); border:1px solid var(--linea); border-radius:var(--r); overflow:hidden}
+.panel > h2{font-family:var(--disp); font-size:.76rem; font-weight:600; letter-spacing:.16em;
+   text-transform:uppercase; color:var(--ink-2); margin:0; padding:14px 18px;
+   border-bottom:1px solid var(--linea); background:var(--sup-2)}
+.panel .cuerpo{padding:18px}
+
+/* ------------------------------------------------------------------ tabla -- */
+.tw{overflow-x:auto}
+table{border-collapse:collapse; width:100%; min-width:760px; font-size:.86rem}
+th{font-family:var(--disp); font-size:.68rem; font-weight:600; letter-spacing:.13em;
+   text-transform:uppercase; color:var(--tenue); text-align:left;
+   padding:10px 14px; border-bottom:1px solid var(--linea); white-space:nowrap}
+td{padding:11px 14px; border-bottom:1px solid var(--linea-2); vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tbody tr:hover{background:var(--sup-2)}
+td.id{font-family:var(--dato); font-weight:500}
+td.id a{text-decoration:none}
+td.id a:hover{text-decoration:underline}
+td.nom{font-weight:600; white-space:nowrap}
+td.dueno{color:var(--ink-2); white-space:nowrap}
+td.rompe{color:var(--ink-2); font-size:.82rem}
+
+/* --------------------------------------------------- barra de traspasos --- */
+.tras{white-space:nowrap}
+.barra{display:inline-flex; gap:2px; vertical-align:middle}
+.barra i{width:7px; height:15px; background:var(--linea); border-radius:1px; display:block}
+.barra.normal i.on{background:var(--acero)}
+.barra.alto i.on{background:var(--ambar)}
+.barra.critico i.on{background:var(--rojo)}
+.barra-n{font-family:var(--dato); font-size:.78rem; margin-left:8px; color:var(--ink-2);
+         font-variant-numeric:tabular-nums}
+
+.chip{display:inline-block; font-family:var(--disp); font-size:.64rem; font-weight:600;
+      letter-spacing:.11em; text-transform:uppercase; padding:3px 8px; border-radius:2px;
+      border:1px solid currentColor; white-space:nowrap}
+.t-sustantivo{color:var(--acero)}
+.t-apoyo{color:var(--verde)}
+.t-control{color:var(--ambar)}
+.t-soporte{color:var(--tenue)}
+
+/* --------------------------------------------------------------- leyenda -- */
+.leyenda{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px 26px}
+.leyenda div{display:flex; gap:10px; align-items:baseline; font-size:.85rem; color:var(--ink-2)}
+.leyenda code{font-family:var(--dato); font-size:.78rem; background:var(--sup-2);
+      border:1px solid var(--linea-2); border-radius:2px; padding:1px 6px; color:var(--ink); flex:none}
+
+/* -------------------------------------------------------------- procesos -- */
+.proceso{background:var(--sup); border:1px solid var(--linea); border-radius:var(--r);
+         overflow:hidden; scroll-margin-top:20px}
+.ph{display:flex; align-items:center; gap:13px; flex-wrap:wrap;
+    padding:16px 20px; border-bottom:1px solid var(--linea); background:var(--sup-2)}
+.ph-id{font-family:var(--dato); font-weight:500; font-size:.8rem; color:var(--sup);
+       background:var(--acero); padding:3px 9px; border-radius:2px; letter-spacing:.04em}
+.ph h2{font-family:var(--disp); font-weight:600; font-size:1.12rem; margin:0; flex:1;
+       letter-spacing:-.005em; min-width:min(100%,16ch)}
+.ph-meta{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+         gap:14px 24px; margin:0; padding:16px 20px; border-bottom:1px solid var(--linea-2)}
+.ph-meta .ancho{grid-column:1/-1}
+.ph-meta dt{font-family:var(--disp); font-size:.63rem; font-weight:600; letter-spacing:.14em;
+            text-transform:uppercase; color:var(--tenue); margin-bottom:3px}
+.ph-meta dd{margin:0; font-size:.88rem; color:var(--ink)}
+.ph-meta .ancho dd{color:var(--ink-2)}
+
+/* Los diagramas van sobre hoja clara SIEMPRE, en los dos temas: son planos
+   sobre la mesa de trabajo. Ademas mermaid dibuja con su tema claro y sobre
+   fondo oscuro quedaria ilegible. */
+.hoja{background:var(--papel); border-top:1px solid var(--linea);
+      padding:20px 18px; overflow-x:auto}
+pre.mermaid{margin:0; background:transparent; text-align:center; min-width:min-content}
+pre.mermaid svg{max-width:100%; height:auto}
+
+/* ---------------------------------------------------------------- cierre -- */
+.nota{border-left:3px solid var(--acero); background:var(--acero-suave);
+      padding:14px 18px; border-radius:0 var(--r) var(--r) 0; font-size:.89rem}
+.nota strong{color:var(--ink)}
+.ciclos{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:14px; margin-top:16px}
+.ciclo{border:1px solid var(--linea); border-radius:var(--r); padding:14px 16px; font-size:.87rem}
+.ciclo h3{font-family:var(--disp); font-size:.72rem; font-weight:600; letter-spacing:.14em;
+          text-transform:uppercase; margin:0 0 6px}
+.ciclo.sano{border-left:3px solid var(--verde)} .ciclo.sano h3{color:var(--verde)}
+.ciclo.caro{border-left:3px solid var(--rojo)} .ciclo.caro h3{color:var(--rojo)}
+.ciclo p{margin:0; color:var(--ink-2)}
+.ciclo .ruta{font-family:var(--dato); font-size:.78rem; color:var(--ink); display:block; margin-bottom:5px}
+
+.deriva td:first-child{font-family:var(--dato); color:var(--tenue); width:1%}
+footer{color:var(--tenue); font-size:.8rem; font-family:var(--dato);
+       border-top:1px solid var(--linea); padding-top:16px}
+:focus-visible{outline:2px solid var(--acero-2); outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+@media (max-width:620px){
+  .env{padding:20px 14px 60px; gap:22px}
+  .cab{padding:20px}
+  td.rompe{display:none} th:last-child{display:none}
+}
+</style>
+
+<div class="env">
+
+  <header class="cab">
+    <span class="ojo">Baja Gas · Sistema de Gestión de Flota y Taller</span>
+    <h1>Los doce procesos, y dónde se rompe cada uno</h1>
+    <p>Un diagrama de secuencia por proceso. Se eligió secuencia y no actividad porque
+       un proceso se define aquí por sus <strong>traspasos entre roles</strong>, y en una
+       secuencia cada traspaso es una flecha con emisor, receptor y nombre. Un diagrama de
+       actividad muestra el orden de los pasos pero difumina de quién es cada uno, que es
+       justo el dato que este análisis necesita.</p>
+    <div class="pie-cab">
+      <span>Deriva de docs/procesos.md §4</span>
+      <span>Numeración de casos de uso v2.0</span>
+      <span>2026-08-21</span>
+    </div>
+  </header>
+
+  <div class="tira">
+    <div><b>12</b><span>procesos</span></div>
+    <div><b>7</b><span>sustantivos</span></div>
+    <div><b>2</b><span>de apoyo</span></div>
+    <div><b>2</b><span>de control</span></div>
+    <div><b>1</b><span>de soporte</span></div>
+    <div><b>43</b><span>traspasos en total</span></div>
+  </div>
+
+  <section class="panel">
+    <h2>Inventario</h2>
+    <div class="tw">
+      <table>
+        <thead><tr>
+          <th>ID</th><th>Proceso</th><th>Tipo</th><th>Dueño</th>
+          <th>Traspasos</th><th>Dónde se rompe</th>
+        </tr></thead>
+        <tbody>
+      <tr>
+        <td class="id"><a href="#P1">P1</a></td>
+        <td class="nom">Préstamo y transferencia de responsabilidad</td>
+        <td><span class="chip t-sustantivo">Sustantivo</span></td>
+        <td class="dueno">Chofer titular</td>
+        <td class="tras"><span class="barra normal" role="img" aria-label="3 traspasos"><i class="on"></i><i class="on"></i><i class="on"></i><i class=""></i><i class=""></i><i class=""></i></span><span class="barra-n">3</span></td>
+        <td class="rompe">La ventana entre solicitar y aceptar</td>
+      </tr>
+      <tr>
+        <td class="id"><a href="#P2">P2</a></td>
+        <td class="nom">Operación diaria y supervisión de flota</td>
+        <td><span class="chip t-sustantivo">Sustantivo</span></td>
+        <td class="dueno">Supervisor</td>
+        <td class="tras"><span class="barra normal" role="img" aria-label="2 traspasos"><i class="on"></i><i class="on"></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i></span><span class="barra-n">2</span></td>
+        <td class="rompe">La jornada es un dato autodeclarado</td>
+      </tr>
+      <tr>
+        <td class="id"><a href="#P3">P3</a></td>
+        <td class="nom">Mantenimiento preventivo programado</td>
+        <td><span class="chip t-sustantivo">Sustantivo</span></td>
+        <td class="dueno">Víctor · agenda</td>
+        <td class="tras"><span class="barra normal" role="img" aria-label="3 traspasos"><i class="on"></i><i class="on"></i><i class="on"></i><i class=""></i><i class=""></i><i class=""></i></span><span class="barra-n">3</span></td>
+        <td class="rompe">Sin cupo no es culpa del chofer</td>
+      </tr>
+      <tr>
+        <td class="id"><a href="#P4">P4</a></td>
+        <td class="nom">Ingreso a taller: solicitud y admisión</td>
+        <td><span class="chip t-sustantivo">Sustantivo</span></td>
+        <td class="dueno">Pedro · piso</td>
+        <td class="tras"><span class="barra alto" role="img" aria-label="4 traspasos"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class=""></i><i class=""></i></span><span class="barra-n">4</span></td>
+        <td class="rompe">La capacidad se cuenta por tipo de espacio</td>
+      </tr>
+      <tr>
+        <td class="id"><a href="#P5">P5</a></td>
+        <td class="nom">Reparación en taller</td>
+        <td><span class="chip t-sustantivo">Sustantivo</span></td>
+        <td class="dueno">Pedro y Erick</td>
+        <td class="tras"><span class="barra critico" role="img" aria-label="6 traspasos"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="barra-n">6</span></td>
+        <td class="rompe">Cuatro traspasos en papel. Erick no tiene suplente</td>
+      </tr>
+      <tr>
+        <td class="id"><a href="#P6">P6</a></td>
+        <td class="nom">Presupuesto y autorización del gasto</td>
+        <td><span class="chip t-apoyo">Apoyo</span></td>
+        <td class="dueno">Erick · compras</td>
+        <td class="tras"><span class="barra critico" role="img" aria-label="6 traspasos"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="barra-n">6</span></td>
+        <td class="rompe">Cuando el gerente devuelve, el ciclo entero se repite</td>
+      </tr>
+      <tr>
+        <td class="id"><a href="#P7">P7</a></td>
+        <td class="nom">Compra y abasto de piezas</td>
+        <td><span class="chip t-apoyo">Apoyo</span></td>
+        <td class="dueno">Erick · compras</td>
+        <td class="tras"><span class="barra alto" role="img" aria-label="5 traspasos"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class=""></i></span><span class="barra-n">5</span></td>
+        <td class="rompe">El proveedor no está en el sistema</td>
+      </tr>
+      <tr>
+        <td class="id"><a href="#P8">P8</a></td>
+        <td class="nom">Atención de avería en ruta</td>
+        <td><span class="chip t-sustantivo">Sustantivo</span></td>
+        <td class="dueno">Chofer poseedor</td>
+        <td class="tras"><span class="barra alto" role="img" aria-label="4 traspasos"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class=""></i><i class=""></i></span><span class="barra-n">4</span></td>
+        <td class="rompe">El folio de peritaje se exige pero no se verifica</td>
+      </tr>
+      <tr>
+        <td class="id"><a href="#P9">P9</a></td>
+        <td class="nom">Arrastre y traslado a taller</td>
+        <td><span class="chip t-sustantivo">Sustantivo</span></td>
+        <td class="dueno">Montacarguista</td>
+        <td class="tras"><span class="barra alto" role="img" aria-label="5 traspasos"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class=""></i></span><span class="barra-n">5</span></td>
+        <td class="rompe">El responsable es el poseedor, nunca la grúa</td>
+      </tr>
+      <tr>
+        <td class="id"><a href="#P10">P10</a></td>
+        <td class="nom">Atención de incumplimiento de mantenimiento</td>
+        <td><span class="chip t-control">Control</span></td>
+        <td class="dueno">Gerente</td>
+        <td class="tras"><span class="barra normal" role="img" aria-label="3 traspasos"><i class="on"></i><i class="on"></i><i class="on"></i><i class=""></i><i class=""></i><i class=""></i></span><span class="barra-n">3</span></td>
+        <td class="rompe">Los avisos sin cerrar se acumulan</td>
+      </tr>
+      <tr>
+        <td class="id"><a href="#P11">P11</a></td>
+        <td class="nom">Control gerencial e indicadores</td>
+        <td><span class="chip t-control">Control</span></td>
+        <td class="dueno">Gerente</td>
+        <td class="tras"><span class="barra normal" role="img" aria-label="2 traspasos"><i class="on"></i><i class="on"></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i></span><span class="barra-n">2</span></td>
+        <td class="rompe">La alerta se apaga sin resolver nada</td>
+      </tr>
+      <tr>
+        <td class="id"><a href="#P12">P12</a></td>
+        <td class="nom">Administración de datos maestros</td>
+        <td><span class="chip t-soporte">Soporte</span></td>
+        <td class="dueno">sin dueño único</td>
+        <td class="tras"><span class="barra normal" role="img" aria-label="0 traspasos"><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i></span><span class="barra-n">0</span></td>
+        <td class="rompe">El único proceso sin traspasos, y nadie lo mantiene</td>
+      </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Cómo leerlos</h2>
+    <div class="cuerpo">
+      <div class="leyenda">
+        <div><code>Sistema</code><span>El software. Es el ⚙ de las tablas de procesos.md</span></div>
+        <div><code>──▶</code><span>Acción que alguien inicia</span></div>
+        <div><code>┈┈▶</code><span>Respuesta, notificación o retorno</span></div>
+        <div><code>alt</code><span>Caminos excluyentes: pasa uno o el otro</span></div>
+        <div><code>opt</code><span>Paso condicional: puede no ocurrir</span></div>
+        <div><code>par</code><span>Ocurre en paralelo</span></div>
+        <div><code>loop</code><span>Se repite</span></div>
+        <div><code>▨</code><span>Recuadro sombreado: donde el proceso se rompe</span></div>
+      </div>
+      <div class="nota" style="margin-top:18px">
+        <strong>Los cuatro administradores van por su nombre</strong> —Erick, Pedro, Víctor y
+        Pablo— porque no hacen lo mismo y no deben poder hacer lo mismo. Víctor no autoriza
+        órdenes de compra y Erick no mueve vehículos de espacio. Dibujarlos como un solo
+        «Administrador» escondería la separación de funciones, que es lo que un sistema de
+        control debe hacer visible.
+      </div>
+    </div>
+  </section>
+
+  <section class="proceso" id="P1">
+    <header class="ph">
+      <span class="ph-id">P1</span>
+      <h2>Préstamo y transferencia de responsabilidad</h2>
+      <span class="chip t-sustantivo">Sustantivo</span>
+    </header>
+    <dl class="ph-meta">
+      <div><dt>Dueño</dt><dd>Chofer titular</dd></div>
+      <div><dt>Traspasos</dt><dd class="tras"><span class="barra normal" role="img" aria-label="3 traspasos"><i class="on"></i><i class="on"></i><i class="on"></i><i class=""></i><i class=""></i><i class=""></i></span><span class="barra-n">3</span></dd></div>
+      <div class="ancho"><dt>Dónde se rompe</dt><dd>La ventana entre solicitar y aceptar</dd></div>
+    </dl>
+    <div class="hoja"><pre class="mermaid">sequenceDiagram
+    autonumber
+    actor T as Chofer titular
+    participant S as Sistema
+    actor Sup as Supervisor
+    actor R as Chofer receptor
+
+    T-&gt;&gt;S: Registra préstamo (receptor, motivo, fecha de retorno)
+    S--&gt;&gt;Sup: Notifica la solicitud
+    S--&gt;&gt;R: Notifica la solicitud
+
+    rect rgb(253, 235, 235)
+        Note over T,R: LA VENTANA PELIGROSA. El préstamo está solicitado pero no aceptado:&lt;br/&gt;la responsabilidad SIGUE SIENDO DEL TITULAR y eso debe verse en pantalla.&lt;br/&gt;Es el momento exacto que un chofer usaría para decir "ya la había prestado".
+    end
+
+    opt Si la operación exige visto bueno
+        Sup-&gt;&gt;S: Autoriza o veta el préstamo
+    end
+
+    R-&gt;&gt;S: Acepta la unidad
+    Note over S: AQUÍ cambia el poseedor.&lt;br/&gt;poseedorActual() pasa a devolver al receptor.
+    S--&gt;&gt;T: Confirma que ya no responde por la unidad
+
+    loop Job diario (CU-AUT-03)
+        S-&gt;&gt;S: ¿Venció la fecha de retorno?
+    end
+    S--&gt;&gt;T: La unidad regresó a tu responsabilidad
+    S--&gt;&gt;R: Ya no eres responsable</pre></div>
+  </section>
+  <section class="proceso" id="P2">
+    <header class="ph">
+      <span class="ph-id">P2</span>
+      <h2>Operación diaria y supervisión de flota</h2>
+      <span class="chip t-sustantivo">Sustantivo</span>
+    </header>
+    <dl class="ph-meta">
+      <div><dt>Dueño</dt><dd>Supervisor</dd></div>
+      <div><dt>Traspasos</dt><dd class="tras"><span class="barra normal" role="img" aria-label="2 traspasos"><i class="on"></i><i class="on"></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i></span><span class="barra-n">2</span></dd></div>
+      <div class="ancho"><dt>Dónde se rompe</dt><dd>La jornada es un dato autodeclarado</dd></div>
+    </dl>
+    <div class="hoja"><pre class="mermaid">sequenceDiagram
+    autonumber
+    actor C as Chofer
+    participant S as Sistema
+    actor Sup as Supervisor
+
+    C-&gt;&gt;S: Abre jornada
+    Note over C,S: «include» CU-CHO-04: no se abre jornada sin checklist
+    C-&gt;&gt;S: Ejecuta el checklist pre-operacional
+    S--&gt;&gt;Sup: El chofer aparece como "conduciendo" con su unidad
+
+    loop Mientras la jornada esté abierta
+        C-&gt;&gt;S: Envía su ubicación
+        Sup-&gt;&gt;S: Consulta mapa, cuadrilla y estado de cada unidad
+    end
+
+    C-&gt;&gt;S: Cierra jornada (km final)
+
+    rect rgb(253, 235, 235)
+        Note over C,Sup: DONDE SE ROMPE. Todo el módulo del supervisor depende de que el chofer&lt;br/&gt;ABRA la jornada, y es un dato autodeclarado. Sin telemetría, el chofer que no&lt;br/&gt;la abre desaparece del tablero — y es justo el que más querrías vigilar.&lt;br/&gt;Para resistirlo hay que atarla a algo que él no controle: odómetro al cargar,&lt;br/&gt;marcaje en planta o telemetría de la unidad.
+    end</pre></div>
+  </section>
+  <section class="proceso" id="P3">
+    <header class="ph">
+      <span class="ph-id">P3</span>
+      <h2>Mantenimiento preventivo programado</h2>
+      <span class="chip t-sustantivo">Sustantivo</span>
+    </header>
+    <dl class="ph-meta">
+      <div><dt>Dueño</dt><dd>Víctor · agenda</dd></div>
+      <div><dt>Traspasos</dt><dd class="tras"><span class="barra normal" role="img" aria-label="3 traspasos"><i class="on"></i><i class="on"></i><i class="on"></i><i class=""></i><i class=""></i><i class=""></i></span><span class="barra-n">3</span></dd></div>
+      <div class="ancho"><dt>Dónde se rompe</dt><dd>Sin cupo no es culpa del chofer</dd></div>
+    </dl>
+    <div class="hoja"><pre class="mermaid">sequenceDiagram
+    autonumber
+    participant P as Programador de tareas
+    participant S as Sistema
+    actor V as Víctor · agenda
+    actor C as Chofer poseedor
+    actor Sup as Supervisor
+    actor G as Gerente
+
+    P-&gt;&gt;S: Job diario: ¿venció alguna ventana de mantenimiento?
+    S-&gt;&gt;S: Genera el programa con su fecha límite (INMUTABLE)
+    S-&gt;&gt;S: CU-AUT-04 · La agenda propone cita según capacidad real
+
+    alt Hay cupo antes de la fecha límite
+        S--&gt;&gt;V: Cita propuesta
+        V-&gt;&gt;S: Confirma la cita
+        S--&gt;&gt;C: CU-AUT-05 · Aviso a 48 h
+        S--&gt;&gt;Sup: Aviso a 48 h
+        S--&gt;&gt;C: CU-AUT-05 · Aviso a 24 h
+        C-&gt;&gt;S: Confirma que se presentará
+        Note over C,S: A partir de aquí es un compromiso.&lt;br/&gt;La cita ya no se mueve sola.
+        C-&gt;&gt;S: Se presenta → entra a P4
+    else No hay cupo antes de la fecha límite
+        rect rgb(255, 247, 224)
+            S--&gt;&gt;V: Alerta de CAPACIDAD DEL TALLER
+            S--&gt;&gt;G: Alerta de CAPACIDAD DEL TALLER
+            Note over V,G: NO es incumplimiento del chofer. Si el taller nunca pudo darle&lt;br/&gt;cita, el problema es del taller y va a otro tablero.&lt;br/&gt;Antes el sistema lo castigaba por algo que no era suyo.
+        end
+    end
+
+    opt El chofer faltó a una cita CONFIRMADA
+        S-&gt;&gt;S: Genera aviso de incumplimiento → entra a P10
+    end</pre></div>
+  </section>
+  <section class="proceso" id="P4">
+    <header class="ph">
+      <span class="ph-id">P4</span>
+      <h2>Ingreso a taller: solicitud y admisión</h2>
+      <span class="chip t-sustantivo">Sustantivo</span>
+    </header>
+    <dl class="ph-meta">
+      <div><dt>Dueño</dt><dd>Pedro · piso</dd></div>
+      <div><dt>Traspasos</dt><dd class="tras"><span class="barra alto" role="img" aria-label="4 traspasos"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class=""></i><i class=""></i></span><span class="barra-n">4</span></dd></div>
+      <div class="ancho"><dt>Dónde se rompe</dt><dd>La capacidad se cuenta por tipo de espacio</dd></div>
+    </dl>
+    <div class="hoja"><pre class="mermaid">sequenceDiagram
+    autonumber
+    actor C as Chofer
+    participant S as Sistema
+    actor Pe as Pedro · piso
+    actor Sup as Supervisor
+
+    C-&gt;&gt;S: Envía solicitud de ingreso (unidad, taller, falla, urgencia)
+    S--&gt;&gt;Pe: Aparece en la bandeja de solicitudes
+
+    Note over Pe,S: «include» CU-ADM-02: nunca se decide sin revisar (RN-06)
+    Pe-&gt;&gt;S: Consulta espacios libres COMPATIBLES con el tipo de unidad
+    S--&gt;&gt;Pe: Lista de espacios que admiten esa unidad
+
+    alt Hay espacio compatible
+        Pe-&gt;&gt;S: Acepta con fecha
+        S--&gt;&gt;C: Solicitud aceptada
+        C-&gt;&gt;Pe: Se presenta físicamente en la fecha asignada
+        Pe-&gt;&gt;S: Coloca la unidad en un espacio
+        S--&gt;&gt;Sup: La unidad cambia a estado "en taller"
+    else No hay espacio
+        Pe-&gt;&gt;S: Deja en cola o rechaza con motivo
+        S--&gt;&gt;C: Estatus de la solicitud (CU-CHO-06)
+    end
+
+    rect rgb(255, 247, 224)
+        Note over Pe,S: LO QUE HAY QUE CUIDAR. La capacidad se cuenta POR TIPO DE ESPACIO,&lt;br/&gt;no en total. El taller puede estar lleno de pipas y tener libres los de reparto.&lt;br/&gt;Decir "el taller está lleno" a secas es lo que haría fallar el cálculo.
+    end</pre></div>
+  </section>
+  <section class="proceso" id="P5">
+    <header class="ph">
+      <span class="ph-id">P5</span>
+      <h2>Reparación en taller</h2>
+      <span class="chip t-sustantivo">Sustantivo</span>
+    </header>
+    <dl class="ph-meta">
+      <div><dt>Dueño</dt><dd>Pedro y Erick</dd></div>
+      <div><dt>Traspasos</dt><dd class="tras"><span class="barra critico" role="img" aria-label="6 traspasos"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="barra-n">6</span></dd></div>
+      <div class="ancho"><dt>Dónde se rompe</dt><dd>Cuatro traspasos en papel. Erick no tiene suplente</dd></div>
+    </dl>
+    <div class="hoja"><pre class="mermaid">sequenceDiagram
+    autonumber
+    actor Pe as Pedro · piso
+    participant S as Sistema
+    actor MA as Mecánico Álamos (papel)
+    actor E as Erick · captura
+    actor MS as Mecánico autónomo
+    actor C as Chofer
+
+    Pe-&gt;&gt;S: Asigna la cola de especialistas (mecánico, carrocero, electricista)
+
+    alt Mecánico ASISTIDO — Álamos, 31 personas sin app
+        Pe-&gt;&gt;S: CU-ADM-07 · Emite la hoja de trabajo
+        S--&gt;&gt;Pe: Hoja imprimible
+        Pe-&gt;&gt;MA: Entrega la hoja EN PAPEL
+        MA-&gt;&gt;E: Devuelve el diagnóstico ESCRITO
+        E-&gt;&gt;S: CU-ADM-08 · Captura el diagnóstico
+        MA-&gt;&gt;E: Reporta avance y término (verbal)
+        E-&gt;&gt;S: CU-ADM-09 · Registra el avance
+    else Mecánico AUTÓNOMO — satélites, 6 personas con app
+        MS-&gt;&gt;S: CU-MEC-01 · Consulta su cola de trabajo
+        MS-&gt;&gt;S: CU-MEC-02 · Registra el diagnóstico él mismo
+        MS-&gt;&gt;S: CU-MEC-06 · Registra avance y término
+        Note over MS,S: Nadie captura por él: está solo en su planta.&lt;br/&gt;Por eso Diagnostico.capturadoPor queda en NULL.
+    end
+
+    opt Faltan piezas
+        S-&gt;&gt;S: Entra a P6 (presupuesto) o P7 (surtido)
+    end
+
+    Pe-&gt;&gt;S: CU-ADM-10 · Emite el formato de salida
+    S--&gt;&gt;C: Unidad lista, con firma
+
+    rect rgb(253, 235, 235)
+        Note over Pe,C: DONDE SE ROMPE. Seis traspasos, cuatro EN PAPEL en la rama asistida.&lt;br/&gt;Dos consecuencias que hay que decir en voz alta:&lt;br/&gt;1. La ocupación "en tiempo real" del gerente (CU-GER-03) NO es en tiempo real:&lt;br/&gt;tiene el retraso de lo que tarde Erick en teclear.&lt;br/&gt;2. Si Erick falta, el taller entero deja de reportar. No tiene suplente.
+    end</pre></div>
+  </section>
+  <section class="proceso" id="P6">
+    <header class="ph">
+      <span class="ph-id">P6</span>
+      <h2>Presupuesto y autorización del gasto</h2>
+      <span class="chip t-apoyo">Apoyo</span>
+    </header>
+    <dl class="ph-meta">
+      <div><dt>Dueño</dt><dd>Erick · compras</dd></div>
+      <div><dt>Traspasos</dt><dd class="tras"><span class="barra critico" role="img" aria-label="6 traspasos"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="barra-n">6</span></dd></div>
+      <div class="ancho"><dt>Dónde se rompe</dt><dd>Cuando el gerente devuelve, el ciclo entero se repite</dd></div>
+    </dl>
+    <div class="hoja"><pre class="mermaid">sequenceDiagram
+    autonumber
+    actor M as Mecánico (papel)
+    actor E as Erick · compras
+    participant S as Sistema
+    actor G as Gerente
+
+    M-&gt;&gt;E: Entrega el presupuesto y la lista de piezas EN PAPEL
+    E-&gt;&gt;S: CU-ADM-17 · Captura el presupuesto
+    Note over E,S: «include» CU-ADM-18: no hay presupuesto sin desglose de piezas
+    E-&gt;&gt;S: Captura las piezas faltantes
+    E-&gt;&gt;S: CU-ADM-19 · Remite al gerente
+    S--&gt;&gt;G: Presupuesto pendiente de autorización
+
+    alt Aprueba
+        G-&gt;&gt;S: CU-GER-08 · Aprueba
+        S--&gt;&gt;E: Notifica el resultado
+        E-&gt;&gt;M: Le avisa (verbal) · CU-ADM-23
+        S-&gt;&gt;S: Habilita la orden de compra → entra a P7
+    else Rechaza
+        G-&gt;&gt;S: Rechaza con comentario
+        S--&gt;&gt;E: Notifica el resultado
+        E-&gt;&gt;M: Le avisa (verbal)
+    else Devuelve con comentarios
+        rect rgb(253, 235, 235)
+            G-&gt;&gt;S: Devuelve pidiendo correcciones
+            S--&gt;&gt;E: Notifica
+            E-&gt;&gt;M: Le pide corregir (verbal/papel)
+            Note over M,G: DONDE SE ROMPE. El ciclo completo se repite, incluidos los DOS&lt;br/&gt;traspasos en papel. Cada vuelta son días de unidad parada, y las unidades&lt;br/&gt;paradas más de 3 meses casi siempre se explican por vueltas acumuladas aquí.&lt;br/&gt;Por eso AUTORIZACION es un historial y no dos columnas: para poder&lt;br/&gt;demostrar dónde se fue el tiempo.
+        end
+    end</pre></div>
+  </section>
+  <section class="proceso" id="P7">
+    <header class="ph">
+      <span class="ph-id">P7</span>
+      <h2>Compra y abasto de piezas</h2>
+      <span class="chip t-apoyo">Apoyo</span>
+    </header>
+    <dl class="ph-meta">
+      <div><dt>Dueño</dt><dd>Erick · compras</dd></div>
+      <div><dt>Traspasos</dt><dd class="tras"><span class="barra alto" role="img" aria-label="5 traspasos"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class=""></i></span><span class="barra-n">5</span></dd></div>
+      <div class="ancho"><dt>Dónde se rompe</dt><dd>El proveedor no está en el sistema</dd></div>
+    </dl>
+    <div class="hoja"><pre class="mermaid">sequenceDiagram
+    autonumber
+    actor MS as Mecánico autónomo
+    participant S as Sistema
+    actor Pe as Pedro · almacén
+    actor E as Erick · compras
+    actor Al as Almacén de Álamos
+    actor Pr as Proveedor (fuera del sistema)
+    actor G as Gerente
+
+    Note over MS,S: «include» CU-MEC-03: nunca se pide sin consultar antes
+    MS-&gt;&gt;S: Consulta existencia de la pieza
+    S--&gt;&gt;MS: Hay / No hay, y de cuándo es el dato
+
+    alt HAY existencia
+        MS-&gt;&gt;S: CU-MEC-04 · Solicita la pieza
+        S-&gt;&gt;S: Reserva el stock (evita que dos la pidan)
+        Pe-&gt;&gt;Al: Solicita el surtido
+        Al--&gt;&gt;Pe: Entrega la pieza
+        Pe-&gt;&gt;S: CU-ADM-12 · Registra el surtido
+        S--&gt;&gt;MS: Enviada a tu planta
+    else NO hay existencia
+        MS-&gt;&gt;S: Levanta la solicitud con justificación
+        S--&gt;&gt;E: CU-ADM-20 · Solicitud por evaluar
+        alt Erick aprueba
+            E-&gt;&gt;S: CU-ADM-21 · Autoriza la orden de compra
+            E-&gt;&gt;Pr: Coloca el pedido FUERA DEL SISTEMA
+            Pr--&gt;&gt;E: Confirma fecha estimada
+            E-&gt;&gt;S: CU-ADM-22 · Registra la ETA
+            Note over E,S: Esta fecha es el disparador D3 de la agenda:&lt;br/&gt;sin ella el sistema no sabe cuándo se libera el espacio.
+            S--&gt;&gt;G: Aparece como "piezas en camino" (CU-GER-05)
+            Pr--&gt;&gt;E: Entrega
+            E-&gt;&gt;S: Registra la recepción
+            S--&gt;&gt;MS: CU-MEC-05 · Tu pieza llegó
+        else Erick rechaza
+            E-&gt;&gt;S: Rechaza con motivo
+            S--&gt;&gt;MS: Rechazada, y por qué
+        end
+    end
+
+    rect rgb(253, 235, 235)
+        Note over E,G: DONDE SE ROMPE. El proveedor NO está en el sistema. El indicador&lt;br/&gt;de "piezas en camino" que ve el gerente vale exactamente lo que valga la&lt;br/&gt;disciplina de Erick para actualizarlo: es un dato de segunda mano&lt;br/&gt;presentado como si fuera de primera.
+    end</pre></div>
+  </section>
+  <section class="proceso" id="P8">
+    <header class="ph">
+      <span class="ph-id">P8</span>
+      <h2>Atención de avería en ruta</h2>
+      <span class="chip t-sustantivo">Sustantivo</span>
+    </header>
+    <dl class="ph-meta">
+      <div><dt>Dueño</dt><dd>Chofer poseedor</dd></div>
+      <div><dt>Traspasos</dt><dd class="tras"><span class="barra alto" role="img" aria-label="4 traspasos"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class=""></i><i class=""></i></span><span class="barra-n">4</span></dd></div>
+      <div class="ancho"><dt>Dónde se rompe</dt><dd>El folio de peritaje se exige pero no se verifica</dd></div>
+    </dl>
+    <div class="hoja"><pre class="mermaid">sequenceDiagram
+    autonumber
+    actor C as Chofer poseedor
+    participant S as Sistema
+    actor Per as Peritos (teléfono)
+    actor Sup as Supervisor
+    actor M1 as Mecánico autónomo A
+    actor M2 as Mecánico autónomo B
+    actor Mon as Montacarguista
+
+    C-&gt;&gt;S: CU-CHO-11 · Reporta la avería
+    Note over C,S: «include» CU-CHO-13: la ubicación es parte del reporte
+    S--&gt;&gt;Sup: Alerta de unidad varada, visible en el mapa
+
+    alt En vialidad pública (RN-04)
+        rect rgb(255, 247, 224)
+            C-&gt;&gt;Per: Llama a peritos FUERA DEL SISTEMA
+            Per--&gt;&gt;C: Entrega folio de peritaje
+            C-&gt;&gt;S: CU-CHO-12 · Captura el folio
+            Note over C,S: El sistema EXIGE el folio pero no lo puede VERIFICAR:&lt;br/&gt;la llamada ocurre por teléfono. Lo que sí logra es dejar&lt;br/&gt;constancia de que se exigió, que es lo que protege a la empresa.&lt;br/&gt;Hasta aquí no se habilita pedir auxilio ni grúa.
+        end
+    end
+
+    alt La falla se puede resolver en sitio
+        C-&gt;&gt;S: CU-CHO-14 · Solicita auxilio mecánico
+        par Difusión a todos los autónomos disponibles
+            S--&gt;&gt;M1: Orden de auxilio (ordenada por distancia)
+        and
+            S--&gt;&gt;M2: Orden de auxilio (ordenada por distancia)
+        end
+        M1-&gt;&gt;S: Acepta
+        M2-&gt;&gt;S: Acepta (llega tarde)
+        rect rgb(232, 240, 254)
+            Note over S,M2: CONDICIÓN DE CARRERA. Se resuelve con&lt;br/&gt;UPDATE ... WHERE estado = 'difundida', no comprobando&lt;br/&gt;antes y escribiendo después. El primero la gana,&lt;br/&gt;y al segundo le responde que ya fue tomada.
+        end
+        S--&gt;&gt;M2: Ya fue tomada
+        S--&gt;&gt;C: CU-CHO-16 · Va en camino, aquí lo ves
+        M1-&gt;&gt;S: CU-MEC-09 · Transmite su ubicación
+        M1-&gt;&gt;S: CU-MEC-10 · Cierra el auxilio en sitio
+    else La unidad no se puede mover
+        C-&gt;&gt;S: CU-CHO-15 · Solicita arrastre → entra a P9
+        S--&gt;&gt;Mon: Alerta de arrastre
+    end
+
+    opt Nadie aceptó en N minutos
+        S-&gt;&gt;S: CU-AUT-07 · Escala
+        S--&gt;&gt;Sup: CU-SUP-07 · Nadie respondió
+        Sup-&gt;&gt;S: Llama por teléfono y despacha a mano
+        Note over S,Sup: RESPUESTA_AUXILIO guarda también las NEGATIVAS con su motivo.&lt;br/&gt;Sin eso, un silencio de 20 minutos no se distingue de&lt;br/&gt;"todos ocupados", "está lejos de todos" o "nadie abrió la app".
+    end</pre></div>
+  </section>
+  <section class="proceso" id="P9">
+    <header class="ph">
+      <span class="ph-id">P9</span>
+      <h2>Arrastre y traslado a taller</h2>
+      <span class="chip t-sustantivo">Sustantivo</span>
+    </header>
+    <dl class="ph-meta">
+      <div><dt>Dueño</dt><dd>Montacarguista</dd></div>
+      <div><dt>Traspasos</dt><dd class="tras"><span class="barra alto" role="img" aria-label="5 traspasos"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class=""></i></span><span class="barra-n">5</span></dd></div>
+      <div class="ancho"><dt>Dónde se rompe</dt><dd>El responsable es el poseedor, nunca la grúa</dd></div>
+    </dl>
+    <div class="hoja"><pre class="mermaid">sequenceDiagram
+    autonumber
+    participant S as Sistema
+    actor Mon as Montacarguista
+    actor C as Chofer poseedor
+    actor Pe as Pedro · piso
+
+    S--&gt;&gt;Mon: CU-MON-01 · Alerta con la ubicación reportada
+    Mon-&gt;&gt;S: CU-MON-02 · Acepta el arrastre
+
+    par Ubicación compartida en los dos sentidos
+        Mon-&gt;&gt;S: CU-MON-03 · Transmite su ubicación
+    and
+        S--&gt;&gt;C: Le muestra la grúa en el mapa
+    end
+
+    Mon-&gt;&gt;S: CU-MON-04 · Registra llegada al sitio
+    Note over Mon,S: «include» CU-MON-06: protege contra reclamos de daño
+    Mon-&gt;&gt;S: Adjunta evidencia fotográfica
+    Mon-&gt;&gt;Pe: Entrega física de la unidad en el taller destino
+    Mon-&gt;&gt;S: CU-MON-05 · Cierra el arrastre
+
+    rect rgb(253, 235, 235)
+        Note over Mon,Pe: DONDE SE ROMPE — y es la regla que sostiene todo el sistema.&lt;br/&gt;Al cerrar, el "chofer responsable" que se registra es el POSEEDOR&lt;br/&gt;de la unidad, NUNCA el montacarguista que la movió.&lt;br/&gt;Si esto se modela mal, la responsabilidad se transfiere sin que nadie&lt;br/&gt;lo decidiera y se rompe RN-01.
+    end
+
+    S-&gt;&gt;S: Abre la orden de servicio → se encadena con P4/P5</pre></div>
+  </section>
+  <section class="proceso" id="P10">
+    <header class="ph">
+      <span class="ph-id">P10</span>
+      <h2>Atención de incumplimiento de mantenimiento</h2>
+      <span class="chip t-control">Control</span>
+    </header>
+    <dl class="ph-meta">
+      <div><dt>Dueño</dt><dd>Gerente</dd></div>
+      <div><dt>Traspasos</dt><dd class="tras"><span class="barra normal" role="img" aria-label="3 traspasos"><i class="on"></i><i class="on"></i><i class="on"></i><i class=""></i><i class=""></i><i class=""></i></span><span class="barra-n">3</span></dd></div>
+      <div class="ancho"><dt>Dónde se rompe</dt><dd>Los avisos sin cerrar se acumulan</dd></div>
+    </dl>
+    <div class="hoja"><pre class="mermaid">sequenceDiagram
+    autonumber
+    participant P as Programador de tareas
+    participant S as Sistema
+    actor G as Gerente
+    actor E as Erick
+    actor C as Chofer poseedor
+    actor Sup as Supervisor
+
+    P-&gt;&gt;S: CU-AUT-01 · Detecta la falta a una cita confirmada
+    S-&gt;&gt;S: Resuelve QUIÉN era el poseedor a la fecha de la cita
+    Note over S: Guarda el fundamento: jornada / préstamo / titularidad.&lt;br/&gt;Si la unidad estaba prestada, el que faltó fue el receptor.
+
+    par Aviso a los dos que pueden actuar
+        S--&gt;&gt;G: Aviso de incumplimiento (unidad, chofer, servicio, días)
+    and
+        S--&gt;&gt;E: Aviso de incumplimiento
+    end
+
+    G-&gt;&gt;C: Habla con él EN PERSONA (fuera del sistema)
+    E-&gt;&gt;C: Llamada de atención (fuera del sistema)
+
+    alt Gerente o Erick cierran el caso
+        G-&gt;&gt;S: CU-GER-10 · Marca como atendido, con nota de lo acordado
+        S--&gt;&gt;Sup: Queda informado de que el caso se cerró
+    else Nadie lo cierra
+        rect rgb(253, 235, 235)
+            S--&gt;&gt;G: Recordatorio a los 3 días
+            S--&gt;&gt;G: Escalamiento a los 7 días
+            Note over G,Sup: DONDE SE ROMPE. Si nadie marca el caso como cerrado, en tres meses&lt;br/&gt;hay cuarenta avisos abiertos y el tablero deja de significar algo.&lt;br/&gt;Por eso el recordatorio recurrente, igual que la alerta de 3 meses.
+        end
+    end</pre></div>
+  </section>
+  <section class="proceso" id="P11">
+    <header class="ph">
+      <span class="ph-id">P11</span>
+      <h2>Control gerencial e indicadores</h2>
+      <span class="chip t-control">Control</span>
+    </header>
+    <dl class="ph-meta">
+      <div><dt>Dueño</dt><dd>Gerente</dd></div>
+      <div><dt>Traspasos</dt><dd class="tras"><span class="barra normal" role="img" aria-label="2 traspasos"><i class="on"></i><i class="on"></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i></span><span class="barra-n">2</span></dd></div>
+      <div class="ancho"><dt>Dónde se rompe</dt><dd>La alerta se apaga sin resolver nada</dd></div>
+    </dl>
+    <div class="hoja"><pre class="mermaid">sequenceDiagram
+    autonumber
+    participant P as Programador de tareas
+    participant S as Sistema
+    actor G as Gerente
+    actor A as Administrador
+
+    loop Consulta continua
+        G-&gt;&gt;S: CU-GER-01 · Tablero: incumplimiento, ocupación, tiempos, piezas
+        S--&gt;&gt;G: Indicadores de las 6 plantas (CU-GER-11 los compara)
+    end
+
+    P-&gt;&gt;S: CU-AUT-02 · ¿Alguna unidad lleva más de 3 meses parada?
+    loop Recurrente hasta ser atendida (RN-08)
+        S--&gt;&gt;G: Alerta de unidad parada
+    end
+
+    G-&gt;&gt;A: Exige explicación (fuera del sistema)
+    A--&gt;&gt;G: Explica
+
+    rect rgb(253, 235, 235)
+        G-&gt;&gt;S: CU-GER-07 · Marca la alerta como atendida
+        Note over G,S: DONDE SE ROMPE. La alerta se apaga cuando el GERENTE la marca,&lt;br/&gt;no cuando la unidad realmente sale del taller. Eso permite silenciarla&lt;br/&gt;sin resolver nada. Por eso el modelo exige declarar explícitamente&lt;br/&gt;si la condición SEGUÍA al cerrar (condicion_persistia_al_cerrar).
+    end</pre></div>
+  </section>
+  <section class="proceso" id="P12">
+    <header class="ph">
+      <span class="ph-id">P12</span>
+      <h2>Administración de datos maestros</h2>
+      <span class="chip t-soporte">Soporte</span>
+    </header>
+    <dl class="ph-meta">
+      <div><dt>Dueño</dt><dd>sin dueño único</dd></div>
+      <div><dt>Traspasos</dt><dd class="tras"><span class="barra normal" role="img" aria-label="0 traspasos"><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i></span><span class="barra-n">0</span></dd></div>
+      <div class="ancho"><dt>Dónde se rompe</dt><dd>El único proceso sin traspasos, y nadie lo mantiene</dd></div>
+    </dl>
+    <div class="hoja"><pre class="mermaid">sequenceDiagram
+    autonumber
+    actor E as Erick
+    actor Pe as Pedro
+    actor G as Gerente
+    participant S as Sistema
+
+    alt Cualquiera de los tres
+        E-&gt;&gt;S: Alta de usuarios, unidades, piezas, tipos de servicio
+    else
+        Pe-&gt;&gt;S: CU-ADM-03 · Alta y baja de espacios del taller
+    else
+        G-&gt;&gt;S: CU-GEN-03 · Alta de plantas, roles y planes
+    end
+    S--&gt;&gt;S: Los catálogos reflejan la realidad
+
+    rect rgb(253, 235, 235)
+        Note over E,S: DONDE SE ROMPE. Es el único proceso SIN traspasos, y por eso mismo&lt;br/&gt;el que nadie se apropia. Hoy lo comparten administrador y gerente, que en&lt;br/&gt;la práctica suele significar que NINGUNO lo mantiene.&lt;br/&gt;Hay que asignarle un dueño único.
+    end</pre></div>
+  </section>
+
+  <section class="proceso" id="cadena">
+    <header class="ph">
+      <span class="ph-id">↻</span>
+      <h2>Cómo se encadenan</h2>
+    </header>
+    <div class="hoja"><pre class="mermaid">flowchart LR
+    P2["P2 Operación&lt;br/&gt;diaria"] --&gt;|falla en ruta| P8["P8 Avería&lt;br/&gt;en ruta"]
+    P8 --&gt;|requiere grúa| P9["P9 Arrastre"]
+    P8 --&gt;|se resuelve en sitio| P2
+    P9 --&gt;|entrega la unidad| P4["P4 Ingreso&lt;br/&gt;a taller"]
+    P3["P3 Mantenimiento&lt;br/&gt;preventivo"] --&gt;|cita confirmada| P4
+    P3 --&gt;|faltó a la cita| P10["P10 Aviso de&lt;br/&gt;incumplimiento"]
+    P3 --&gt;|sin cupo| P11["P11 Control&lt;br/&gt;gerencial"]
+    P4 --&gt;|unidad en espacio| P5["P5 Reparación&lt;br/&gt;en taller"]
+    P5 --&gt;|faltan piezas| P6["P6 Presupuesto&lt;br/&gt;y autorización"]
+    P6 --&gt;|aprobado| P7["P7 Compra&lt;br/&gt;y abasto"]
+    P7 --&gt;|piezas recibidas| P5
+    P5 --&gt;|formato de salida| P2
+    P1["P1 Préstamo"] --&gt; P2
+    P10 --&gt; P11
+    P5 --&gt; P11
+    P6 --&gt; P11
+
+    classDef sano fill:#e7f5ec,stroke:#0B7C3E,stroke-width:2px
+    classDef caro fill:#fdebeb,stroke:#C33131,stroke-width:2px
+    class P2,P3,P4 sano
+    class P5,P6,P7 caro</pre></div>
+    <div class="cuerpo" style="padding:18px 20px">
+      <div class="ciclos">
+        <div class="ciclo sano">
+          <h3>El ciclo sano</h3>
+          <span class="ruta">P2 → P3 → P4 → P5 → P2</span>
+          <p>La unidad opera, se mantiene y vuelve a operar.</p>
+        </div>
+        <div class="ciclo caro">
+          <h3>El ciclo caro</h3>
+          <span class="ruta">P5 → P6 → P7 → P5</span>
+          <p>Cada vuelta suma días de unidad parada. Los datos reales lo confirman: de las
+             869 reparaciones medidas en el Excel del taller, el <strong>7 % pasó de 90 días</strong>,
+             y hoy hay <strong>18 unidades</strong> en ese rango.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Dónde estos diagramas se apartan de procesos.md</h2>
+    <div class="tw">
+      <table class="deriva">
+        <thead><tr>
+          <th></th><th>procesos.md v1.1 dice</th><th>Estos diagramas muestran</th><th>Por qué</th>
+        </tr></thead>
+        <tbody>
+          <tr><td>1</td>
+            <td>«Los mecánicos no usan la aplicación»</td>
+            <td><strong>P5 y P7</strong> tienen rama para el mecánico autónomo</td>
+            <td>La v2.0 devolvió el módulo Mecánico para los 6 de las satélites: están solos
+                en su planta y nadie captura por ellos</td></tr>
+          <tr><td>2</td>
+            <td><strong>P10 «Penalización»</strong></td>
+            <td><strong>P10 «Aviso de incumplimiento»</strong></td>
+            <td>El §4 del propio documento ya lo reescribió; lo que quedó viejo es el título
+                y el mapa. No hay penalización</td></tr>
+          <tr><td>3</td>
+            <td><strong>P8</strong> despacha el auxilio por el supervisor</td>
+            <td><strong>P8</strong> lo difunde a todos los autónomos y el primero que acepta lo gana</td>
+            <td>Mecanismo nuevo de la v2.0, con DIFUSION_AUXILIO y RESPUESTA_AUXILIO</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="cuerpo">
+      <div class="nota"><strong>Sugerencia:</strong> subir <code>procesos.md</code> a v2.0 con
+        estos tres cambios. Es media hora, y evita que alguien defienda el proyecto con el
+        mapa equivocado.</div>
+    </div>
+  </section>
+
+  <footer>docs/diagramas-procesos.md · 13 diagramas · generado desde el markdown</footer>
+</div>

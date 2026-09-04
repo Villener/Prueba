@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+
+# Las bases NO entran a la imagen. La del demo llega por el volumen y el
+# bind-mount de /semilla, asi que ninguna capa carga datos reales de empleados.
+*.db
+*.db.*

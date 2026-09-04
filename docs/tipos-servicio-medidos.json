@@ -1,0 +1,162 @@
+[
+ {
+  "nombre": "SERVICIO_PREVENTIVO",
+  "criticidad": 1,
+  "muestras_solo": 7,
+  "mediana_dias": 8,
+  "p75_dias": 36,
+  "p90_dias": 115,
+  "muestras_total": 72,
+  "inout_mes": 260
+ },
+ {
+  "nombre": "FRENOS",
+  "criticidad": 1,
+  "muestras_solo": 22,
+  "mediana_dias": 3,
+  "p75_dias": 10,
+  "p90_dias": 24,
+  "muestras_total": 122,
+  "inout_mes": 52
+ },
+ {
+  "nombre": "CLUTCH",
+  "criticidad": 2,
+  "muestras_solo": 35,
+  "mediana_dias": 3,
+  "p75_dias": 14,
+  "p90_dias": 45,
+  "muestras_total": 93,
+  "inout_mes": 35
+ },
+ {
+  "nombre": "MOTOR",
+  "criticidad": 1,
+  "muestras_solo": 224,
+  "mediana_dias": 22,
+  "p75_dias": 46,
+  "p90_dias": 116,
+  "muestras_total": 304,
+  "inout_mes": 37
+ },
+ {
+  "nombre": "TRANSMISION",
+  "criticidad": 2,
+  "muestras_solo": 39,
+  "mediana_dias": 11,
+  "p75_dias": 56,
+  "p90_dias": 222,
+  "muestras_total": 65,
+  "inout_mes": 20
+ },
+ {
+  "nombre": "ELECTRICO",
+  "criticidad": 1,
+  "muestras_solo": 70,
+  "mediana_dias": 8,
+  "p75_dias": 25,
+  "p90_dias": 79,
+  "muestras_total": 145,
+  "inout_mes": 99
+ },
+ {
+  "nombre": "SUSPENSION_DIRECCION",
+  "criticidad": 1,
+  "muestras_solo": 17,
+  "mediana_dias": 7,
+  "p75_dias": 15,
+  "p90_dias": 17,
+  "muestras_total": 74,
+  "inout_mes": 12
+ },
+ {
+  "nombre": "LLANTAS",
+  "criticidad": 1,
+  "muestras_solo": 5,
+  "mediana_dias": 10,
+  "p75_dias": 17,
+  "p90_dias": 20,
+  "muestras_total": 17,
+  "inout_mes": 19
+ },
+ {
+  "nombre": "ENFRIAMIENTO",
+  "criticidad": 1,
+  "muestras_solo": 19,
+  "mediana_dias": 5,
+  "p75_dias": 18,
+  "p90_dias": 37,
+  "muestras_total": 50,
+  "inout_mes": 16
+ },
+ {
+  "nombre": "COMBUSTIBLE",
+  "criticidad": 1,
+  "muestras_solo": 17,
+  "mediana_dias": 9,
+  "p75_dias": 20,
+  "p90_dias": 34,
+  "muestras_total": 25,
+  "inout_mes": 15
+ },
+ {
+  "nombre": "AIRE_FRENO_NEUMATICO",
+  "criticidad": 1,
+  "muestras_solo": 12,
+  "mediana_dias": 14,
+  "p75_dias": 66,
+  "p90_dias": 70,
+  "muestras_total": 25,
+  "inout_mes": 14
+ },
+ {
+  "nombre": "CARROCERIA",
+  "criticidad": 3,
+  "muestras_solo": 8,
+  "mediana_dias": 6,
+  "p75_dias": 42,
+  "p90_dias": 62,
+  "muestras_total": 41,
+  "inout_mes": 5
+ },
+ {
+  "nombre": "ESCAPE_TURBO",
+  "criticidad": 2,
+  "muestras_solo": 5,
+  "mediana_dias": 1,
+  "p75_dias": 4,
+  "p90_dias": 50,
+  "muestras_total": 25,
+  "inout_mes": 6
+ },
+ {
+  "nombre": "HIDRAULICO",
+  "criticidad": 2,
+  "muestras_solo": 4,
+  "mediana_dias": 4,
+  "p75_dias": 6,
+  "p90_dias": 6,
+  "muestras_total": 9,
+  "inout_mes": 1
+ },
+ {
+  "nombre": "DIAGNOSTICO_REVISION",
+  "criticidad": 2,
+  "muestras_solo": 12,
+  "mediana_dias": 41,
+  "p75_dias": 112,
+  "p90_dias": 258,
+  "muestras_total": 18,
+  "inout_mes": 5
+ },
+ {
+  "nombre": "OTROS",
+  "criticidad": 2,
+  "muestras_solo": 73,
+  "mediana_dias": 8,
+  "p75_dias": 22,
+  "p90_dias": 50,
+  "muestras_total": 208,
+  "inout_mes": 73
+ }
+]

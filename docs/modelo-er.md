@@ -105,7 +105,7 @@ erDiagram
     }
     TALLER {
         int id PK
-        int planta_id FK_UK "1:1 con planta"
+        int planta_id FK,UK "1:1 con planta"
         string clave UK
         string nombre
         int capacidad_total
@@ -128,7 +128,7 @@ erDiagram
     }
     ALMACEN {
         int id PK
-        int planta_id FK_UK "0..1 - hoy solo ALAMOS"
+        int planta_id FK,UK "0..1 - hoy solo ALAMOS"
         string nombre
         int responsable_usuario_id FK
         bool activo
@@ -186,7 +186,7 @@ erDiagram
         string num_empleado UK
         int taller_id FK
         string modalidad "AUTONOMO|ASISTIDO"
-        int usuario_id FK_UK "NOT NULL si AUTONOMO, NULL si ASISTIDO"
+        int usuario_id FK,UK "NOT NULL si AUTONOMO, NULL si ASISTIDO"
         int unidad_servicio_id FK "solo AUTONOMO"
         string telefono
         bool disponible
@@ -447,7 +447,7 @@ erDiagram
     }
     AVISO_INCUMPLIMIENTO {
         int id PK
-        int cita_id FK_UK
+        int cita_id FK,UK
         int chofer_id FK "el POSEEDOR a la fecha de la cita"
         string fundamento_poseedor "jornada|prestamo|titularidad"
         int jornada_id FK
@@ -676,6 +676,40 @@ de puesto.
 
 ---
 
+### `REQUISICION` y `RENGLON_REQUISICION` — el papel que teclea el capturista
+
+Es el documento que hoy vive como una hoja de Excel dentro de `REQUIS 2026 2.xlsx`: encabezado
+(folio, fecha, unidad, equipo SAP, centro de gestión, quién pidió el material) y N renglones de
+material. Se importaron **99 requisiciones reales** de julio y agosto de 2026, con **383
+renglones**.
+
+**Por qué no se metió dentro de `SOLICITUD_PIEZA`.** Son dos cosas distintas:
+
+| | `SOLICITUD_PIEZA` | `REQUISICION` |
+|---|---|---|
+| Quién la levanta | El mecánico autónomo, desde su teléfono | El capturista, tecleando un papel |
+| Alcance | Una pieza | Un documento con N renglones |
+| Folio | Lo genera el sistema | Lo trae el papel |
+| Responsable del dato | Uno | Dos: quien pidió y quien tecleó |
+
+Meter la requisición ahí habría obligado a inventar un folio común para agrupar renglones
+sueltos — que es exactamente la estructura que el Excel ya trae explícita.
+
+**`folio` NO es único, y se probó que no puede serlo.** El candidato razonable era
+`(folio, fecha, unidad)`, pero el libro real trae `J331` y `J332` repetidos el mismo día con
+materiales completamente distintos: son papeles diferentes a los que les tocó el mismo folio.
+Con esa restricción puesta, la importación descartaba tres requisiciones buenas. El duplicado de
+verdad — mismo folio, misma fecha, misma unidad **y los mismos materiales** — se detecta donde sí
+se puede comparar el contenido: el importador lo salta (pasó una vez, `J299`) y el controlador
+pide confirmación explícita con `forzar`, igual que el sobrecupo de la agenda.
+
+**`RENGLON_REQUISICION.pieza_id` es opcional a propósito.** El papel trae códigos que no siempre
+están en el catálogo — 21 renglones de 383 en la importación limpia. Perder el renglón por eso
+sería peor que guardarlo sin casar: el código y la descripción quedan escritos y se reconcilian
+después. Es el mismo criterio de `PIEZA.codigo_externo` con SAP.
+
+---
+
 ## 7. Área G — Emergencias, auxilio y arrastre
 
 > También escrita a mano. Contiene el mecanismo más original del sistema: la **difusión y toma**
@@ -718,7 +752,7 @@ erDiagram
     }
     REPORTE_PERITAJE {
         int id PK
-        int reporte_averia_id FK_UK
+        int reporte_averia_id FK,UK
         string folio_peritos
         string aseguradora
         datetime hora_aviso
@@ -730,7 +764,7 @@ erDiagram
     ORDEN_AUXILIO {
         int id PK
         string folio UK
-        int reporte_averia_id FK_UK
+        int reporte_averia_id FK,UK
         datetime fecha_emision
         string estado "difundida|aceptada|en_ruta|en_sitio|resuelta|escalada_a_arrastre|cancelada"
         int tecnico_acepta_id FK

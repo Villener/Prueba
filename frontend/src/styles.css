@@ -1,49 +1,86 @@
 /* Sistema de Gestion de Flota y Taller - Baja Gas
+   =================================================================
+   IDENTIDAD: sala de control industrial. Azul acero (la flama de gas)
+   sobre blanco de equipo pintado. Reglas finas, esquinas casi rectas y
+   tipografia de senalizacion: no es un panel de administracion generico,
+   es el tablero de una operacion.
+
+   TEMA: arranca SIEMPRE en claro. No sigue al sistema operativo; el
+   usuario lo cambia con el interruptor y se le recuerda (src/tema.js).
+
    Mobile-first: el chofer y el montacarguista trabajan desde el telefono;
-   el administrador y el gerente desde escritorio. */
+   el administrador y el gerente desde escritorio.
+   ================================================================= */
 
 :root {
-  --bg: #f1f5f9;
-  --surface: #ffffff;
-  --surface-2: #f8fafc;
-  --border: #e2e8f0;
-  --ink: #0f172a;
-  --ink-2: #475569;
-  --muted: #94a3b8;
-  --brand: #1d4ed8;
-  --brand-ink: #ffffff;
-  --ok: #15803d;
-  --ok-bg: #dcfce7;
-  --warn: #b45309;
-  --warn-bg: #fef3c7;
-  --danger: #b91c1c;
-  --danger-bg: #fee2e2;
-  --info-bg: #dbeafe;
-  --radius: 12px;
-  --shadow: 0 1px 3px rgba(15, 23, 42, .08), 0 1px 2px rgba(15, 23, 42, .04);
-  --nav-h: 64px;
-  --font: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+  --bg:        #EDF0F3;
+  --surface:   #FFFFFF;
+  --surface-2: #F6F8FA;
+  --border:    rgba(17, 28, 36, .11);
+  --border-2:  rgba(17, 28, 36, .06);
+  --ink:       #111C24;
+  --ink-2:     #4A5A66;
+  --muted:     #7A8B96;
+  --brand:     #0E5F8F;
+  --brand-2:   #2683BC;
+  --brand-ink: #FFFFFF;
+  --brand-soft:#D9E8F3;
+  --track:     #DCE3E9;
+
+  --ok:        #0A8A0A;
+  --ok-bg:     #E6F4E6;
+  --warn:      #B07A0A;
+  --warn-mark: #FAB219;
+  --warn-bg:   #FBF3E0;
+  --danger:    #C33131;
+  --danger-bg: #FBEBEB;
+  --info-bg:   #E7F0F7;
+
+  --radius:    4px;
+  --radius-sm: 3px;
+  --shadow:    0 1px 2px rgba(17, 28, 36, .06), 0 4px 14px rgba(17, 28, 36, .05);
+  --nav-h:     64px;
+
+  --font:      "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+  --font-disp: "Bahnschrift", "DIN Alternate", "Segoe UI Semibold", var(--font);
+  --font-data: "Consolas", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  /* Colores oficiales del logo, tomados del archivo que entrego el cliente. */
+  --logo-azul:  #0F3452;
+  --logo-verde: #0E6235;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #0b1220;
-    --surface: #131c2e;
-    --surface-2: #1a2537;
-    --border: #263349;
-    --ink: #e8edf6;
-    --ink-2: #a5b3c9;
-    --muted: #6b7c96;
-    --brand: #4f80ff;
-    --ok: #4ade80;
-    --ok-bg: #10331f;
-    --warn: #fbbf24;
-    --warn-bg: #3a2c0a;
-    --danger: #f87171;
-    --danger-bg: #3a1414;
-    --info-bg: #172c52;
-    --shadow: 0 1px 3px rgba(0, 0, 0, .5);
-  }
+/* El tema oscuro NO se activa solo: lo enciende el usuario. */
+:root[data-theme="dark"] {
+  --bg:        #0E1418;
+  --surface:   #161E24;
+  --surface-2: #1B252C;
+  --border:    rgba(232, 238, 242, .14);
+  --border-2:  rgba(232, 238, 242, .07);
+  --ink:       #E8EEF2;
+  --ink-2:     #9FB1BD;
+  --muted:     #7A8B96;
+  --brand:     #3E9AD1;
+  --brand-2:   #5FB0E0;
+  --brand-ink: #0E1418;
+  --brand-soft:#1D3444;
+  --track:     #26333C;
+
+  --ok:        #3FC13F;
+  --ok-bg:     #122A16;
+  --warn:      #FAB219;
+  --warn-mark: #FAB219;
+  --warn-bg:   #2B2415;
+  --danger:    #E86A6A;
+  --danger-bg: #2C1A1C;
+  --info-bg:   #17303F;
+  --shadow:    0 1px 2px rgba(0, 0, 0, .4), 0 4px 14px rgba(0, 0, 0, .3);
+
+  /* El azul de la marca sobre el fondo oscuro no se lee. Se aclara lo
+     minimo para poder leerlo; el verde se conserva casi igual porque si
+     contrasta. En claro, que es el predeterminado, el logo va intacto. */
+  --logo-azul:  #E8EEF2;
+  --logo-verde: #3FBF77;
 }
 
 * { box-sizing: border-box; }
@@ -61,34 +98,55 @@ body {
 }
 
 h1, h2, h3 { margin: 0; line-height: 1.25; }
-h1 { font-size: 1.35rem; font-weight: 700; }
-h2 { font-size: 1.05rem; font-weight: 700; }
+h1 { font-family: var(--font-disp); font-size: 1.3rem; font-weight: 700; letter-spacing: .04em; }
+h2 {
+  font-family: var(--font-disp); font-size: .8rem; font-weight: 700;
+  letter-spacing: .16em; text-transform: uppercase; color: var(--ink);
+}
 h3 { font-size: .95rem; font-weight: 600; }
-p { margin: 0 0 .5rem; }
-a { color: var(--brand); }
+p  { margin: 0 0 .5rem; }
+a  { color: var(--brand); }
+
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 
 /* ------------------------------------------------------------------ shell -- */
 .app { min-height: 100%; display: flex; flex-direction: column; }
+.main-col { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 
 .topbar {
   position: sticky; top: 0; z-index: 40;
   display: flex; align-items: center; gap: 12px;
   padding: 12px 16px; padding-top: max(12px, env(safe-area-inset-top));
-  background: var(--surface); border-bottom: 1px solid var(--border);
+  background: var(--surface); border-bottom: 2px solid var(--ink);
 }
-.topbar .brand { font-weight: 800; letter-spacing: -.3px; }
-.topbar .brand span { color: var(--brand); }
+.topbar .brand {
+  display: flex; align-items: center;
+  border-left: 4px solid var(--brand); padding-left: 10px;
+}
+
+/* ------------------------------------------------------------------ logo --- */
+/* El trazo viene del archivo (src/assets/logo.svg), que trae los colores como
+   atributo `fill`. El CSS le gana a un atributo de presentacion, asi que se
+   recolorea seleccionando por el color de origen. En claro se ven identicos a
+   los del archivo; en oscuro el azul se aclara para poder leerlo.
+   Si el cliente cambia la paleta del archivo, el logo sigue saliendo bien --
+   solo deja de seguir al tema hasta que se actualicen estos dos valores. */
+.logo { display: inline-block; line-height: 0; }
+.logo svg { width: 100%; height: 100%; display: block; }
+.logo [fill="#0F3452"] { fill: var(--logo-azul); }
+.logo [fill="#0E6235"] { fill: var(--logo-verde); }
 .topbar .spacer { flex: 1; }
 
 .rolechip {
-  font-size: .7rem; text-transform: uppercase; letter-spacing: .5px;
-  background: var(--info-bg); color: var(--brand); padding: 3px 9px;
-  border-radius: 999px; font-weight: 700;
+  font-family: var(--font-disp); font-size: .68rem; text-transform: uppercase;
+  letter-spacing: .14em; background: var(--brand-soft); color: var(--brand);
+  padding: 3px 9px; border-radius: var(--radius-sm); font-weight: 700;
 }
 
 .content {
-  flex: 1; width: 100%; max-width: 1200px; margin: 0 auto;
-  padding: 16px 16px calc(var(--nav-h) + 24px);
+  flex: 1; width: 100%; max-width: 1240px; margin: 0 auto;
+  padding: 18px 16px calc(var(--nav-h) + 24px);
 }
 
 /* Navegacion: barra inferior en movil, lateral en escritorio */
@@ -96,229 +154,845 @@ a { color: var(--brand); }
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
   display: flex; background: var(--surface); border-top: 1px solid var(--border);
   padding-bottom: env(safe-area-inset-bottom);
+  /* El menu del administrador llego a OCHO pestañas al entrar «Reportes», y
+     ocho etiquetas legibles no caben en 375 px: la barra empujaba la pagina a
+     385 y aparecia scroll horizontal en TODA la app. Que ruede la barra, no la
+     pagina. Encoger la letra hasta que quepan haria ilegible el menu con
+     guantes, que es como se usa en el piso. */
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.nav::-webkit-scrollbar { display: none; }
+.nav-brand { display: none; }
 .nav a {
-  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  flex: 1 0 auto; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; min-width: 62px;
   gap: 3px; padding: 9px 4px; min-height: var(--nav-h);
-  font-size: .68rem; font-weight: 600; text-decoration: none; color: var(--muted);
-  border-top: 2px solid transparent;
+  font-size: .66rem; font-weight: 600; text-decoration: none; color: var(--muted);
+  border-top: 2px solid transparent; letter-spacing: .02em;
 }
 .nav a.active { color: var(--brand); border-top-color: var(--brand); background: var(--surface-2); }
-.nav .ico { font-size: 1.25rem; line-height: 1; }
+.nav .ico { font-size: 1.2rem; line-height: 1; }
 
 @media (min-width: 900px) {
   .app { flex-direction: row; }
   .nav {
     position: sticky; top: 0; left: auto; right: auto; bottom: auto;
-    flex-direction: column; width: 220px; height: 100vh; flex-shrink: 0;
-    border-top: none; border-right: 1px solid var(--border); padding: 12px 8px;
+    overflow-x: visible;
+    flex-direction: column; width: 218px; height: 100vh; flex-shrink: 0;
+    border-top: none; border-right: 1px solid var(--border); padding: 16px 10px;
+    background: var(--surface-2);
+  }
+  .nav-brand {
+    display: block; padding: 4px 10px 14px; margin-bottom: 8px;
+    border-bottom: 2px solid var(--ink);
   }
   .nav a {
-    flex: 0 0 auto; flex-direction: row; justify-content: flex-start; gap: 10px;
-    min-height: 0; padding: 11px 14px; font-size: .88rem; border-radius: 10px;
-    border-top: none; border-left: 3px solid transparent;
+    flex: 0 0 auto; min-width: 0; flex-direction: row; justify-content: flex-start; gap: 10px;
+    min-height: 0; padding: 10px 12px; font-size: .85rem; border-radius: var(--radius-sm);
+    border-top: none; border-left: 3px solid transparent; margin-bottom: 2px;
   }
   .nav a.active { border-left-color: var(--brand); }
-  .main-col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-  .content { padding-bottom: 32px; }
-  .nav-brand {
-    display: block; padding: 10px 14px 18px; font-weight: 800; font-size: 1.05rem;
-  }
-  .nav-brand span { color: var(--brand); }
+  .nav a:hover:not(.active) { background: var(--surface); color: var(--ink-2); }
 }
-@media (max-width: 899px) { .nav-brand { display: none; } }
 
-/* ------------------------------------------------------------------ cards -- */
+/* ------------------------------------------------------------------ card --- */
 .card {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius); box-shadow: var(--shadow);
-  padding: 16px; margin-bottom: 14px;
+  padding: 14px 16px; margin-bottom: 14px;
 }
 .card-head {
-  display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding-bottom: 10px; margin-bottom: 12px; border-bottom: 1px solid var(--border);
 }
 .card-head h2 { flex: 1; min-width: 0; }
-.card .sub { color: var(--ink-2); font-size: .82rem; margin: -6px 0 12px; }
+.card .sub { color: var(--muted); font-size: .82rem; margin: -4px 0 12px; }
+.hint { color: var(--muted); font-size: .78rem; }
 
-.grid { display: grid; gap: 14px; grid-template-columns: 1fr; }
-@media (min-width: 640px) { .grid.g2 { grid-template-columns: repeat(2, 1fr); } }
-@media (min-width: 900px) {
-  .grid.g3 { grid-template-columns: repeat(3, 1fr); }
-  .grid.g4 { grid-template-columns: repeat(4, 1fr); }
-}
-@media (min-width: 640px) and (max-width: 899px) {
-  .grid.g3, .grid.g4 { grid-template-columns: repeat(2, 1fr); }
+/* ------------------------------------------------------------------- kpi --- */
+.grid { display: grid; gap: 12px; margin-bottom: 14px; }
+.grid.g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid.g3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid.g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 760px) {
+  .grid.g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .grid.g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
-/* ------------------------------------------------------------------- kpis -- */
-.kpi { text-align: left; }
-.kpi .val { font-size: 1.9rem; font-weight: 800; letter-spacing: -1px; line-height: 1.1; }
-.kpi .lbl { font-size: .76rem; color: var(--ink-2); text-transform: uppercase; letter-spacing: .4px; }
-.kpi .hint { font-size: .74rem; color: var(--muted); margin-top: 4px; }
+.kpi { margin: 0; border-top: 3px solid var(--brand); padding: 13px 15px 12px; }
+.kpi .val {
+  font-family: var(--font-disp); font-size: 2.35rem; line-height: 1.05;
+  font-variant-numeric: tabular-nums; color: var(--ink);
+}
+.kpi .lbl {
+  font-family: var(--font-disp); font-size: .68rem; letter-spacing: .13em;
+  text-transform: uppercase; color: var(--muted); order: -1; display: block;
+  margin-bottom: 4px;
+}
+.kpi .hint { margin-top: 2px; }
+.kpi.ok    { border-top-color: var(--ok); }
+.kpi.warn  { border-top-color: var(--warn-mark); }
+.kpi.alert { border-top-color: var(--danger); }
+.kpi.ok .val    { color: var(--ok); }
+.kpi.warn .val  { color: var(--warn); }
 .kpi.alert .val { color: var(--danger); }
-.kpi.warn .val { color: var(--warn); }
-.kpi.ok .val { color: var(--ok); }
 
-/* ------------------------------------------------------------------ badge -- */
+/* ----------------------------------------------------------------- badge --- */
 .badge {
-  display: inline-block; padding: 3px 9px; border-radius: 999px;
-  font-size: .72rem; font-weight: 700; white-space: nowrap;
-  background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--border);
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: .72rem; font-weight: 600; letter-spacing: .02em;
+  padding: 2px 8px; border-radius: var(--radius-sm);
+  background: var(--surface-2); color: var(--ink-2);
+  border: 1px solid var(--border); text-transform: capitalize;
 }
-.badge.ok { background: var(--ok-bg); color: var(--ok); border-color: transparent; }
-.badge.warn { background: var(--warn-bg); color: var(--warn); border-color: transparent; }
-.badge.danger { background: var(--danger-bg); color: var(--danger); border-color: transparent; }
-.badge.info { background: var(--info-bg); color: var(--brand); border-color: transparent; }
+.badge.ok     { color: var(--ok);     background: var(--ok-bg);     border-color: transparent; }
+.badge.warn   { color: var(--warn);   background: var(--warn-bg);   border-color: transparent; }
+.badge.danger { color: var(--danger); background: var(--danger-bg); border-color: transparent; }
+.badge.info   { color: var(--brand);  background: var(--info-bg);   border-color: transparent; }
 
-/* ------------------------------------------------------------------- form -- */
-label { display: block; font-size: .8rem; font-weight: 600; color: var(--ink-2); margin-bottom: 5px; }
-.field { margin-bottom: 12px; }
-input, select, textarea {
-  width: 100%; padding: 11px 12px; font-family: inherit; font-size: 16px; /* 16px evita zoom en iOS */
-  color: var(--ink); background: var(--surface-2);
-  border: 1px solid var(--border); border-radius: 10px;
-}
-input:focus, select:focus, textarea:focus {
-  outline: 2px solid var(--brand); outline-offset: -1px; border-color: var(--brand);
-}
-textarea { min-height: 80px; resize: vertical; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+.dot.on    { background: var(--ok); }
+.dot.off   { background: var(--muted); }
+.dot.alert { background: var(--danger); }
 
+/* ------------------------------------------------------------------- btn --- */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-  padding: 11px 16px; min-height: 44px; /* area tactil comoda */
-  font-family: inherit; font-size: .92rem; font-weight: 600;
-  border: 1px solid var(--border); border-radius: 10px;
-  background: var(--surface-2); color: var(--ink); cursor: pointer;
+  font-family: var(--font); font-size: .86rem; font-weight: 600;
+  padding: 9px 14px; border-radius: var(--radius-sm); cursor: pointer;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--border); text-decoration: none;
+  transition: background .12s, border-color .12s, color .12s;
 }
 .btn:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
-.btn.primary { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); }
-.btn.primary:hover:not(:disabled) { filter: brightness(1.08); color: var(--brand-ink); }
-.btn.danger { background: var(--danger-bg); color: var(--danger); border-color: transparent; }
-.btn.ok { background: var(--ok-bg); color: var(--ok); border-color: transparent; }
-.btn.sm { padding: 7px 11px; min-height: 36px; font-size: .82rem; }
-.btn.block { width: 100%; }
-.btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
-
-/* ------------------------------------------------------------------ table -- */
-.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -16px; padding: 0 16px; }
-table { width: 100%; border-collapse: collapse; font-size: .87rem; min-width: 460px; }
-th {
-  text-align: left; font-size: .72rem; text-transform: uppercase; letter-spacing: .4px;
-  color: var(--muted); font-weight: 700; padding: 8px 10px;
-  border-bottom: 1px solid var(--border); white-space: nowrap;
+.btn.primary {
+  background: var(--brand); color: var(--brand-ink); border-color: var(--brand);
 }
-td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-tr:last-child td { border-bottom: none; }
-.num { text-align: right; font-variant-numeric: tabular-nums; }
+.btn.primary:hover:not(:disabled) { background: var(--brand-2); border-color: var(--brand-2); color: var(--brand-ink); }
+.btn.ok     { background: var(--ok);     color: #fff; border-color: var(--ok); }
+.btn.danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+.btn.ok:hover:not(:disabled), .btn.danger:hover:not(:disabled) { filter: brightness(1.08); color: #fff; }
+.btn.sm    { font-size: .78rem; padding: 6px 10px; }
+.btn.block { width: 100%; }
+.btn-row   { display: flex; flex-wrap: wrap; gap: 8px; }
 
-/* Filas-tarjeta en movil para tablas densas */
-@media (max-width: 639px) {
+/* interruptor de tema */
+.theme-btn {
+  font-family: var(--font-disp); font-size: .66rem; letter-spacing: .12em;
+  text-transform: uppercase; padding: 6px 10px;
+}
+
+/* ----------------------------------------------------------------- forms --- */
+.field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+label {
+  font-family: var(--font-disp); font-size: .68rem; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--muted); font-weight: 700;
+}
+input, select, textarea {
+  font-family: var(--font); font-size: .92rem; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 9px 11px; width: 100%;
+}
+textarea { min-height: 80px; resize: vertical; }
+input:focus, select:focus, textarea:focus {
+  outline: none; border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-soft);
+}
+
+/* ------------------------------------------------------------------ list --- */
+.list-item {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 11px 0; border-bottom: 1px solid var(--border-2);
+}
+.list-item:last-child { border-bottom: none; }
+.list-item .grow { flex: 1; min-width: 0; }
+.list-item .t { font-weight: 600; color: var(--ink); }
+.list-item .s { font-size: .8rem; color: var(--muted); margin-top: 1px; }
+
+/* ----------------------------------------------------------------- table --- */
+.table-wrap { overflow-x: auto; margin: 0 -16px; padding: 0 16px; }
+table { border-collapse: collapse; width: 100%; font-size: .87rem; }
+th {
+  font-family: var(--font-disp); font-size: .66rem; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--muted); font-weight: 700;
+  text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+td { padding: 9px 10px; border-bottom: 1px solid var(--border-2); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--surface-2); }
+.num { text-align: right; font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+
+/* En movil, cada fila se vuelve una tarjeta con la etiqueta al frente. */
+@media (max-width: 720px) {
   .stack-mobile table, .stack-mobile thead, .stack-mobile tbody,
-  .stack-mobile th, .stack-mobile td, .stack-mobile tr { display: block; min-width: 0; }
+  .stack-mobile th, .stack-mobile td, .stack-mobile tr { display: block; }
   .stack-mobile thead { display: none; }
   .stack-mobile tr {
-    border: 1px solid var(--border); border-radius: 10px;
-    padding: 10px; margin-bottom: 10px; background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    margin-bottom: 10px; padding: 6px 12px; background: var(--surface);
   }
-  .stack-mobile td { border: none; padding: 4px 0; display: flex; gap: 10px; }
+  .stack-mobile td { border: none; display: flex; gap: 10px; padding: 5px 0; }
   .stack-mobile td::before {
-    content: attr(data-l); flex: 0 0 40%; font-size: .74rem; font-weight: 700;
-    color: var(--muted); text-transform: uppercase; letter-spacing: .3px;
+    content: attr(data-l); flex: 0 0 40%;
+    font-family: var(--font-disp); font-size: .64rem; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted); font-weight: 700;
   }
   .stack-mobile .num { text-align: left; }
 }
 
-/* ------------------------------------------------------------------ plano -- */
-.zona { margin-bottom: 14px; }
-.zona-head {
-  display: flex; align-items: center; gap: 8px; margin-bottom: 7px;
-  font-size: .78rem; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .5px; color: var(--ink-2);
+/* ----------------------------------------------------- estados / avisos --- */
+.alert-box, .alert {
+  border-left: 4px solid var(--muted); background: var(--surface-2);
+  padding: 10px 13px; border-radius: var(--radius-sm);
+  margin-bottom: 12px; font-size: .87rem; color: var(--ink-2);
 }
-.espacios { display: flex; flex-wrap: wrap; gap: 6px; }
-.espacio {
-  width: 54px; height: 50px; border-radius: 8px; border: 1.5px solid var(--border);
-  background: var(--surface-2); display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: 1px; cursor: pointer;
-  font-size: .72rem; font-weight: 700; color: var(--ink-2); padding: 2px;
-}
-.espacio small { font-size: .56rem; font-weight: 600; color: var(--muted); line-height: 1; }
-.espacio.ocupado { background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
-.espacio.ocupado small { color: var(--danger); }
-.espacio.libre:hover { border-color: var(--brand); color: var(--brand); }
-.espacio.no-cuenta { opacity: .55; }
+.alert-box.ok   { border-left-color: var(--ok);        background: var(--ok-bg);     color: var(--ok); }
+.alert-box.warn { border-left-color: var(--warn-mark); background: var(--warn-bg);   color: var(--warn); }
+.alert-box.err  { border-left-color: var(--danger);    background: var(--danger-bg); color: var(--danger); }
+.alert-box.info { border-left-color: var(--brand);     background: var(--info-bg);   color: var(--brand); }
 
-/* ------------------------------------------------------------------ varios */
-.empty { text-align: center; padding: 28px 16px; color: var(--muted); font-size: .88rem; }
-.empty .ico { font-size: 2rem; display: block; margin-bottom: 8px; opacity: .5; }
-
-.alert-box {
-  padding: 11px 13px; border-radius: 10px; font-size: .85rem; margin-bottom: 12px;
-  border-left: 3px solid;
-}
-.alert-box.err { background: var(--danger-bg); color: var(--danger); border-color: var(--danger); }
-.alert-box.ok { background: var(--ok-bg); color: var(--ok); border-color: var(--ok); }
-.alert-box.warn { background: var(--warn-bg); color: var(--warn); border-color: var(--warn); }
-.alert-box.info { background: var(--info-bg); color: var(--brand); border-color: var(--brand); }
-
+/* Nota que cita la regla de negocio que la pantalla hace cumplir. */
 .rule {
-  font-size: .74rem; color: var(--muted); font-style: italic;
-  border-left: 2px solid var(--border); padding-left: 8px; margin-top: 8px;
+  font-size: .76rem; color: var(--muted); border-left: 2px solid var(--border);
+  padding-left: 9px; margin: 10px 0 0;
 }
 
-.modal-bg {
-  position: fixed; inset: 0; background: rgba(15, 23, 42, .55); z-index: 100;
-  display: flex; align-items: flex-end; justify-content: center; padding: 0;
-}
-@media (min-width: 640px) { .modal-bg { align-items: center; padding: 20px; } }
-.modal {
-  background: var(--surface); width: 100%; max-width: 520px; max-height: 90vh;
-  overflow-y: auto; border-radius: 16px 16px 0 0; padding: 20px;
-  padding-bottom: max(20px, env(safe-area-inset-bottom));
-}
-@media (min-width: 640px) { .modal { border-radius: 16px; } }
-
-.list-item {
-  display: flex; align-items: center; gap: 12px; padding: 12px 0;
-  border-bottom: 1px solid var(--border);
-}
-.list-item:last-child { border-bottom: none; }
-.list-item .grow { flex: 1; min-width: 0; }
-.list-item .t { font-weight: 600; font-size: .92rem; }
-.list-item .s { font-size: .79rem; color: var(--ink-2); }
-
-.dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
-.dot.on { background: var(--ok); }
-.dot.off { background: var(--muted); }
-.dot.alert { background: var(--danger); }
-
-.login-wrap {
-  min-height: 100vh; display: flex; align-items: center; justify-content: center;
-  padding: 20px; background: var(--bg);
-}
-.login-card { width: 100%; max-width: 400px; }
-.demo-users { display: grid; gap: 6px; margin-top: 8px; }
-.demo-users button {
-  text-align: left; padding: 9px 11px; font-size: .8rem; border-radius: 8px;
-  border: 1px solid var(--border); background: var(--surface-2); cursor: pointer;
-  color: var(--ink); font-family: inherit;
-}
-.demo-users button:hover { border-color: var(--brand); }
+.empty { text-align: center; color: var(--muted); padding: 26px 12px; font-size: .87rem; }
+.empty .ico { display: block; font-size: 1.7rem; margin-bottom: 6px; opacity: .55; }
 
 .spinner {
-  width: 22px; height: 22px; border: 2.5px solid var(--border);
-  border-top-color: var(--brand); border-radius: 50%;
-  animation: spin .7s linear infinite; margin: 24px auto;
+  width: 22px; height: 22px; margin: 22px auto;
+  border: 2px solid var(--border); border-top-color: var(--brand);
+  border-radius: 50%; animation: spin .7s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.toast {
-  position: fixed; left: 50%; transform: translateX(-50%); z-index: 200;
-  bottom: calc(var(--nav-h) + 16px); max-width: 90vw;
-  padding: 12px 16px; border-radius: 10px; font-size: .87rem; font-weight: 600;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, .28);
+/* ----------------------------------------------------------------- modal --- */
+.modal-bg {
+  position: fixed; inset: 0; z-index: 100; background: rgba(17, 28, 36, .55);
+  display: flex; align-items: flex-end; justify-content: center; padding: 0;
 }
-@media (min-width: 900px) { .toast { bottom: 24px; } }
-.toast.ok { background: var(--ok); color: #fff; }
-.toast.err { background: var(--danger); color: #fff; }
+.modal {
+  background: var(--surface); width: 100%; max-width: 560px;
+  max-height: 92vh; overflow-y: auto; padding: 16px;
+  border-radius: var(--radius) var(--radius) 0 0;
+  border-top: 3px solid var(--brand);
+}
+@media (min-width: 620px) {
+  .modal-bg { align-items: center; padding: 20px; }
+  .modal { border-radius: var(--radius); }
+}
+
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(var(--nav-h) + 16px); z-index: 200;
+  background: var(--ink); color: var(--bg);
+  padding: 10px 16px; border-radius: var(--radius-sm);
+  font-size: .86rem; font-weight: 600; box-shadow: var(--shadow);
+  max-width: 88vw;
+}
+.toast.ok  { border-left: 4px solid var(--ok); }
+.toast.err { border-left: 4px solid var(--danger); }
+@media (min-width: 900px) { .toast { bottom: 20px; } }
+
+/* ----------------------------------------------------------------- login --- */
+.login-wrap {
+  min-height: 100%; display: flex; align-items: center; justify-content: center;
+  padding: 20px; background: var(--bg);
+}
+.login-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-top: 4px solid var(--brand);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 26px 24px; width: 100%; max-width: 400px;
+}
+.demo-users { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.demo-users button {
+  font-family: var(--font-data); font-size: .72rem;
+  background: var(--surface-2); color: var(--ink-2);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 4px 9px; cursor: pointer;
+}
+.demo-users button:hover { border-color: var(--brand); color: var(--brand); }
+
+/* ------------------------------------------------- plano del taller ------- */
+.zona { margin-bottom: 16px; }
+.zona-head {
+  display: flex; align-items: baseline; gap: 9px; margin-bottom: 7px;
+  font-family: var(--font-disp); font-size: .7rem; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--ink); font-weight: 700;
+}
+.espacios {
+  display: grid; gap: 5px;
+  grid-template-columns: repeat(auto-fill, minmax(62px, 1fr));
+}
+/* Cada cajon se dibuja como en el plano del Excel: casilla, no burbuja. */
+.espacio {
+  border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); padding: 7px 5px; text-align: center;
+  font-family: var(--font-data); font-size: .82rem; font-weight: 600;
+  color: var(--ink); min-height: 52px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  cursor: default;
+}
+.espacio small {
+  display: block; font-family: var(--font); font-size: .6rem; font-weight: 600;
+  letter-spacing: .04em; text-transform: uppercase; color: var(--muted);
+  margin-top: 2px; line-height: 1.2;
+}
+.espacio.libre { border-color: var(--border); }
+.espacio.libre:hover { border-color: var(--brand); color: var(--brand); cursor: pointer; }
+.espacio.ocupado {
+  background: var(--brand); border-color: var(--brand); color: var(--brand-ink);
+}
+.espacio.ocupado small { color: var(--brand-ink); opacity: .85; }
+/* Yonke, patio, fosa y lavado: existen en el plano pero no son capacidad. */
+.espacio.no-cuenta {
+  background: repeating-linear-gradient(
+    135deg, var(--surface-2), var(--surface-2) 5px, var(--bg) 5px, var(--bg) 10px);
+  color: var(--muted); border-style: dashed;
+}
+
+/* El boton de tema muestra solo el icono en movil. */
+.solo-ancho { display: none; }
+@media (min-width: 620px) { .solo-ancho { display: inline; } }
+
+/* --------------------------------------------------------- impresion ------ */
+/* La hoja de trabajo se entrega EN PAPEL a los mecanicos de Alamos. Sin esto,
+   al imprimir salia el menu, la barra superior y los botones, y el renglon para
+   que el mecanico escriba a mano no existia -- que es justo para lo que sirve
+   la hoja. */
+.solo-impresion { display: none; }
+
+@media print {
+  .nav, .topbar, .no-print, .toast { display: none !important; }
+  .content { padding: 0; max-width: none; }
+  .app, .main-col { display: block; }
+  body { background: #fff; color: #000; font-size: 11pt; }
+
+  .solo-impresion { display: block; }
+  .hoja-cabecera {
+    display: flex; justify-content: space-between; align-items: baseline;
+    border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 14px;
+    font-family: var(--font-disp);
+  }
+
+  /* Cada tecnico en su hoja: se la lleva a su area y no carga la de los demas. */
+  .hoja-tecnico { page-break-after: always; break-after: page; }
+  .hoja-tecnico:last-child { page-break-after: auto; break-after: auto; }
+  .card { box-shadow: none; border: none; padding: 0; margin-bottom: 10px; }
+  .card-head { border-bottom: 1px solid #000; }
+  table { font-size: 10pt; }
+  th, td { border-bottom: 1px solid #999; }
+  .badge { border: 1px solid #999; background: none !important; color: #000 !important; }
+  /* El renglon donde el mecanico anota a mano lo que hizo. */
+  .renglon { display: block; min-width: 190px; border-bottom: 1px solid #000; height: 1.5em; }
+  .table-wrap { overflow: visible; margin: 0; padding: 0; }
+}
+
+/* La unidad sobre la que se trabaja, al frente del formato. */
+.unidad-trabajo {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  border-left: 4px solid var(--brand); background: var(--surface-2);
+  padding: 10px 14px; border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  margin-bottom: 14px;
+}
+.unidad-trabajo .lbl {
+  font-family: var(--font-disp); font-size: .64rem; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--muted); font-weight: 700;
+}
+.unidad-trabajo strong {
+  font-family: var(--font-data); font-size: 1.15rem; color: var(--ink);
+}
+
+/* --------------------------------------------- buscador de refacciones ---- */
+/* No es un <select>: el catalogo trae 18,233 piezas. Se busca por texto y por
+   codigo de SAP, y la lista sale flotando sobre el formulario. */
+.linea-pieza {
+  display: grid; grid-template-columns: 1fr 64px 92px 34px; gap: 6px; margin-bottom: 6px;
+  align-items: start;
+}
+.buscador-pieza { position: relative; }
+.bp-lista {
+  position: absolute; z-index: 60; left: 0; right: 0; top: calc(100% + 2px);
+  background: var(--surface); border: 1px solid var(--brand);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow);
+  max-height: 260px; overflow-y: auto;
+}
+.bp-op {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  background: none; border: none; border-bottom: 1px solid var(--border-2);
+  padding: 8px 10px; cursor: pointer; color: var(--ink); font-family: var(--font);
+}
+.bp-op:last-child { border-bottom: none; }
+.bp-op:hover { background: var(--surface-2); }
+.bp-op .grow { flex: 1; min-width: 0; }
+.bp-op .t { display: block; font-size: .84rem; font-weight: 600; }
+.bp-op .s { display: block; font-size: .74rem; color: var(--muted); font-family: var(--font-data); }
+.bp-vacio { padding: 10px; font-size: .8rem; color: var(--muted); text-align: center; }
+.pieza-elegida {
+  display: flex; align-items: center; gap: 8px; font-size: .84rem;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 6px 8px; min-height: 38px;
+}
+.pieza-elegida .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* ------------------------------------------------- calendario de cupo ----- */
+/* Mismo lenguaje que el plano: casillas, no burbujas. El numero es cuantos
+   espacios quedan ESE dia para ESE tipo de unidad -- la capacidad nunca es
+   global, el taller puede estar lleno de pipas y libre de reparto. */
+.cal {
+  display: grid; gap: 4px;
+  grid-template-columns: repeat(auto-fill, minmax(46px, 1fr));
+}
+.cal-dia {
+  border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); padding: 5px 2px; min-height: 46px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-family: var(--font-data); color: var(--ink);
+}
+.cal-dia .cal-n { font-size: .82rem; font-weight: 600; line-height: 1; }
+.cal-dia small {
+  font-size: .68rem; margin-top: 2px; color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.cal-dia.hay:hover { border-color: var(--brand); color: var(--brand); }
+.cal-dia.hay small { color: var(--ok); font-weight: 700; }
+/* Lleno: se puede elegir, pero avisa. El sobrecupo es decision de Victor. */
+.cal-dia.lleno { border-color: var(--danger); background: var(--danger-bg); }
+.cal-dia.lleno small { color: var(--danger); font-weight: 700; }
+/* El taller no opera: mismo rayado que las zonas que no cuentan en el plano. */
+.cal-dia.cerrado {
+  background: repeating-linear-gradient(
+    135deg, var(--surface-2), var(--surface-2) 5px, var(--bg) 5px, var(--bg) 10px);
+  color: var(--muted); border-style: dashed; cursor: not-allowed;
+}
+.cal-dia.elegido {
+  border-color: var(--brand); border-width: 2.5px;
+  box-shadow: 0 0 0 3px var(--brand-soft); color: var(--brand);
+}
+
+/* Casilla elegida al asignar espacio desde la solicitud. */
+.espacio.elegido {
+  border-color: var(--brand); border-width: 2.5px;
+  box-shadow: 0 0 0 3px var(--brand-soft); color: var(--brand);
+}
+.espacio:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ------------------------------------------- reporte de mantenimiento ----- */
+/* El formato de papel de Álamos. Se ve en pantalla y se imprime, y en las dos
+   tiene que reconocerse como LA MISMA hoja: quien lo llena trae el papel al
+   lado. Por eso lleva marco, y no el aire de las tarjetas del resto de la app. */
+.formato {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 18px; margin-bottom: 14px;
+}
+
+.fmt-cabecera {
+  display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap;
+  border-bottom: 2px solid var(--ink); padding-bottom: 12px; margin-bottom: 16px;
+}
+.fmt-empresa {
+  font-family: var(--font-disp); font-size: 1.15rem; font-weight: 700;
+  letter-spacing: .06em; color: var(--logo-azul);
+}
+.fmt-razon { font-size: .72rem; color: var(--muted); }
+.fmt-titulo {
+  flex: 1; min-width: 200px; text-align: center; font-family: var(--font-disp);
+  font-size: 1.25rem; text-transform: uppercase; letter-spacing: .06em; margin: 0;
+}
+.fmt-folio { text-align: right; display: flex; flex-direction: column; gap: 2px; }
+.fmt-folio .lbl {
+  font-family: var(--font-disp); font-size: .6rem; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--muted); font-weight: 700;
+}
+.fmt-folio strong { font-family: var(--font-data); font-size: 1rem; }
+.fmt-folio .s { font-size: .72rem; color: var(--muted); text-transform: uppercase; }
+
+.fmt-bloque { margin-bottom: 20px; }
+.fmt-bloque > h2 {
+  font-family: var(--font-disp); font-size: .74rem; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--ink-2); font-weight: 700;
+  border-bottom: 1px solid var(--border); padding-bottom: 5px; margin-bottom: 10px;
+}
+.fmt-bloque .card-head { margin-bottom: 10px; }
+.fmt-bloque .card-head h2 {
+  font-family: var(--font-disp); font-size: .74rem; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--ink-2); font-weight: 700; border: none;
+}
+
+/* Los datos van en rejilla, con la etiqueta ENCIMA del dato igual que en el
+   papel, donde el texto impreso está antes de la raya. */
+.fmt-datos {
+  display: grid; gap: 10px 16px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.fmt-dato { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.fmt-dato .lbl {
+  font-family: var(--font-disp); font-size: .6rem; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--muted); font-weight: 700;
+}
+.fmt-dato .val {
+  border-bottom: 1px solid var(--border); padding-bottom: 3px;
+  min-height: 1.4em; font-size: .9rem; word-break: break-word;
+}
+
+/* La rejilla de revisión rápida. En el papel son casillas; aquí la casilla
+   dice además QUÉ se encontró, que es lo que el papel no puede. */
+.fmt-revision {
+  display: grid; gap: 6px;
+  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+}
+.fmt-punto {
+  display: flex; align-items: center; gap: 8px; text-align: left;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 7px 9px; background: var(--surface-2); font-size: .8rem; color: var(--ink);
+  font-family: var(--font); width: 100%;
+}
+.fmt-revision.editable .fmt-punto { cursor: pointer; min-height: 44px; }
+.fmt-revision.editable .fmt-punto:hover { border-color: var(--brand); }
+.fmt-punto .marca {
+  flex: none; width: 22px; height: 22px; display: grid; place-items: center;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); font-size: .7rem; font-weight: 700; line-height: 1;
+}
+.fmt-punto .txt { flex: 1; min-width: 0; }
+.fmt-punto.bien .marca { color: var(--ok); border-color: var(--ok); background: var(--ok-bg); }
+.fmt-punto.mal { border-color: var(--danger); background: var(--danger-bg); }
+.fmt-punto.mal .marca { color: var(--danger); border-color: var(--danger); background: var(--surface); }
+.fmt-punto.no_aplica { color: var(--muted); }
+.fmt-punto.no_aplica .marca { font-size: .55rem; color: var(--muted); }
+
+.fmt-notas { margin-top: 12px; }
+.fmt-notas .lbl {
+  font-family: var(--font-disp); font-size: .6rem; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--muted); font-weight: 700;
+}
+.fmt-notas p, .fmt-parrafo { white-space: pre-wrap; font-size: .9rem; margin-top: 3px; }
+
+/* Los diez sistemas. Ancho fijo en la primera columna para que las dos de
+   texto queden iguales: en el papel están enfrentadas y así se comparan. */
+/* `table-layout: fixed` no es cosmética: con el ancho automático la columna
+   del sistema («Sistema de enfriamiento», sin cortar) empujaba la tabla a 805 px
+   dentro de 716, y al imprimir —donde .table-wrap ya no puede hacer scroll— la
+   hoja salía cortada por la derecha. Fijas, las dos columnas de texto quedan
+   además iguales, que es como están enfrentadas en el papel. */
+.fmt-actividades { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.fmt-actividades thead th:nth-child(1) { width: 20%; }
+.fmt-actividades thead th:nth-child(2),
+.fmt-actividades thead th:nth-child(3) { width: 30%; }
+.fmt-actividades thead th:nth-child(4) { width: 20%; }
+.fmt-actividades td, .fmt-actividades tbody th { overflow-wrap: anywhere; }
+.fmt-actividades th, .fmt-actividades td {
+  border: 1px solid var(--border); padding: 7px 9px; vertical-align: top;
+  font-size: .84rem; text-align: left;
+}
+.fmt-actividades thead th {
+  background: var(--surface-2); font-family: var(--font-disp);
+  font-size: .64rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+}
+/* El nombre del sistema se lee como en el papel: «Sistema motor», no
+   «SISTEMA MOTOR». La versalita del <th> global grita en una tabla de diez
+   renglones y compite con el texto que sí importa, el del mecánico. */
+.fmt-actividades tbody th {
+  background: var(--surface-2);
+  font-family: var(--font); font-size: .84rem; font-weight: 600;
+  letter-spacing: normal; text-transform: none; color: var(--ink);
+}
+.fmt-actividades textarea { min-height: 44px; font-size: .84rem; padding: 5px 7px; }
+.fmt-actividades .s { color: var(--muted); font-size: .72rem; }
+/* El renglón vacío. `.renglon` solo estaba definido para impresión, así que en
+   pantalla la celda sin capturar salía en blanco y no se distinguía de un
+   error de carga. Aquí es una raya tenue: «esto va vacío, a propósito». */
+.fmt-actividades .renglon, .fmt-bloque .renglon {
+  display: block; border-bottom: 1px dashed var(--border); min-height: 1.4em;
+}
+.renglon.ancho { display: block; border-bottom: 1px solid var(--border); height: 3em; }
+
+.fmt-firmas {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+.fmt-firma {
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 3px;
+}
+.fmt-firma .raya {
+  border-bottom: 1px solid var(--ink); min-height: 2.2em;
+  display: flex; align-items: flex-end; font-size: .92rem; font-weight: 600;
+}
+.fmt-firma .pie { font-size: .7rem; color: var(--ink-2); margin-top: 4px; }
+.fmt-firma .quien {
+  font-family: var(--font-disp); font-size: .62rem; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--muted); font-weight: 700;
+}
+.fmt-firma .s { font-size: .68rem; color: var(--muted); }
+.fmt-firma.puesta { border-color: var(--ok); }
+.fmt-firma .btn { margin-top: 6px; }
+
+@media print {
+  /* En papel el formato ES la hoja: sin sombra, sin fondo, y en tinta negra
+     para que se lea en la impresora del taller, que no imprime a color. */
+  .formato {
+    box-shadow: none; border: 1.5px solid #000; padding: 10px;
+    color: #000; background: #fff;
+  }
+  .fmt-cabecera { border-bottom-color: #000; }
+  .fmt-empresa, .fmt-titulo, .fmt-folio strong { color: #000; }
+  .fmt-bloque { margin-bottom: 12px; page-break-inside: avoid; break-inside: avoid; }
+  .fmt-bloque > h2, .fmt-bloque .card-head h2 { color: #000; border-bottom-color: #000; }
+  .fmt-dato .lbl, .fmt-punto .txt, .fmt-firma .pie, .fmt-firma .quien { color: #000; }
+  .fmt-dato .val { border-bottom-color: #000; }
+  .fmt-punto, .fmt-punto .marca,
+  .fmt-actividades th, .fmt-actividades td, .fmt-firma {
+    border-color: #000 !important; background: none !important; color: #000 !important;
+  }
+  .fmt-actividades { font-size: 9pt; }
+  .fmt-actividades th, .fmt-actividades td { border: 1px solid #000; }
+  /* Las firmas van al pie completas o en la hoja siguiente: partir un recuadro
+     de firma a la mitad invalida el documento en la práctica. */
+  .fmt-firmas { page-break-inside: avoid; break-inside: avoid; }
+  .renglon.ancho { border-bottom-color: #000; }
+  /* La hoja de trabajo le pone `min-width: 190px` al renglón para que el
+     mecánico tenga dónde escribir. Aquí ese mínimo no cabe: la columna del
+     responsable mide el 20 % de la página y el span la empujaba fuera del
+     papel. En esta tabla el renglón ocupa lo que le toca a su celda. */
+  .fmt-actividades .renglon { min-width: 0; }
+}
+
+/* La marca en la esquina del formato: el logo real, no el nombre escrito. */
+.fmt-marca { display: flex; flex-direction: column; gap: 4px; }
+
+/* Quien esta atendiendo el vehiculo. El que todavia debe trabajo se distingue
+   del que ya entrego: son preguntas distintas -- «a quien le pregunto» y
+   «quien respondio por esto». */
+.fmt-atiende {
+  display: grid; gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+.fmt-quien {
+  border: 1px solid var(--border); border-left: 3px solid var(--muted);
+  border-radius: var(--radius-sm); padding: 8px 11px; background: var(--surface-2);
+}
+.fmt-quien.activo { border-left-color: var(--brand); }
+.fmt-quien .t { font-weight: 600; color: var(--ink); font-size: .9rem; }
+.fmt-quien .s { color: var(--muted); font-size: .74rem; }
+
+@media print {
+  .fmt-quien {
+    border-color: #000 !important; background: none !important;
+    border-left-width: 1px;
+  }
+  .fmt-quien .t, .fmt-quien .s { color: #000 !important; }
+  /* El logo va en negro sobre el papel: la impresora del taller no es a color
+     y el verde de la marca sale como un gris que no se distingue del azul. */
+  .fmt-marca .logo svg * { fill: #000 !important; }
+}
+
+/* ---------------------------------------------- croquis del taller -------- */
+/* Reproduce el plano en Excel del cliente: dos filas de cajones enfrentadas con
+   el pasillo de circulacion en medio, salida a la izquierda, entrada a la
+   derecha, y al lado el patio, el lavado y el yonke. Antes era una lista
+   vertical de zonas -- correcta, pero imposible de cruzar con el papel que
+   tienen pegado en la pared. */
+.croquis { display: flex; flex-direction: column; gap: 14px; }
+
+.cro-nave {
+  display: flex; align-items: stretch; gap: 0;
+  border: 2px solid var(--ink-2); border-radius: var(--radius);
+  background: var(--surface); overflow-x: auto;
+}
+.cro-centro { flex: 1; min-width: 0; padding: 10px 8px; display: flex; flex-direction: column; gap: 8px; }
+.cro-fila { display: flex; gap: 8px; align-items: flex-start; flex-wrap: nowrap; }
+
+/* Las puertas. Rotuladas en vertical como en el plano: ocupan poco y dicen
+   de que lado entra y sale la unidad, que es la mitad de para que sirve el
+   dibujo. */
+/* Las puertas van PEGADAS a los extremos aunque el croquis ruede de lado.
+   Son la referencia del dibujo -- «la de junto a la entrada» -- y si se van con
+   el scroll, en un croquis angosto (el del modal de la solicitud) la entrada
+   acababa a media pantalla, encimada con los cajones. `sticky` las deja donde
+   corresponden y `z-index` las mantiene encima de lo que pasa por debajo. */
+.cro-puerta {
+  flex: none; width: 34px; display: grid; place-items: center;
+  background: var(--surface-2); border-right: 2px solid var(--ink-2);
+  position: sticky; z-index: 2;
+}
+.cro-puerta.salida  { left: 0; }
+.cro-puerta.entrada { right: 0; }
+/* El centro no se encoge: si se dejara, los cajones se meterian por debajo de
+   las puertas en vez de hacer rodar el croquis. */
+.cro-centro { min-width: max-content; }
+.cro-puerta.entrada { border-right: none; border-left: 2px solid var(--ink-2); }
+.cro-puerta span {
+  writing-mode: vertical-rl; transform: rotate(180deg);
+  font-family: var(--font-disp); font-size: .64rem; letter-spacing: .16em;
+  text-transform: uppercase; font-weight: 700; color: var(--ink-2); white-space: nowrap;
+}
+.cro-puerta.salida { background: var(--danger-bg); }
+.cro-puerta.entrada { background: var(--ok-bg); }
+
+/* El pasillo. La flecha marca el sentido de circulacion, igual que en el papel. */
+.cro-pasillo {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  min-height: 34px; border-top: 1px dashed var(--border);
+  border-bottom: 1px dashed var(--border);
+  font-family: var(--font-disp); font-size: .6rem; letter-spacing: .2em;
+  text-transform: uppercase; color: var(--muted);
+}
+.cro-flecha { color: var(--warn-mark); font-size: 1.4rem; line-height: 1; }
+
+/* Ni las zonas ni las casillas se encogen: el croquis es un plano, y un plano
+   con las medidas apretadas deja de decir donde esta cada cosa. Cuando no cabe
+   rueda de lado (.cro-nave tiene overflow-x), que es lo que hace cualquiera con
+   un plano grande en la mano. */
+.cro-zona { flex: none; }
+.cro-banda {
+  display: flex; align-items: baseline; gap: 6px; justify-content: space-between;
+  padding: 2px 7px; border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  font-family: var(--font-disp); font-size: .58rem; letter-spacing: .1em;
+  text-transform: uppercase; font-weight: 700; white-space: nowrap;
+  background: var(--track); color: var(--ink-2);
+}
+.cro-cuenta { font-family: var(--font-data); letter-spacing: 0; opacity: .8; }
+.cro-casillas { display: flex; gap: 3px; padding-top: 3px; }
+.cro-banda > span:first-child { overflow: hidden; text-overflow: ellipsis; }
+
+/* Los colores del Excel. Quien conoce el papel reconoce la pantalla. */
+.cro-zona[data-tono="reparto"]     .cro-banda { background: #2E75B6; color: #fff; }
+.cro-zona[data-tono="pipas"]       .cro-banda { background: #808080; color: #fff; }
+.cro-zona[data-tono="electricos"]  .cro-banda { background: #FFC000; color: #3A2E00; }
+.cro-zona[data-tono="utilitarios"] .cro-banda { background: #7030A0; color: #fff; }
+.cro-zona[data-tono="especial"]    .cro-banda { background: var(--ink-2); color: var(--surface); }
+
+/* Oficina y contenedor: no se tocan, pero sin ellos el dibujo no se reconoce. */
+.cro-hito {
+  display: grid; place-items: center; gap: 2px; min-width: 92px; padding: 6px 10px;
+  border: 1px solid var(--ink-2); border-radius: var(--radius-sm);
+  background: var(--surface-2); color: var(--ink-2);
+  font-family: var(--font-disp); font-size: .6rem; letter-spacing: .1em;
+  text-transform: uppercase; font-weight: 700; text-align: center; align-self: stretch;
+}
+/* Que hay ahi, cuando no son cajones. El yonke guarda piezas, no vehiculos, y
+   sin decirlo la casilla vacia parecia un error. */
+.cro-hito small {
+  font-family: var(--font); font-size: .58rem; letter-spacing: 0;
+  text-transform: none; font-weight: 400; color: var(--muted);
+}
+
+/* El anexo: patio, lavado y yonke. Van con borde verde como en el Excel, y
+   fuera de la nave porque no son capacidad de reparacion. */
+.cro-anexo {
+  border: 2px solid var(--ok); border-radius: var(--radius);
+  padding: 10px 8px; background: var(--surface);
+  display: flex; flex-direction: column; gap: 8px; overflow-x: auto;
+}
+
+/* En el croquis las casillas son mas chicas: caben 18 en una fila y lo que
+   importa es la POSICION, no leer el numero economico completo de lejos. */
+.croquis .espacio {
+  flex: none; width: 42px; padding: 4px 3px; font-size: .68rem; gap: 1px;
+  overflow: hidden;
+}
+.croquis .espacio small { font-size: .56rem; }
+
+/* En el telefono la nave no cabe de lado: se apilan las dos filas y el pasillo
+   pierde el sentido, asi que se oculta en vez de mentir sobre la circulacion. */
+@media (max-width: 700px) {
+  .cro-fila { flex-wrap: wrap; }
+  .cro-puerta { width: 26px; }
+  .cro-pasillo { letter-spacing: .1em; }
+}
+
+/* Destinos al mover una unidad de cajon. Salen dentro del mismo menu: antes
+   habia que cerrarlo, buscar el cajon libre en el plano y abrir otro menu. */
+.destinos { margin: 10px 0; }
+.destino-zona { margin-bottom: 10px; }
+.destino-head {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 5px;
+  font-family: var(--font-disp); font-size: .62rem; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--muted); font-weight: 700;
+}
+.destino-casillas { display: flex; flex-wrap: wrap; gap: 5px; }
+.destino-casillas .btn { min-width: 52px; font-family: var(--font-data); }
+
+/* ------------------------------- el formato, en UNA hoja ------------------ */
+/* El papel de Alamos es UNA hoja y el cliente lo pidio asi: si se parte en dos,
+   la segunda se despega, se traspapela y el formato deja de servir como
+   documento. Medido en el peor caso -- los diez sistemas con texto en las dos
+   columnas y las cinco firmas puestas -- salia en 2027 px contra los 996 utiles
+   de una carta. Todo lo de abajo es para caber ahi. */
+@page {
+  size: letter portrait;
+  margin: 8mm;
+}
+
+@media print {
+  .formato { padding: 4px; border-width: 1px; }
+
+  /* «Quien atiende» NO se imprime: en el papel esa informacion ya esta, tecnico
+     por tecnico, en la columna RESPONSABLE de la tabla. Impresa aparte serian
+     los mismos nombres dos veces y 355 px -- un tercio de la hoja -- gastados
+     en repetirse. En pantalla si sirve: ahi se consulta de un vistazo. */
+  .fmt-atiende, .fmt-bloque:has(> .fmt-atiende) { display: none !important; }
+
+  .fmt-cabecera { padding-bottom: 4px; margin-bottom: 6px; }
+  .fmt-titulo { font-size: 12pt; }
+  .fmt-empresa { font-size: 9pt; }
+  .fmt-razon { font-size: 5.5pt; }
+  .fmt-folio strong { font-size: 8pt; }
+  .fmt-folio .lbl, .fmt-folio .s { font-size: 5pt; }
+
+  .fmt-bloque { margin-bottom: 9px; }
+  .fmt-bloque > h2, .fmt-bloque .card-head h2 {
+    font-size: 6pt; padding-bottom: 1px; margin-bottom: 3px;
+  }
+  .fmt-bloque .card-head { margin-bottom: 3px; }
+
+  /* Seis columnas fijas: los doce datos caben en dos renglones en vez de tres. */
+  .fmt-datos { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 3px 7px; }
+  .fmt-dato .lbl { font-size: 5.5pt; letter-spacing: .08em; }
+  .fmt-dato .val { font-size: 8pt; min-height: 1.5em; padding-bottom: 2px; line-height: 1.25; }
+
+  /* Los once puntos, en dos renglones de seis. */
+  .fmt-revision { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 2px; }
+  .fmt-punto { padding: 3px 5px; font-size: 7pt; gap: 5px; }
+  .fmt-punto .marca { width: 14px; height: 14px; font-size: 6pt; }
+  .fmt-punto.no_aplica .marca { font-size: 4pt; }
+  .fmt-notas { margin-top: 4px; }
+  .fmt-notas p, .fmt-parrafo { font-size: 7pt; margin-top: 1px; line-height: 1.25; }
+  .fmt-notas .lbl { font-size: 5pt; }
+
+  /* La tabla es lo mas grande del formato: aqui se gana la mitad de la hoja. */
+  .fmt-actividades { font-size: 7pt; }
+  .fmt-actividades th, .fmt-actividades td {
+    padding: 4px 5px; line-height: 1.3; font-size: 8pt;
+  }
+  /* Alto minimo por renglon: aunque el sistema venga vacio, tiene que quedar
+     espacio para escribirle encima. Un renglon de 2 mm no sirve de nada. */
+  .fmt-actividades tbody td { height: 2.1em; }
+  .fmt-actividades thead th { font-size: 5.5pt; letter-spacing: .06em; }
+  .fmt-actividades tbody th { font-size: 7.5pt; }
+  .fmt-actividades .s { font-size: 5.5pt; }
+  .fmt-actividades .renglon { min-height: 1em; }
+
+  /* Las cinco firmas, en un solo renglon a lo ancho del pie -- como en el papel. */
+  .fmt-firmas { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+  .fmt-firma { padding: 5px 6px; gap: 1px; }
+  .fmt-firma .raya { min-height: 2.8em; font-size: 8pt; }
+  .fmt-firma .pie { font-size: 5.5pt; margin-top: 3px; line-height: 1.2; }
+  .fmt-firma .quien { font-size: 4.5pt; letter-spacing: .06em; }
+  /* La hora de registro no va al papel: la firma es de tinta y lleva su fecha
+     al lado. En pantalla si importa -- ahi es la unica constancia. */
+  .fmt-firma .s { display: none; }
+
+  .renglon.ancho { height: 3.2em; }
+
+  /* Y el candado: si algo se pasara, que no se parta en dos hojas a la mitad
+     de un renglon. Una hoja o nada. */
+  .formato { page-break-inside: avoid; break-inside: avoid; }
+}

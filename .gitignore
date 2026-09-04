@@ -6,3 +6,17 @@ venv/
 node_modules/
 dist/
 .DS_Store
+
+# Secretos y credenciales: nunca al repositorio.
+.env
+credenciales.csv
+
+# Datos reales que entrego Baja Gas: nombres y numeros de empleado de ~300
+# personas. El repositorio es PUBLICO; esto no puede acabar ahi.
+datos/
+~$*
+
+# Respaldos de la base con nombre suelto. `*.db` NO los tapa: no terminan en
+# .db sino en .db.algo, y ese descuido los dejaba listos para subirse con
+# toda la plantilla dentro.
+*.db.*
