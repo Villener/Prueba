@@ -13,14 +13,14 @@ por naturaleza -- una muestra nueva al dia no mueve una mediana -- pero se deja
 en `correr_todos` porque es idempotente y barato: si no hay muestras nuevas
 suficientes, no toca nada.
 """
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
 from . import models as m
 from . import services as svc
 from .core.security import notificar
-from .core.tiempo import ahora_utc
+from .core.tiempo import TZ_OPERACION, ahora_utc
 from .modules.mantenimiento import agenda_service as agenda
 
 
@@ -32,6 +32,53 @@ def _config(db: Session, clave: str, defecto: int) -> int:
         return defecto
 
 
+def _fundamento_poseedor(db: Session, unidad_id: int):
+    """De donde sale que ESE chofer era el responsable de la unidad.
+
+    Se guarda con el aviso para que el supervisor pueda ver en que se baso el
+    sistema, y no tenga que creerle. Devuelve (fundamento, jornada_id, prestamo_id).
+    """
+    jor = (db.query(m.Jornada)
+           .filter(m.Jornada.unidad_id == unidad_id, m.Jornada.hora_fin.is_(None))
+           .first())
+    if jor:
+        return "jornada", jor.id, None
+    pres = (db.query(m.PrestamoUnidad)
+            .filter(m.PrestamoUnidad.unidad_id == unidad_id,
+                    m.PrestamoUnidad.estado.in_(["aceptado", "activo"]),
+                    m.PrestamoUnidad.fecha_fin_real.is_(None)).first())
+    if pres:
+        return "prestamo", None, pres.id
+    return "titularidad", None, None
+
+
+def _se_presento(db: Session, cita: m.CitaTaller) -> bool:
+    """Si la unidad llego al taller para esa cita.
+
+    Se pregunta por la ORDEN DE SERVICIO y no por el estado de la cita porque
+    nadie marca `cumplida` todavia: quien recibe la unidad abre una orden, y esa
+    orden es la huella real de que el chofer si se presento. El dia en que
+    alguien cierre el ciclo marcando la cita, esto se puede reemplazar por una
+    lectura del estado.
+
+    El corte se arma en hora de TIJUANA y se convierte a UTC. `fecha_cita` es un
+    dia del calendario del taller; tomar su medianoche como si fuera UTC correria
+    la frontera siete u ocho horas y daria por presentada a una unidad que entro
+    la tarde ANTERIOR a su cita.
+
+    Es deliberadamente generoso: cualquier entrada de esa unidad desde el dia de
+    la cita en adelante cuenta como que si se presento, aunque haya llegado
+    tarde. Ante la duda no se le genera un aviso a nadie -- el costo de acusar de
+    mas a un chofer es mucho mayor que el de dejar pasar un caso.
+    """
+    inicio_tj = datetime.combine(cita.fecha_cita, datetime.min.time())
+    inicio = inicio_tj.replace(tzinfo=TZ_OPERACION).astimezone(timezone.utc)
+    return (db.query(m.OrdenServicio)
+            .filter(m.OrdenServicio.unidad_id == cita.unidad_id,
+                    m.OrdenServicio.fecha_entrada >= inicio)
+            .first() is not None)
+
+
 def generar_avisos_incumplimiento(db: Session) -> int:
     """CU-AUT-01 / RN-05 (v2.0).
 
@@ -39,60 +86,85 @@ def generar_avisos_incumplimiento(db: Session) -> int:
     compras, ellos hablan con el chofer en persona y despues marcan el caso
     como atendido. Por eso no hay monto ni proceso de inconformidad.
 
+    EL AVISO CUELGA DE LA CITA, NO DEL PROGRAMA, y ese es el punto entero:
+
+        el chofer incumple si falto a una CITA CONFIRMADA.
+        si el taller nunca pudo darsela, el incumplimiento es del TALLER.
+
+    Antes esto se calculaba sobre `ProgramaMantenimiento.estado == 'pendiente'`
+    con la fecha limite vencida, sin mirar la cita en ningun momento. Con esa
+    version, una unidad que no alcanzo cupo -- o a la que Victor le cancelo la
+    cita -- le generaba el aviso al chofer, que es exactamente el defecto que
+    docs/agenda-mantenimiento.md vino a corregir. La falta de capacidad ya se
+    reporta aparte, en /api/agenda/sin-cupo, y tiene otro responsable.
+
+    Al no haber cita confirmada de por medio, ya no hay forma de que este job
+    culpe al chofer por un problema del taller.
+
     El aviso se emite contra el POSEEDOR de la unidad (RN-01), no contra el
-    titular, y se guarda DE DONDE salio esa conclusion (`fundamento_poseedor`)
-    para que el supervisor pueda ver quien la tenia a su cargo ese dia.
+    titular, y se guarda DE DONDE salio esa conclusion (`fundamento_poseedor`).
     """
     tolerancia = _config(db, "dias_tolerancia_aviso", 0)
     limite = date.today() - timedelta(days=tolerancia)
     creados = 0
 
-    vencidos = (db.query(m.ProgramaMantenimiento)
-                .filter(m.ProgramaMantenimiento.estado == "pendiente",
-                        m.ProgramaMantenimiento.fecha_limite < limite).all())
-    for p in vencidos:
+    # Un mantenimiento vencido se marca como tal -- es un hecho y el tablero lo
+    # necesita -- pero eso YA NO genera aviso por si solo. Son dos preguntas
+    # distintas: "esta vencido" y "de quien es la culpa".
+    for p in (db.query(m.ProgramaMantenimiento)
+              .filter(m.ProgramaMantenimiento.estado == "pendiente",
+                      m.ProgramaMantenimiento.fecha_limite < limite).all()):
         p.estado = "vencido"
+
+    faltadas = (db.query(m.CitaTaller)
+                .filter(m.CitaTaller.estado.in_(("confirmada", "reprogramada")),
+                        m.CitaTaller.fecha_cita < limite).all())
+    for c in faltadas:
+        if not c.unidad:
+            continue
+        if _se_presento(db, c):
+            continue                      # la unidad si llego: no hay nada que avisar
+
+        # Se deja escrito en la cita, que es donde vive el hecho. Sin esto la
+        # cita seguiria "viva" para siempre y el recalculo la arrastraria dia
+        # tras dia hacia adelante.
+        c.estado = "no_asistio"
+
+        # `cita_id` es unique en el modelo: una cita perdida = un solo aviso.
         ya = (db.query(m.AvisoIncumplimiento)
-              .filter(m.AvisoIncumplimiento.unidad_id == p.unidad_id,
-                      m.AvisoIncumplimiento.fecha_generacion == p.fecha_limite).first())
+              .filter(m.AvisoIncumplimiento.cita_id == c.id).first())
         if ya:
             continue
-        poseedor = svc.poseedor_actual(db, p.unidad)
+        poseedor = svc.poseedor_actual(db, c.unidad)
         if not poseedor:
             continue
-        dias = (date.today() - p.fecha_limite).days
 
-        # De donde sale que ESE chofer era el responsable.
-        jor = (db.query(m.Jornada)
-               .filter(m.Jornada.unidad_id == p.unidad_id, m.Jornada.hora_fin.is_(None))
-               .first())
-        pres = (db.query(m.PrestamoUnidad)
-                .filter(m.PrestamoUnidad.unidad_id == p.unidad_id,
-                        m.PrestamoUnidad.estado.in_(["aceptado", "activo"]),
-                        m.PrestamoUnidad.fecha_fin_real.is_(None)).first())
-        if jor:
-            fundamento, jid, pid = "jornada", jor.id, None
-        elif pres:
-            fundamento, jid, pid = "prestamo", None, pres.id
-        else:
-            fundamento, jid, pid = "titularidad", None, None
+        # El atraso se mide contra el compromiso TECNICO (la fecha limite del
+        # plan), no contra la cita: la cita se pudo haber movido varias veces y
+        # lo que le importa al gerente es cuanto lleva la unidad sin servicio.
+        referencia = c.fecha_limite_origen or c.fecha_cita
+        dias = (date.today() - referencia).days
+        fundamento, jid, pid = _fundamento_poseedor(db, c.unidad_id)
 
         db.add(m.AvisoIncumplimiento(
-            unidad_id=p.unidad_id, chofer_id=poseedor,
+            cita_id=c.id, unidad_id=c.unidad_id, chofer_id=poseedor,
             fundamento_poseedor=fundamento, jornada_id=jid, prestamo_id=pid,
-            fecha_generacion=p.fecha_limite, dias_atraso=dias, estado="abierto"))
+            fecha_generacion=c.fecha_cita, dias_atraso=max(0, dias),
+            estado="abierto"))
 
-        detalle = (f"Unidad {p.unidad.num_economico}: mantenimiento vencido hace {dias} dias. "
+        detalle = (f"Unidad {c.unidad.num_economico}: no se presento a su cita "
+                   f"del {c.fecha_cita} en {c.taller.nombre if c.taller else 'el taller'}. "
                    f"Responsable por {fundamento}.")
         # Al gerente y al administrador, que son quienes hablan con el chofer.
         for u in (db.query(m.Usuario).join(m.UsuarioRol).join(m.Rol)
                   .filter(m.Rol.nombre.in_(["gerente", "administrador"])).all()):
             notificar(db, u.id, "Aviso de incumplimiento", detalle,
-                      "aviso", "unidad", p.unidad_id)
+                      "aviso", "unidad", c.unidad_id)
         # Y al chofer, para que sepa antes de que le hablen (CU-CHO-17).
-        notificar(db, poseedor, "Mantenimiento vencido",
-                  f"Unidad {p.unidad.num_economico}: el mantenimiento vencio hace {dias} dias.",
-                  "aviso", "unidad", p.unidad_id)
+        notificar(db, poseedor, "Faltaste a tu cita de taller",
+                  f"Unidad {c.unidad.num_economico}: tenias cita el {c.fecha_cita} "
+                  f"y no se registro tu entrada al taller.",
+                  "aviso", "unidad", c.unidad_id)
         creados += 1
 
     db.commit()

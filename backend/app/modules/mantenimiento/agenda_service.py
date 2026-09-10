@@ -266,10 +266,16 @@ def taller_de(db: Session, unidad: m.Unidad) -> int | None:
 
 
 def _pendientes(db: Session, taller: m.Taller):
-    """Programas que necesitan cita en este taller y todavia no la tienen firme."""
+    """Programas que necesitan cita en este taller y todavia no la tienen firme.
+
+    `vencido` va en la lista: que un mantenimiento se haya pasado de su fecha
+    limite no lo cancela, al contrario -- es el que mas urge. Sin este estado
+    aqui, el job que marca los vencidos los sacaba de la cola para siempre y la
+    unidad no volvia a recibir cita nunca.
+    """
     programas = (db.query(m.ProgramaMantenimiento)
                  .filter(m.ProgramaMantenimiento.estado.in_(("pendiente", "agendado",
-                                                             "sin_cupo")))
+                                                             "sin_cupo", "vencido")))
                  .all())
     salida = []
     for p in programas:

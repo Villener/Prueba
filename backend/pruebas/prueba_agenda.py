@@ -633,6 +633,160 @@ def c27():
 
 
 # ===================================================================== #
+# El aviso de incumplimiento cuelga de la cita, no del programa
+# ===================================================================== #
+def _chofer(db, usuario_id=1):
+    """Un chofer minimo, poseedor de la unidad que se le pase despues."""
+    u = m.Usuario(id=usuario_id, nombre="Chofer", apellidos="De Prueba",
+                  email="chofer%d@prueba.mx" % usuario_id, password_hash="x")
+    db.add(u); db.flush()
+    ch = m.Chofer(usuario_id=u.id)
+    db.add(ch); db.flush()
+    return ch
+
+
+def _cita_perdida(db, t, pipa, dias_atras=5, estado="confirmada"):
+    """Una cita cuya fecha ya paso, con su programa y su chofer poseedor."""
+    ch = _chofer(db)
+    srv = servicio(db, "aceite", dias=1)
+    hoy = date.today()
+    u = unidad(db, "X1", pipa, t)
+    u.poseedor_chofer_id = ch.usuario_id
+    u.titular_chofer_id = ch.usuario_id
+    db.flush()
+    p = programa(db, u, srv, hoy - timedelta(days=dias_atras + 2))
+    p.estado = "agendado"
+    c = m.CitaTaller(taller_id=t.id, unidad_id=u.id, programa_mantenimiento_id=p.id,
+                     tipo_servicio_id=srv.id, fecha_cita=hoy - timedelta(days=dias_atras),
+                     fecha_limite_origen=p.fecha_limite, duracion_estimada_dias=1,
+                     estado=estado)
+    db.add(c); db.flush()
+    return u, p, c
+
+
+@caso("28. Faltar a una cita confirmada SI genera aviso, y marca no_asistio")
+def c28():
+    from app import jobs
+    db = nueva_db()
+    t, pipa, _ = sembrar(db, genericos=1)
+    u, p, c = _cita_perdida(db, t, pipa)
+    creados = jobs.generar_avisos_incumplimiento(db)
+    db.refresh(c)
+    assert creados == 1, "esperaba 1 aviso, dio %d" % creados
+    av = db.query(m.AvisoIncumplimiento).one()
+    assert av.cita_id == c.id, "el aviso debe colgar de la cita, no del programa"
+    assert av.unidad_id == u.id and av.chofer_id is not None
+    assert c.estado == "no_asistio", "la cita quedo en '%s'" % c.estado
+    return "aviso ligado a la cita %d, chofer %s, cita marcada no_asistio" % (
+        av.cita_id, av.chofer_id)
+
+
+@caso("29. Si la unidad SI llego al taller, no hay aviso")
+def c29():
+    from app import jobs
+    from datetime import datetime as dt
+    db = nueva_db()
+    t, pipa, _ = sembrar(db, genericos=1)
+    u, p, c = _cita_perdida(db, t, pipa)
+    db.add(m.OrdenServicio(folio="OS-9", unidad_id=u.id, taller_id=t.id,
+                           fecha_entrada=dt.combine(c.fecha_cita, dt.min.time()),
+                           estado="abierta"))
+    db.flush()
+    creados = jobs.generar_avisos_incumplimiento(db)
+    assert creados == 0, "se presento y aun asi genero %d aviso(s)" % creados
+    assert db.query(m.AvisoIncumplimiento).count() == 0
+    return "orden de servicio abierta ese dia = se presento, sin aviso"
+
+
+@caso("30. Falta de CUPO no genera aviso al chofer (era el defecto viejo)")
+def c30():
+    from app import jobs
+    db = nueva_db()
+    t, pipa, _ = sembrar(db, genericos=1)
+    ch = _chofer(db)
+    srv = servicio(db, "aceite", dias=1)
+    hoy = date.today()
+    u = unidad(db, "Y1", pipa, t)
+    u.poseedor_chofer_id = ch.usuario_id
+    db.flush()
+    # Programa vencido que NUNCA alcanzo cita: es culpa del taller.
+    p = programa(db, u, srv, hoy - timedelta(days=10))
+    p.estado = "sin_cupo"
+    creados = jobs.generar_avisos_incumplimiento(db)
+    assert creados == 0, \
+        "genero %d aviso(s) por falta de cupo: eso es del taller, no del chofer" % creados
+    return "sin_cupo no culpa al chofer; eso sale por /api/agenda/sin-cupo"
+
+
+@caso("31. Cita cancelada por el taller no genera aviso")
+def c31():
+    from app import jobs
+    db = nueva_db()
+    t, pipa, _ = sembrar(db, genericos=1)
+    u, p, c = _cita_perdida(db, t, pipa, estado="cancelada")
+    p.estado = "pendiente"      # es lo que hace el endpoint /cancelar
+    creados = jobs.generar_avisos_incumplimiento(db)
+    assert creados == 0, \
+        "cancelar una cita le genero %d aviso(s) al chofer" % creados
+    return "cancelar no culpa al chofer"
+
+
+@caso("32. Un mismo faltante no genera dos avisos")
+def c32():
+    from app import jobs
+    db = nueva_db()
+    t, pipa, _ = sembrar(db, genericos=1)
+    _cita_perdida(db, t, pipa)
+    n1 = jobs.generar_avisos_incumplimiento(db)
+    n2 = jobs.generar_avisos_incumplimiento(db)
+    total = db.query(m.AvisoIncumplimiento).count()
+    assert (n1, n2, total) == (1, 0, 1), "n1=%s n2=%s total=%s" % (n1, n2, total)
+    return "2 corridas del job, 1 solo aviso"
+
+
+@caso("33. Entrar la TARDE ANTERIOR no cuenta como haberse presentado")
+def c33b():
+    from app import jobs
+    from datetime import datetime as dt
+    from app.core.tiempo import TZ_OPERACION
+    db = nueva_db()
+    t, pipa, _ = sembrar(db, genericos=1)
+    u, p, c = _cita_perdida(db, t, pipa)
+    # 18:00 hora Tijuana del dia ANTERIOR a la cita. En UTC eso cae al dia
+    # siguiente, asi que un corte hecho en UTC lo daria por presentado.
+    vispera = dt.combine(c.fecha_cita - timedelta(days=1), dt.min.time()) \
+        .replace(hour=18, tzinfo=TZ_OPERACION)
+    db.add(m.OrdenServicio(folio="OS-8", unidad_id=u.id, taller_id=t.id,
+                           fecha_entrada=vispera, estado="abierta"))
+    db.flush()
+    creados = jobs.generar_avisos_incumplimiento(db)
+    assert creados == 1, \
+        ("una entrada de la vispera (18:00 Tijuana = %s UTC) se conto como "
+         "asistencia: el corte se esta haciendo en UTC y no en hora del taller"
+         % vispera.astimezone(__import__("datetime").timezone.utc).date())
+    return "el corte respeta el calendario del taller, no el UTC"
+
+
+@caso("34. Un programa vencido sigue recibiendo cita")
+def c33():
+    from app import jobs
+    db = nueva_db()
+    t, pipa, _ = sembrar(db, genericos=1)
+    srv = servicio(db, "aceite", dias=1)
+    hoy = date.today()
+    u = unidad(db, "Z1", pipa, t)
+    p = programa(db, u, srv, hoy - timedelta(days=10))   # ya vencido
+    jobs.generar_avisos_incumplimiento(db)              # lo marca 'vencido'
+    db.refresh(p)
+    assert p.estado == "vencido", "esperaba 'vencido', quedo '%s'" % p.estado
+    r = ag.recalcular(db, t, hoy=hoy)
+    assert r["propuestas"] == 1, \
+        ("un mantenimiento vencido dejo de agendarse: %s. Vencerse no lo cancela, "
+         "al contrario: es el que mas urge" % r)
+    return "el programa vencido vuelve a la cola y recibe cita"
+
+
+# ===================================================================== #
 def main():
     ok = fallo = pend = 0
     print("=" * 78)
