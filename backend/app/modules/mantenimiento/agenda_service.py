@@ -99,24 +99,40 @@ def _libera_en(db: Session, ocupacion: m.OcupacionEspacio) -> date | None:
 
 
 def _demanda_por_tipo(db: Session, taller: m.Taller, dia: date,
-                      reservas: dict | None, excluir_cita_id: int | None = None) -> dict:
+                      reservas: dict | None,
+                      excluir_citas: set | int | None = None) -> dict:
     """Cuantas unidades de cada tipo compiten por un espacio ese dia.
 
     Suma las citas ya guardadas y las que esta corrida acaba de colocar y
     todavia no estan en la base (`reservas`, con clave `(dia, tipo)`).
 
-    `excluir_cita_id` saca del conteo a la cita que se esta moviendo: si no, se
-    estorbaria a si misma y el dia al que ya pertenece apareceria con un lugar
-    menos del que de verdad va a tener.
+    `excluir_citas` saca del conteo a las citas que se estan moviendo: si no,
+    se estorbarian a si mismas y el dia al que ya pertenecen apareceria con un
+    lugar menos del que de verdad va a tener.
+
+    Es un CONJUNTO y no una sola cita porque `recalcular` recoloca toda la cola
+    de una pasada: una cita que ya esta en la base y ademas ya se aparto un
+    lugar en `reservas` se contaria DOS veces, y con la capacidad asi de
+    inflada la agenda empuja las citas un dia mas en cada corrida. Se acepta un
+    int suelto por comodidad de quien solo mueve una.
     """
+    excluidas = (excluir_citas if isinstance(excluir_citas, (set, frozenset))
+                 else {excluir_citas} if excluir_citas else set())
     demanda: dict = {}
     for c in (db.query(m.CitaTaller)
               .filter(m.CitaTaller.taller_id == taller.id,
                       m.CitaTaller.estado.in_(ESTADOS_VIVOS),
                       m.CitaTaller.fecha_cita <= dia).all()):
-        if not c.unidad or c.id == excluir_cita_id:
+        if not c.unidad or c.id in excluidas:
             continue
-        dura = max(1, c.duracion_estimada_dias or 1)
+        # Duracion 0 = servicio de paso: entra y sale el mismo dia, no toma
+        # bahia. Un `max(1, ...)` aqui lo convertiria en un dia de ocupacion y
+        # con las ~26 unidades de paso que Alamos atiende a diario el taller
+        # apareceria lleno siempre, que es justo lo que `ocupa_espacio` vino a
+        # evitar. `None` es una cita vieja sin el dato: esa si cuenta como 1.
+        dura = 1 if c.duracion_estimada_dias is None else c.duracion_estimada_dias
+        if dura <= 0:
+            continue
         if c.fecha_cita + timedelta(days=dura - 1) < dia:
             continue
         t = c.unidad.tipo_unidad_id
@@ -129,7 +145,7 @@ def _demanda_por_tipo(db: Session, taller: m.Taller, dia: date,
 
 def capacidad_libre(db: Session, taller: m.Taller, dia: date, tipo_unidad_id: int,
                     reservas: dict | None = None,
-                    excluir_cita_id: int | None = None) -> int:
+                    excluir_citas: set | int | None = None) -> int:
     """Cuantas unidades de ese tipo caben ese dia.
 
     NO es una simple resta, y el motivo es el plano real de Alamos: hay
@@ -178,7 +194,7 @@ def capacidad_libre(db: Session, taller: m.Taller, dia: date, tipo_unidad_id: in
     dedicados = max(0, dedicados - ocupados_por_tipo.get(tipo_unidad_id, 0))
     genericos = max(0, genericos - ocupados_por_tipo.get(None, 0))
 
-    demanda = _demanda_por_tipo(db, taller, dia, reservas, excluir_cita_id)
+    demanda = _demanda_por_tipo(db, taller, dia, reservas, excluir_citas)
 
     # Lo que cada OTRO tipo no alcanzo a meter en sus dedicados se viene al pozo.
     for t, n in demanda.items():
@@ -301,6 +317,15 @@ def recalcular(db: Session, taller: m.Taller, hoy: date | None = None) -> dict:
     res = {"propuestas": 0, "movidas": 0, "sin_cupo": 0, "taller": taller.nombre}
 
     cola = sorted(_pendientes(db, taller), key=lambda p: clave_prioridad(p, hoy))
+
+    # La corrida va a recolocar TODAS las citas de la cola, asi que ninguna de
+    # ellas cuenta como ocupante: la unica version valida de donde queda cada
+    # una es `reservas`, que se va llenando aqui abajo. Sin esta exclusion cada
+    # cita se estorba a si misma y ademas se cuenta doble -- una vez desde la
+    # base y otra desde `reservas` -- y la agenda empuja las citas un dia mas
+    # en cada corrida del job diario. Eso es lo que hace que el chofer reciba
+    # un cambio de fecha cada manana y deje de mirar la app.
+    ids_cola = {c.id for c in (getattr(p, "cita_actual", None) for p in cola) if c}
     reservas: dict = {}
 
     for programa in cola:
@@ -317,7 +342,8 @@ def recalcular(db: Session, taller: m.Taller, hoy: date | None = None) -> dict:
             if dura == 0:
                 colocada = dia
                 break
-            if all(capacidad_libre(db, taller, d, unidad.tipo_unidad_id, reservas) > 0
+            if all(capacidad_libre(db, taller, d, unidad.tipo_unidad_id, reservas,
+                                   excluir_citas=ids_cola) > 0
                    for d in _tramo(taller, dia, dura)):
                 colocada = dia
                 break
@@ -406,7 +432,7 @@ def dias_sin_cupo(db: Session, cita: m.CitaTaller, inicio: date) -> list:
     faltantes = []
     for d in _tramo(taller, inicio, dura):
         libres = capacidad_libre(db, taller, d, unidad.tipo_unidad_id,
-                                 excluir_cita_id=cita.id)
+                                 excluir_citas={cita.id})
         if libres <= 0:
             faltantes.append((d, libres))
     return faltantes
