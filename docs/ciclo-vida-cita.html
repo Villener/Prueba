@@ -1,0 +1,405 @@
+<title>Ciclo de vida de una cita</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=Source+Sans+3:wght@400;600&display=swap">
+<style>
+  :root {
+    --ground: #f1f4f6;
+    --surface: #ffffff;
+    --ink: #1a2129;
+    --muted: #5d6c7b;
+    --line: #ccd5dc;
+    --line-soft: #e2e8ed;
+    --vivo: #0e7c86;
+    --vivo-soft: #e0f0f1;
+    --nuevo: #b26b08;
+    --nuevo-soft: #f8eeda;
+    --falta: #a6414b;
+    --falta-soft: #f7e6e8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #12171c;
+      --surface: #1a2027;
+      --ink: #dfe6ec;
+      --muted: #93a2b1;
+      --line: #33404b;
+      --line-soft: #262f38;
+      --vivo: #3fb3ba;
+      --vivo-soft: #12333a;
+      --nuevo: #dda23f;
+      --nuevo-soft: #362a15;
+      --falta: #d97b84;
+      --falta-soft: #38222a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #12171c;
+    --surface: #1a2027;
+    --ink: #dfe6ec;
+    --muted: #93a2b1;
+    --line: #33404b;
+    --line-soft: #262f38;
+    --vivo: #3fb3ba;
+    --vivo-soft: #12333a;
+    --nuevo: #dda23f;
+    --nuevo-soft: #362a15;
+    --falta: #d97b84;
+    --falta-soft: #38222a;
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Source Sans 3", system-ui, -apple-system, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+  }
+  .wrap {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 40px 24px 72px;
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+  }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 10px;
+  }
+  h1 {
+    font-family: Archivo, system-ui, sans-serif;
+    font-weight: 700;
+    font-size: clamp(30px, 5vw, 44px);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin: 0 0 14px;
+    text-wrap: balance;
+  }
+  .lede {
+    margin: 0;
+    max-width: 62ch;
+    font-size: 18px;
+    color: var(--muted);
+  }
+  .lede strong { color: var(--ink); font-weight: 600; }
+
+  h2 {
+    font-family: Archivo, system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 21px;
+    letter-spacing: -0.01em;
+    margin: 0 0 4px;
+    text-wrap: balance;
+  }
+  section > p { margin: 0 0 16px; max-width: 64ch; }
+  section > p:last-child { margin-bottom: 0; }
+
+  code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.88em;
+    background: var(--line-soft);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  figure { margin: 0; }
+  .scroll {
+    overflow-x: auto;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 20px 16px 12px;
+  }
+  svg.diag { display: block; min-width: 760px; width: 100%; height: auto; }
+  figcaption {
+    margin-top: 12px;
+    font-size: 14px;
+    color: var(--muted);
+    max-width: 64ch;
+  }
+
+  /* --- diagrama --- */
+  .node { fill: var(--surface); stroke: var(--vivo); stroke-width: 1.5; }
+  .node-end { fill: var(--surface); stroke: var(--muted); stroke-width: 1.5; }
+  .node-new { fill: var(--nuevo-soft); stroke: var(--nuevo); stroke-width: 1.5; }
+  .node-dead {
+    fill: none; stroke: var(--falta); stroke-width: 1.5;
+    stroke-dasharray: 5 4; opacity: 0.75;
+  }
+  .grp { fill: none; stroke: var(--line); stroke-width: 1.2; stroke-dasharray: 3 4; }
+  .st {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 14px; font-weight: 500; fill: var(--ink); text-anchor: middle;
+  }
+  .st-dead { fill: var(--falta); }
+  .sub {
+    font-family: "Source Sans 3", sans-serif;
+    font-size: 11px; fill: var(--muted); text-anchor: middle;
+  }
+  .grp-lbl {
+    font-family: "Source Sans 3", sans-serif;
+    font-size: 11.5px; font-weight: 600; fill: var(--muted);
+    text-anchor: middle; letter-spacing: 0.02em;
+  }
+  .edge { fill: none; stroke: var(--muted); stroke-width: 1.4; }
+  .edge-new { fill: none; stroke: var(--nuevo); stroke-width: 1.8; }
+  .edge-dead {
+    fill: none; stroke: var(--falta); stroke-width: 1.4;
+    stroke-dasharray: 5 4; opacity: 0.7;
+  }
+  .cut { stroke: var(--falta); stroke-width: 2; stroke-linecap: round; }
+  .elbl {
+    font-family: "Source Sans 3", sans-serif;
+    font-size: 11.5px; fill: var(--muted); text-anchor: middle;
+  }
+  .elbl-new { fill: var(--nuevo); font-weight: 600; }
+  .elbl-dead { fill: var(--falta); font-weight: 600; }
+  #ah path { fill: var(--muted); }
+  #ah-new path { fill: var(--nuevo); }
+  .seed { fill: var(--muted); }
+
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 8px 22px;
+    margin-top: 14px; padding-top: 14px;
+    border-top: 1px solid var(--line-soft);
+    font-size: 13px; color: var(--muted);
+  }
+  .legend span { display: flex; align-items: center; gap: 8px; }
+  .swatch { width: 22px; height: 0; border-top-width: 2px; border-top-style: solid; flex: none; }
+  .sw-live { border-top-color: var(--muted); }
+  .sw-new { border-top-color: var(--nuevo); }
+  .sw-dead { border-top-color: var(--falta); border-top-style: dashed; }
+
+  /* --- tabla --- */
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; min-width: 620px; }
+  caption { text-align: left; font-size: 14px; color: var(--muted); padding-bottom: 10px; }
+  th, td { text-align: left; padding: 9px 14px 9px 0; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  th {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--muted); font-weight: 500; border-bottom-color: var(--line);
+  }
+  td.trans { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13px; white-space: nowrap; }
+  td.loc { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+  tr.row-new td { background: var(--nuevo-soft); }
+  tr.row-dead td { background: var(--falta-soft); }
+  tr.row-dead td.trans { color: var(--falta); }
+  .tag {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 1px 6px; border-radius: 3px; margin-left: 8px; white-space: nowrap;
+  }
+  .tag-new { background: var(--nuevo); color: var(--surface); }
+  .tag-dead { background: var(--falta); color: var(--surface); }
+
+  .note {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--falta);
+    border-radius: 5px;
+    padding: 18px 20px;
+  }
+  .note h2 { margin-bottom: 8px; }
+  .note ul { margin: 0; padding-left: 20px; max-width: 64ch; }
+  .note li { margin-bottom: 6px; }
+  .note li:last-child { margin-bottom: 0; }
+
+  .foot {
+    font-size: 13.5px; color: var(--muted);
+    border-top: 1px solid var(--line-soft); padding-top: 18px;
+  }
+  @media (max-width: 560px) {
+    .wrap { padding: 28px 16px 48px; gap: 32px; }
+    .lede { font-size: 16.5px; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Baja Gas · Taller de Álamos · CitaTaller</p>
+    <h1>Ciclo de vida de una cita</h1>
+    <p class="lede">
+      El modelo declara <strong>seis estados</strong> para una cita de taller.
+      Cinco tienen código que se los asigna. <strong><code>cumplida</code> no tiene a nadie</strong>:
+      ninguna línea del sistema la escribe jamás, así que el ciclo nunca se cierra por su lado bueno.
+    </p>
+  </header>
+
+  <figure>
+    <div class="scroll">
+      <svg class="diag" viewBox="0 0 940 430" role="img"
+           aria-label="Diagrama de estados de una cita de taller. La cita nace como propuesta cuando la agenda recalcula. Víctor la confirma, y confirmada y reprogramada forman un par que va y viene: las dos significan que al chofer ya se le dio una fecha. Desde ese par, el job diario la marca no_asistio si la unidad no llegó, o Víctor la cancela. El estado cumplida existe en el modelo pero ninguna transición llega a él: nadie lo asigna.">
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5"
+                  markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z"/>
+          </marker>
+          <marker id="ah-new" viewBox="0 0 10 10" refX="9" refY="5"
+                  markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z"/>
+          </marker>
+        </defs>
+
+        <!-- origen -->
+        <circle class="seed" cx="34" cy="152" r="8"/>
+        <path class="edge" d="M44,152 L58,152" marker-end="url(#ah)"/>
+
+        <!-- propuesta -->
+        <rect class="node" x="62" y="124" width="170" height="56" rx="4"/>
+        <text class="st" x="147" y="147">propuesta</text>
+        <text class="sub" x="147" y="166">aún no es promesa</text>
+
+        <!-- bucle: la agenda la mueve sin cambiar de estado -->
+        <path class="edge" d="M92,124 C92,86 202,86 202,124" marker-end="url(#ah)"/>
+        <text class="elbl" x="147" y="78">el recálculo la mueve libremente</text>
+
+        <!-- grupo comprometido -->
+        <rect class="grp" x="296" y="62" width="268" height="248" rx="6"/>
+        <text class="grp-lbl" x="430" y="52">al chofer ya se le dio una fecha</text>
+
+        <rect class="node" x="322" y="92" width="216" height="56" rx="4"/>
+        <text class="st" x="430" y="115">confirmada</text>
+        <text class="sub" x="430" y="134">compromiso vivo</text>
+
+        <rect class="node" x="322" y="222" width="216" height="56" rx="4"/>
+        <text class="st" x="430" y="245">reprogramada</text>
+        <text class="sub" x="430" y="264">espera que el chofer acepte</text>
+
+        <!-- propuesta -> confirmada -->
+        <path class="edge" d="M232,142 C266,136 282,126 318,120" marker-end="url(#ah)"/>
+        <text class="elbl" x="272" y="112">Víctor confirma</text>
+
+        <!-- confirmada <-> reprogramada -->
+        <path class="edge" d="M372,148 L372,218" marker-end="url(#ah)"/>
+        <text class="elbl" x="364" y="180" text-anchor="end">se mueve</text>
+        <text class="elbl" x="364" y="194" text-anchor="end">la fecha</text>
+
+        <path class="edge" d="M488,222 L488,152" marker-end="url(#ah)"/>
+        <text class="elbl" x="496" y="180" text-anchor="start">vuelve a</text>
+        <text class="elbl" x="496" y="194" text-anchor="start">confirmar</text>
+
+        <!-- -> no_asistio -->
+        <path class="edge-new" d="M564,136 C602,128 614,118 646,110" marker-end="url(#ah-new)"/>
+        <text class="elbl elbl-new" x="606" y="90">no llegó al taller</text>
+
+        <rect class="node-new" x="650" y="80" width="190" height="56" rx="4"/>
+        <text class="st" x="745" y="103">no_asistio</text>
+        <text class="sub" x="745" y="122">genera el aviso</text>
+
+        <!-- -> cancelada -->
+        <path class="edge" d="M564,218 L646,218" marker-end="url(#ah)"/>
+        <text class="elbl" x="606" y="209">Víctor cancela</text>
+
+        <rect class="node-end" x="650" y="190" width="190" height="56" rx="4"/>
+        <text class="st" x="745" y="213">cancelada</text>
+        <text class="sub" x="745" y="232">el programa vuelve a la cola</text>
+
+        <!-- -> cumplida: la transición que no existe -->
+        <path class="edge-dead" d="M564,262 L640,312"/>
+        <line class="cut" x1="595" y1="279" x2="609" y2="295"/>
+        <line class="cut" x1="609" y1="279" x2="595" y2="295"/>
+
+        <rect class="node-dead" x="650" y="300" width="190" height="56" rx="4"/>
+        <text class="st st-dead" x="745" y="323">cumplida</text>
+        <text class="sub" x="745" y="342">nadie la asigna</text>
+        <text class="elbl elbl-dead" x="745" y="378">ninguna línea del sistema escribe este estado</text>
+      </svg>
+
+      <div class="legend">
+        <span><i class="swatch sw-live"></i> transición que existe hoy</span>
+        <span><i class="swatch sw-new"></i> conectada en este cambio</span>
+        <span><i class="swatch sw-dead"></i> transición que falta</span>
+      </div>
+    </div>
+    <figcaption>
+      Las seis cajas son los estados de <code>ESTADOS_CITA</code>. Cinco reciben flechas;
+      <code>cumplida</code> no recibe ninguna.
+    </figcaption>
+  </figure>
+
+  <section>
+    <h2>Quién dispara cada transición</h2>
+    <div class="scroll">
+      <table>
+        <caption>Cada fila corresponde a una asignación real de <code>estado</code> en el código.</caption>
+        <thead>
+          <tr>
+            <th>Transición</th>
+            <th>Quién la dispara</th>
+            <th>Dónde vive</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="trans">→ propuesta</td>
+            <td>La agenda, al recalcular. Nace sin compromiso.</td>
+            <td class="loc">agenda_service.py:383</td>
+          </tr>
+          <tr>
+            <td class="trans">propuesta → propuesta</td>
+            <td>El recálculo le cambia la fecha sin cambiarle el estado: todavía no hay a quién avisarle.</td>
+            <td class="loc">agenda_service.py</td>
+          </tr>
+          <tr>
+            <td class="trans">propuesta → confirmada</td>
+            <td>Víctor. Aquí nace la promesa y se le notifica al poseedor de la unidad.</td>
+            <td class="loc">agenda_controller.py:111</td>
+          </tr>
+          <tr>
+            <td class="trans">confirmada → reprogramada</td>
+            <td>El recálculo automático, y solo con más de 48 h de anticipación.</td>
+            <td class="loc">agenda_service.py:405</td>
+          </tr>
+          <tr>
+            <td class="trans">viva → reprogramada</td>
+            <td>Víctor a mano. Puede saltarse las 48 h y el cupo; queda marcado <code>requirio_autorizacion</code>.</td>
+            <td class="loc">agenda_controller.py:177</td>
+          </tr>
+          <tr>
+            <td class="trans">reprogramada → confirmada</td>
+            <td>Víctor. La misma ruta de confirmar: una cita movida puede volver a ser compromiso firme.</td>
+            <td class="loc">agenda_controller.py:111</td>
+          </tr>
+          <tr class="row-new">
+            <td class="trans">confirmada → no_asistio<span class="tag tag-new">nueva</span></td>
+            <td>El job diario, cuando la fecha pasó y no se abrió orden de servicio para esa unidad.</td>
+            <td class="loc">jobs.py:131</td>
+          </tr>
+          <tr>
+            <td class="trans">cualquiera → cancelada</td>
+            <td>Víctor. El programa vuelve a la cola: cancelar la cita no cancela la obligación técnica.</td>
+            <td class="loc">agenda_controller.py:205</td>
+          </tr>
+          <tr class="row-dead">
+            <td class="trans">→ cumplida<span class="tag tag-dead">falta</span></td>
+            <td>Nadie. El estado está declarado y cuatro guardas lo consultan, pero ninguna línea lo escribe.</td>
+            <td class="loc">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="note">
+    <h2>Qué cuesta que <code>cumplida</code> esté muerta</h2>
+    <ul>
+      <li>Una cita a la que el chofer <em>sí</em> llegó se queda viva para siempre: nunca sale de <code>confirmada</code>.</li>
+      <li>El recálculo la sigue metiendo a la cola y la arrastra hacia adelante día tras día, aunque su fecha ya pasó hace semanas.</li>
+      <li>El tablero de faltas de capacidad la reporta fuera de límite indefinidamente, porque para el sistema sigue pendiente.</li>
+      <li>Saber si la unidad llegó se tiene que deducir de la orden de servicio en vez de leerlo de la cita, que es donde vive el hecho.</li>
+    </ul>
+  </section>
+
+  <p class="foot">
+    Levantado del código del backend, no del documento de diseño: cada fila de la tabla
+    corresponde a una asignación de <code>estado</code> que existe hoy en el repositorio.
+  </p>
+
+</div>
