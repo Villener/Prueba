@@ -1,12 +1,13 @@
-/** Modulo Montacarguista - CU-MON-* de docs/casos-de-uso.md */
+/** Modulo Chofer de grua - CU-MON-* de docs/casos-de-uso.md */
 import { useState } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import { api, fmtFechaHora } from '../../core/api.js'
 import {
-  Aviso, Badge, Card, Empty, EstadoBadge, Modal, Regla, Spinner, Tabla, useApi, useToast,
+  Aviso, Badge, Card, Empty, EstadoBadge, IcoArrastres, IcoListo, IcoUbicacion, Modal,
+  Regla, Spinner, Tabla, useApi, useToast,
 } from '../../ui/index.js'
 
-export default function Montacarguista() {
+export default function ChoferGrua() {
   return (
     <Routes>
       <Route path="/" element={<Alertas />} />
@@ -18,12 +19,12 @@ export default function Montacarguista() {
 
 /* ---------------------------------------------------------- CU-MON-01 ------ */
 function Alertas() {
-  const { data, cargando } = useApi(() => api.get('/montacarguista/alertas'))
+  const { data, cargando } = useApi(() => api.get('/chofer-grua/alertas'))
   if (cargando) return <Spinner />
   return (
     <>
       <h1 style={{ marginBottom: 14 }}>Unidades varadas</h1>
-      {(data || []).length === 0 ? <Empty icono="✅">Sin alertas activas</Empty> : (
+      {(data || []).length === 0 ? <Empty icono={IcoListo}>Sin alertas activas</Empty> : (
         (data || []).map((a) => (
           <Card key={a.id} title={`${a.folio} · ${a.unidad}`}
                 actions={<EstadoBadge estado={a.estado} />}>
@@ -31,7 +32,7 @@ function Alertas() {
             <p>{a.descripcion_falla}</p>
             {a.latitud && (
               <p className="sub">
-                📍 {a.latitud.toFixed(5)}, {a.longitud.toFixed(5)}{' '}
+                <IcoUbicacion size={13} className="ico-inline" aria-hidden="true" /> {a.latitud.toFixed(5)}, {a.longitud.toFixed(5)}{' '}
                 <a href={`https://www.google.com/maps?q=${a.latitud},${a.longitud}`}
                    target="_blank" rel="noreferrer">abrir en mapa</a>
               </p>
@@ -55,7 +56,7 @@ function Alertas() {
 /* ------------------------------------------- CU-MON-02/03/04/05/06 --------- */
 function Arrastres() {
   const toast = useToast()
-  const { data, cargando, recargar } = useApi(() => api.get('/montacarguista/arrastres'))
+  const { data, cargando, recargar } = useApi(() => api.get('/chofer-grua/arrastres'))
   const [cerrar, setCerrar] = useState(null)
 
   const correr = async (fn, ok) => {
@@ -64,7 +65,7 @@ function Arrastres() {
 
   const mandarUbicacion = (a) => {
     const enviar = (lat, lng) => correr(
-      () => api.post(`/montacarguista/arrastres/${a.id}/ubicacion`, { latitud: lat, longitud: lng }),
+      () => api.post(`/chofer-grua/arrastres/${a.id}/ubicacion`, { latitud: lat, longitud: lng }),
       'Ubicación enviada al chofer')
     if (!navigator.geolocation) return enviar(32.5149, -117.0382)
     navigator.geolocation.getCurrentPosition(
@@ -76,7 +77,7 @@ function Arrastres() {
   return (
     <>
       <h1 style={{ marginBottom: 14 }}>Arrastres</h1>
-      {(data || []).length === 0 ? <Empty icono="🛻">Sin arrastres activos</Empty> : (
+      {(data || []).length === 0 ? <Empty icono={IcoArrastres}>Sin arrastres activos</Empty> : (
         (data || []).map((a) => (
           <Card key={a.id} title={`${a.folio} · ${a.unidad}`}
                 actions={<EstadoBadge estado={a.estado} />}>
@@ -84,7 +85,7 @@ function Arrastres() {
             <p className="sub">Solicitado {fmtFechaHora(a.fecha_solicitud)}</p>
             {a.latitud_origen && (
               <p className="sub">
-                📍 Destino:{' '}
+                <IcoUbicacion size={13} className="ico-inline" aria-hidden="true" /> Destino:{' '}
                 <a href={`https://www.google.com/maps?q=${a.latitud_origen},${a.longitud_origen}`}
                    target="_blank" rel="noreferrer">
                   {a.latitud_origen.toFixed(4)}, {a.longitud_origen.toFixed(4)}
@@ -99,10 +100,10 @@ function Arrastres() {
               {a.estado === 'solicitado' && (
                 <>
                   <button className="btn primary sm" onClick={() => correr(
-                    () => api.post(`/montacarguista/arrastres/${a.id}/aceptar`),
+                    () => api.post(`/chofer-grua/arrastres/${a.id}/aceptar`),
                     'Arrastre aceptado')}>Aceptar</button>
                   <button className="btn danger sm" onClick={() => correr(
-                    () => api.post(`/montacarguista/arrastres/${a.id}/rechazar`, undefined,
+                    () => api.post(`/chofer-grua/arrastres/${a.id}/rechazar`, undefined,
                                    { motivo: 'No disponible' }), 'Arrastre rechazado')}>
                     Rechazar
                   </button>
@@ -111,10 +112,10 @@ function Arrastres() {
               {['aceptado', 'en_ruta'].includes(a.estado) && (
                 <>
                   <button className="btn sm" onClick={() => mandarUbicacion(a)}>
-                    📍 Enviar mi ubicación
+                    <IcoUbicacion size={13} className="ico-inline" aria-hidden="true" /> Enviar mi ubicación
                   </button>
                   <button className="btn sm" onClick={() => correr(
-                    () => api.post(`/montacarguista/arrastres/${a.id}/llegada`),
+                    () => api.post(`/chofer-grua/arrastres/${a.id}/llegada`),
                     'Llegada registrada')}>Llegué al sitio</button>
                 </>
               )}
@@ -135,13 +136,13 @@ function Arrastres() {
 
 function ModalCierre({ arrastre, onCerrar, onListo }) {
   const toast = useToast()
-  const talleres = useApi(() => api.get('/montacarguista/talleres'))
+  const talleres = useApi(() => api.get('/chofer-grua/talleres'))
   const [form, setForm] = useState({ taller_destino_id: '', km_recorridos: '', observaciones: '' })
 
   const enviar = async (e) => {
     e.preventDefault()
     try {
-      await api.post(`/montacarguista/arrastres/${arrastre.id}/cerrar`, {
+      await api.post(`/chofer-grua/arrastres/${arrastre.id}/cerrar`, {
         taller_destino_id: Number(form.taller_destino_id),
         km_recorridos: Number(form.km_recorridos || 0),
         observaciones: form.observaciones,
@@ -187,7 +188,7 @@ function ModalCierre({ arrastre, onCerrar, onListo }) {
 
 /* ---------------------------------------------------------- CU-MON-07 ------ */
 function Historial() {
-  const { data, cargando } = useApi(() => api.get('/montacarguista/arrastres', { historial: true }))
+  const { data, cargando } = useApi(() => api.get('/chofer-grua/arrastres', { historial: true }))
   if (cargando) return <Spinner />
   return (
     <>
