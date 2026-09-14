@@ -1,4 +1,4 @@
-"""Modulo Montacarguista - CU-MON-01 a CU-MON-07."""
+"""Modulo Chofer de grua - CU-MON-01 a CU-MON-07."""
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,13 +11,13 @@ from ...schemas import ArrastreOut, AveriaOut, CierreArrastreIn, MensajeOut, Ubi
 from ...core.security import notificar, registrar_bitacora, require_roles
 from ...core.tiempo import ahora_utc
 
-router = APIRouter(prefix="/api/montacarguista", tags=["montacarguista"])
-solo_mon = require_roles("montacarguista")
+router = APIRouter(prefix="/api/chofer-grua", tags=["chofer de grua"])
+solo_grua = require_roles("chofer_grua")
 
 
 # ---------------------------------------------------------------- CU-MON-01 -- #
 @router.get("/alertas", response_model=list[AveriaOut])
-def alertas(usuario=Depends(solo_mon), db: Session = Depends(get_db)):
+def alertas(usuario=Depends(solo_grua), db: Session = Depends(get_db)):
     """Unidades varadas con ubicacion. Las de vialidad publica sin peritaje se
     muestran pero con puede_solicitar_arrastre=false (RN-04)."""
     rs = (db.query(m.ReporteAveria)
@@ -28,7 +28,7 @@ def alertas(usuario=Depends(solo_mon), db: Session = Depends(get_db)):
 
 # ---------------------------------------------------------------- CU-MON-02 -- #
 @router.post("/arrastres/{arrastre_id}/aceptar", response_model=ArrastreOut)
-def aceptar_arrastre(arrastre_id: int, usuario=Depends(solo_mon), db: Session = Depends(get_db)):
+def aceptar_arrastre(arrastre_id: int, usuario=Depends(solo_grua), db: Session = Depends(get_db)):
     a = db.query(m.Arrastre).filter(m.Arrastre.id == arrastre_id).first()
     if not a:
         raise HTTPException(404, "Arrastre no encontrado")
@@ -36,11 +36,11 @@ def aceptar_arrastre(arrastre_id: int, usuario=Depends(solo_mon), db: Session = 
         raise HTTPException(409, f"El arrastre esta en estado '{a.estado}'")
     if not svc.puede_solicitar_arrastre(a.reporte):
         raise HTTPException(409, "RN-04: falta el folio de peritos")
-    a.montacarguista_id = usuario.id
+    a.chofer_grua_id = usuario.id
     a.estado = "aceptado"
     a.fecha_aceptacion = ahora_utc()
     a.unidad.estado = "en_arrastre"
-    mo = db.query(m.Montacarguista).filter(m.Montacarguista.usuario_id == usuario.id).first()
+    mo = db.query(m.ChoferGrua).filter(m.ChoferGrua.usuario_id == usuario.id).first()
     if mo and mo.unidad_grua_id:
         a.unidad_grua_id = mo.unidad_grua_id
     notificar(db, a.chofer_responsable_id, "Arrastre aceptado",
@@ -53,7 +53,7 @@ def aceptar_arrastre(arrastre_id: int, usuario=Depends(solo_mon), db: Session = 
 
 
 @router.post("/arrastres/{arrastre_id}/rechazar", response_model=MensajeOut)
-def rechazar_arrastre(arrastre_id: int, motivo: str = "", usuario=Depends(solo_mon),
+def rechazar_arrastre(arrastre_id: int, motivo: str = "", usuario=Depends(solo_grua),
                       db: Session = Depends(get_db)):
     a = db.query(m.Arrastre).filter(m.Arrastre.id == arrastre_id).first()
     if not a or a.estado != "solicitado":
@@ -67,15 +67,15 @@ def rechazar_arrastre(arrastre_id: int, motivo: str = "", usuario=Depends(solo_m
 
 # ---------------------------------------------------------------- CU-MON-03 -- #
 @router.post("/arrastres/{arrastre_id}/ubicacion", response_model=MensajeOut)
-def transmitir_ubicacion(arrastre_id: int, datos: UbicacionIn, usuario=Depends(solo_mon),
+def transmitir_ubicacion(arrastre_id: int, datos: UbicacionIn, usuario=Depends(solo_grua),
                          db: Session = Depends(get_db)):
     a = db.query(m.Arrastre).filter(m.Arrastre.id == arrastre_id).first()
-    if not a or a.montacarguista_id != usuario.id:
+    if not a or a.chofer_grua_id != usuario.id:
         raise HTTPException(404, "Arrastre no encontrado")
     if a.estado not in ("aceptado", "en_ruta", "en_traslado"):
         raise HTTPException(409, "El arrastre no esta activo")
     db.add(m.UbicacionArrastre(arrastre_id=a.id, latitud=datos.latitud,
-                               longitud=datos.longitud, emisor="montacarguista"))
+                               longitud=datos.longitud, emisor="chofer_grua"))
     if a.estado == "aceptado":
         a.estado = "en_ruta"
     db.commit()
@@ -84,14 +84,14 @@ def transmitir_ubicacion(arrastre_id: int, datos: UbicacionIn, usuario=Depends(s
 
 # ---------------------------------------------------------------- CU-MON-04 -- #
 @router.post("/arrastres/{arrastre_id}/llegada", response_model=ArrastreOut)
-def registrar_llegada(arrastre_id: int, usuario=Depends(solo_mon),
+def registrar_llegada(arrastre_id: int, usuario=Depends(solo_grua),
                       db: Session = Depends(get_db)):
     a = db.query(m.Arrastre).filter(m.Arrastre.id == arrastre_id).first()
-    if not a or a.montacarguista_id != usuario.id:
+    if not a or a.chofer_grua_id != usuario.id:
         raise HTTPException(404, "Arrastre no encontrado")
     a.fecha_llegada_sitio = ahora_utc()
     a.estado = "en_traslado"
-    notificar(db, a.chofer_responsable_id, "El montacargas llego",
+    notificar(db, a.chofer_responsable_id, "La grua llego",
               "Ya esta en tu ubicacion", "arrastre", "arrastre", a.id)
     db.commit()
     db.refresh(a)
@@ -100,11 +100,11 @@ def registrar_llegada(arrastre_id: int, usuario=Depends(solo_mon),
 
 # ------------------------------------------------------------- CU-MON-05/06 -- #
 @router.post("/arrastres/{arrastre_id}/cerrar", response_model=ArrastreOut)
-def cerrar_arrastre(arrastre_id: int, datos: CierreArrastreIn, usuario=Depends(solo_mon),
+def cerrar_arrastre(arrastre_id: int, datos: CierreArrastreIn, usuario=Depends(solo_grua),
                     db: Session = Depends(get_db)):
     """CU-MON-05: deja registro de taller destino, unidad, chofer responsable y hora."""
     a = db.query(m.Arrastre).filter(m.Arrastre.id == arrastre_id).first()
-    if not a or a.montacarguista_id != usuario.id:
+    if not a or a.chofer_grua_id != usuario.id:
         raise HTTPException(404, "Arrastre no encontrado")
     if a.estado == "finalizado":
         raise HTTPException(409, "El arrastre ya esta cerrado")
@@ -150,20 +150,20 @@ def cerrar_arrastre(arrastre_id: int, datos: CierreArrastreIn, usuario=Depends(s
 
 # ---------------------------------------------------------------- CU-MON-07 -- #
 @router.get("/arrastres", response_model=list[ArrastreOut])
-def mis_arrastres(historial: bool = False, usuario=Depends(solo_mon),
+def mis_arrastres(historial: bool = False, usuario=Depends(solo_grua),
                   db: Session = Depends(get_db)):
     q = db.query(m.Arrastre)
     if historial:
-        q = q.filter(m.Arrastre.montacarguista_id == usuario.id)
+        q = q.filter(m.Arrastre.chofer_grua_id == usuario.id)
     else:
         q = q.filter((m.Arrastre.estado == "solicitado") |
-                     ((m.Arrastre.montacarguista_id == usuario.id) &
+                     ((m.Arrastre.chofer_grua_id == usuario.id) &
                       (m.Arrastre.estado.notin_(["finalizado", "rechazado"]))))
     return [svc.arrastre_out(db, a) for a in
             q.order_by(m.Arrastre.fecha_solicitud.desc()).all()]
 
 
 @router.get("/talleres")
-def talleres(usuario=Depends(solo_mon), db: Session = Depends(get_db)):
+def talleres(usuario=Depends(solo_grua), db: Session = Depends(get_db)):
     return [{"id": t.id, "nombre": t.nombre, "direccion": t.direccion}
             for t in db.query(m.Taller).filter(m.Taller.activo.is_(True)).all()]
