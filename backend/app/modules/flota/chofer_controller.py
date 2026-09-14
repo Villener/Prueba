@@ -1,7 +1,7 @@
 """Modulo Chofer - CU-CHO-01 a CU-CHO-15."""
 from datetime import date, datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from ... import models as m
@@ -372,21 +372,86 @@ def reportar_averia(datos: AveriaIn, usuario=Depends(solo_chofer),
                         supervisor_notificado_id=sup_id,
                         estado="esperando_peritos" if datos.en_vialidad_publica else "abierto")
     db.add(r)
-    db.add(m.UbicacionUnidad(unidad_id=unidad.id, latitud=datos.latitud,
-                             longitud=datos.longitud))
+    # Solo si hay coordenadas de verdad. Escribir aqui un punto inventado
+    # ensuciaria el rastro de la unidad con una parada que nunca ocurrio.
+    if datos.latitud is not None and datos.longitud is not None:
+        db.add(m.UbicacionUnidad(unidad_id=unidad.id, latitud=datos.latitud,
+                                 longitud=datos.longitud))
     unidad.estado = "varada"
     db.flush()
 
+    sin_gps = " SIN UBICACION: hablale para saber donde quedo." \
+              if datos.latitud is None else ""
     notificar(db, sup_id, "Unidad varada",
-              f"{unidad.num_economico} varada. {datos.descripcion_falla}", "averia",
+              f"{unidad.num_economico} varada. {datos.descripcion_falla}{sin_gps}", "averia",
               "reporte_averia", r.id)
     if not datos.en_vialidad_publica:
         for mo in db.query(m.Usuario).join(m.UsuarioRol).join(m.Rol).filter(
-                m.Rol.nombre == "montacarguista").all():
+                m.Rol.nombre == "chofer_grua").all():
             notificar(db, mo.id, "Unidad varada requiere apoyo",
                       f"{unidad.num_economico}: {datos.descripcion_falla}", "averia",
                       "reporte_averia", r.id)
     registrar_bitacora(db, usuario.id, "averia_reportada", "reporte_averia", r.id)
+    db.commit()
+    db.refresh(r)
+    return svc.averia_out(db, r)
+
+
+@router.post("/averias/{averia_id}/ubicacion", response_model=AveriaOut)
+def completar_ubicacion(averia_id: int, datos: UbicacionIn, usuario=Depends(solo_chofer),
+                        db: Session = Depends(get_db)):
+    """CU-CHO-13. Pone el punto cuando el GPS tardo mas que la prisa.
+
+    El boton de emergencia manda la alerta a los 10 segundos aunque el telefono
+    todavia no haya fijado posicion: parado en la carretera, una alerta que sale
+    sin punto vale mucho mas que una que no sale. Cuando el fix llega, el
+    telefono lo manda aqui y la averia se completa sola.
+
+    No sobrescribe: si ya habia punto, el primero manda. El segundo llegaria
+    despues de que el chofer ya se movio buscando senal.
+    """
+    r = db.query(m.ReporteAveria).filter(m.ReporteAveria.id == averia_id).first()
+    if not r or r.chofer_id != usuario.id:
+        raise HTTPException(404, "Reporte no encontrado")
+    if r.latitud is not None:
+        return svc.averia_out(db, r)
+
+    r.latitud, r.longitud = datos.latitud, datos.longitud
+    db.add(m.UbicacionUnidad(unidad_id=r.unidad_id, latitud=datos.latitud,
+                             longitud=datos.longitud))
+    if r.supervisor_notificado_id:
+        notificar(db, r.supervisor_notificado_id, "Ya llego la ubicacion",
+                  f"{r.unidad.num_economico}: {datos.latitud:.5f}, {datos.longitud:.5f}",
+                  "averia", "reporte_averia", r.id)
+    registrar_bitacora(db, usuario.id, "ubicacion_completada", "reporte_averia", r.id)
+    db.commit()
+    db.refresh(r)
+    return svc.averia_out(db, r)
+
+
+@router.post("/averias/{averia_id}/foto", response_model=AveriaOut)
+def subir_foto(averia_id: int, archivo: UploadFile = File(...),
+               usuario=Depends(solo_chofer), db: Session = Depends(get_db)):
+    """CU-CHO-14. La foto va DESPUES de mandar la alerta, nunca antes.
+
+    Pedirla antes cuesta medio minuto en lo que menos corre prisa. El chofer
+    manda primero --que es lo urgente-- y sube la foto con calma; para entonces
+    el administrador de taller ya esta viendo el reporte y la foto le aparece
+    encima.
+    """
+    from ..emergencias.evidencia_controller import guardar
+    r = db.query(m.ReporteAveria).filter(m.ReporteAveria.id == averia_id).first()
+    if not r or r.chofer_id != usuario.id:
+        raise HTTPException(404, "Reporte no encontrado")
+    if len(svc.fotos_de(db, "reporte_averia", r.id)) >= 6:
+        raise HTTPException(409, "Ya hay seis fotos en este reporte")
+
+    guardar(db, usuario.id, "reporte_averia", r.id, archivo,
+            descripcion=r.descripcion_falla, momento="averia")
+    if r.supervisor_notificado_id:
+        notificar(db, r.supervisor_notificado_id, "Llego una foto de la averia",
+                  f"{r.unidad.num_economico}", "averia", "reporte_averia", r.id)
+    registrar_bitacora(db, usuario.id, "foto_averia_subida", "reporte_averia", r.id)
     db.commit()
     db.refresh(r)
     return svc.averia_out(db, r)
@@ -407,7 +472,7 @@ def registrar_peritaje(averia_id: int, datos: PeritajeIn, usuario=Depends(solo_c
     r.estado = "en_atencion"
     db.flush()
     for mo in db.query(m.Usuario).join(m.UsuarioRol).join(m.Rol).filter(
-            m.Rol.nombre == "montacarguista").all():
+            m.Rol.nombre == "chofer_grua").all():
         notificar(db, mo.id, "Arrastre habilitado (peritos ya avisados)",
                   f"Unidad {r.unidad.num_economico} - folio peritos {datos.folio_peritos}",
                   "averia", "reporte_averia", r.id)
@@ -438,7 +503,7 @@ def solicitar_arrastre(averia_id: int, usuario=Depends(solo_chofer),
     r.requiere_arrastre = True
     db.flush()
     for mo in db.query(m.Usuario).join(m.UsuarioRol).join(m.Rol).filter(
-            m.Rol.nombre == "montacarguista").all():
+            m.Rol.nombre == "chofer_grua").all():
         notificar(db, mo.id, "Nuevo arrastre solicitado",
                   f"Unidad {r.unidad.num_economico}", "arrastre", "arrastre", a.id)
     db.commit()

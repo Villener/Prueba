@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 
 from . import jobs
 from .core.database import Base, engine, get_db
-from .modules.emergencias.montacarguista_controller import router as router_montacarguista
+from .modules.emergencias.chofer_grua_controller import router as router_chofer_grua
+from .modules.emergencias.evidencia_controller import router as router_evidencias
 from .modules.flota.chofer_controller import router as router_chofer
 from .modules.flota.supervisor_controller import router as router_supervisor
 from .modules.mantenimiento.agenda_controller import router as router_agenda
@@ -28,7 +29,7 @@ from .seed import (asegurar_plano, asegurar_reportes_de_ordenes_abiertas,
 app = FastAPI(
     title="Baja Gas - Gestion de Flota y Taller",
     version="1.2.0",
-    description="6 modulos: Chofer, Supervisor, Administrador, Capturista, Montacarguista "
+    description="6 modulos: Chofer, Supervisor, Administrador, Capturista, Chofer de grua "
                 "y Gerente. Los mecanicos no usan la aplicacion: el administrador captura "
                 "su trabajo de taller y el capturista teclea las requisiciones.",
 )
@@ -45,7 +46,8 @@ app.add_middleware(
 # Un controller por dominio. Cada uno vive junto a los modelos que usa,
 # en app/modules/<dominio>/, igual que en el diagrama de clases.
 for r in [router_auth, router_chofer, router_supervisor, router_administrador,
-          router_agenda, router_montacarguista, router_gerente, router_capturista]:
+          router_agenda, router_chofer_grua, router_gerente, router_capturista,
+          router_evidencias]:
     app.include_router(r)
 
 

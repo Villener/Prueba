@@ -30,6 +30,20 @@ class ReporteAveria(Base, TimestampMixin):
     estado = Column(String(24), default="abierto", nullable=False)
     supervisor_notificado_id = Column(Integer, ForeignKey("supervisor.usuario_id"))
 
+    # --- Desenlace del despacho (v1.4) -------------------------------------
+    # Sin estas cuatro columnas el sistema solo sabia contar arrastres, y el
+    # arrastre es la MINORIA de las averias: la mayoria se resuelve con una
+    # llamada en la que el chofer mueve algo el mismo. Eso no se registraba en
+    # ningun lado, asi que el corte del mes decia "40 averias, 12 arrastres" y
+    # de las otras 28 no habia forma de saber que paso.
+    #
+    # Ademas es el dato que hace posible cualquier sugerencia automatica mas
+    # adelante: sin el desenlace guardado no hay de que aprender.
+    desenlace = Column(String(20))              # telefono|llantero|mecanico|grua
+    despachado_por_usuario_id = Column(Integer, ForeignKey("usuario.id"))
+    fecha_despacho = Column(UTCDateTime)
+    nota_despacho = Column(Text)
+
     unidad = relationship("Unidad")
     peritaje = relationship("ReportePeritaje", back_populates="reporte", uselist=False,
                             cascade="all, delete-orphan")

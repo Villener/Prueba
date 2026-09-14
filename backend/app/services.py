@@ -29,4 +29,5 @@ from .modules.piezas.piezas_service import (  # noqa: F401
 )
 from .modules.emergencias.emergencias_service import (  # noqa: F401
     puede_solicitar_arrastre, averia_out, arrastre_out,
+    DESENLACES, km_entre, gruas_disponibles, apoyo_cercano, fotos_de,
 )

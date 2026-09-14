@@ -59,9 +59,110 @@ async function request(path, { method = 'GET', body, params } = {}) {
   return res.json()
 }
 
+/** Baja un archivo que la API devuelve como binario.
+ *
+ *  No se puede usar `request()`: esa da por hecho que la respuesta es JSON.
+ *  Y tampoco sirve un enlace normal, que seria lo simple: el token vive en
+ *  localStorage y no en una cookie, asi que el navegador no lo manda solo. Hay
+ *  que pedirlo con fetch, ponerle el encabezado a mano y armar la descarga.
+ */
+async function descargar(ruta, { params } = {}) {
+  let url = `/api${ruta}`
+  if (params) {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== null)
+    ).toString()
+    if (qs) url += `?${qs}`
+  }
+  const token = getToken()
+  const res = await fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!res.ok) {
+    throw new ApiError(
+      res.status === 401 ? 'Tu sesion expiro. Vuelve a entrar.'
+                         : `No se pudo generar el archivo (error ${res.status})`,
+      res.status)
+  }
+
+  // El nombre lo manda el servidor en Content-Disposition; si no llega, se usa
+  // uno con la fecha para que dos descargas no se pisen en la carpeta.
+  const disp = res.headers.get('Content-Disposition') || ''
+  const encontrado = /filename="?([^"]+)"?/.exec(disp)
+  const nombre = encontrado ? encontrado[1]
+                            : `descarga-${new Date().toISOString().slice(0, 10)}.xlsx`
+
+  const blob = await res.blob()
+  const enlace = document.createElement('a')
+  enlace.href = URL.createObjectURL(blob)
+  enlace.download = nombre
+  document.body.appendChild(enlace)
+  enlace.click()
+  enlace.remove()
+  // Sin esto el blob se queda en memoria hasta que se recargue la pagina.
+  setTimeout(() => URL.revokeObjectURL(enlace.href), 1000)
+  return nombre
+}
+
+/** Sube un archivo por multipart.
+ *
+ *  No se puede usar `request()`: esa pone Content-Type: application/json, y en
+ *  multipart el navegador tiene que poner el suyo CON el boundary que el mismo
+ *  genera. Si se lo fijamos a mano, el servidor no puede separar las partes y
+ *  responde 422 sin decir por que.
+ */
+async function subir(ruta, archivo, campo = 'archivo') {
+  const fd = new FormData()
+  fd.append(campo, archivo)
+  const token = getToken()
+  const res = await fetch(`/api${ruta}`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: fd,
+  })
+  if (res.status === 401) {
+    clearSession()
+    window.location.hash = '#/login'
+    throw new ApiError('Tu sesion expiro. Vuelve a entrar.', 401)
+  }
+  if (!res.ok) {
+    let detail = `Error ${res.status}`
+    try {
+      const j = await res.json()
+      if (typeof j.detail === 'string') detail = j.detail
+      else if (Array.isArray(j.detail)) detail = j.detail.map((d) => d.msg).join('; ')
+    } catch { /* sin cuerpo JSON */ }
+    throw new ApiError(detail, res.status)
+  }
+  return res.json()
+}
+
+/** Trae una foto y devuelve una URL de blob para ponerla en un <img>.
+ *
+ *  Un <img src="/api/evidencias/7"> no funciona: la etiqueta no manda
+ *  encabezados y el token vive en localStorage, asi que la peticion llegaria
+ *  sin sesion. Y meter el token en la consulta (?token=...) tampoco: los JWT
+ *  acaban escritos en el log de accesos del servidor y en el Referer de
+ *  cualquier enlace de la pagina. Se baja con fetch, que si puede poner el
+ *  encabezado, y se pinta desde memoria.
+ *
+ *  Quien la llame es responsable de soltar la URL con URL.revokeObjectURL()
+ *  cuando desmonte: si no, el blob se queda en memoria hasta recargar.
+ */
+export async function bajarEvidencia(id) {
+  const token = getToken()
+  const res = await fetch(`/api/evidencias/${id}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!res.ok) throw new ApiError(`No se pudo cargar la foto (${res.status})`, res.status)
+  return URL.createObjectURL(await res.blob())
+}
+
 export const api = {
   get: (p, params) => request(p, { params }),
   post: (p, body, params) => request(p, { method: 'POST', body, params }),
+  descargar,
+  subir,
 }
 
 export const login = async (email, password) => {

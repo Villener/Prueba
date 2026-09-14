@@ -109,9 +109,9 @@ def averias_cuadrilla(usuario=Depends(solo_sup), db: Session = Depends(get_db)):
 
 # ------------------------------------------------------------- CU-SUP-07/09 -- #
 @router.post("/averias/{averia_id}/despachar", response_model=MensajeOut)
-def despachar_apoyo(averia_id: int, tipo: str = "montacarguista", tecnico_id: int | None = None,
+def despachar_apoyo(averia_id: int, tipo: str = "chofer_grua", tecnico_id: int | None = None,
                     usuario=Depends(solo_sup), db: Session = Depends(get_db)):
-    """CU-SUP-07 (montacarguista) y CU-SUP-09 (mecanico a sitio).
+    """CU-SUP-07 (chofer de grua) y CU-SUP-09 (mecanico a sitio).
 
     CU-SUP-09 absorbe al antiguo CU-MEC-07: como el mecanico no usa la app, el
     supervisor deja la constancia del envio.
@@ -138,13 +138,13 @@ def despachar_apoyo(averia_id: int, tipo: str = "montacarguista", tecnico_id: in
     if not svc.puede_solicitar_arrastre(r):
         raise HTTPException(409, "RN-04: falta registrar el aviso a peritos antes del arrastre")
     for mo in db.query(m.Usuario).join(m.UsuarioRol).join(m.Rol).filter(
-            m.Rol.nombre == "montacarguista").all():
+            m.Rol.nombre == "chofer_grua").all():
         notificar(db, mo.id, "Escalamiento del supervisor",
                   f"Unidad {r.unidad.num_economico} sigue varada", "arrastre",
                   "reporte_averia", r.id)
     registrar_bitacora(db, usuario.id, "apoyo_escalado", "reporte_averia", r.id)
     db.commit()
-    return {"mensaje": "Apoyo escalado a los montacarguistas"}
+    return {"mensaje": "Apoyo escalado a los choferes de grua"}
 
 
 # ---------------------------------------------------------------- CU-SUP-08 -- #

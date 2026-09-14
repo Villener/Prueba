@@ -441,8 +441,13 @@ class ResolucionPresupuestoIn(BaseModel):
 # ------------------------------------------------------------ emergencia ---- #
 class AveriaIn(BaseModel):
     unidad_id: int
-    latitud: float
-    longitud: float
+    # Opcionales A PROPOSITO. Antes eran obligatorias y el formulario, cuando el
+    # navegador negaba el GPS, mandaba en silencio las coordenadas del taller de
+    # Alamos. Asi quedo AVE-2026-00005: dice estar en el taller y en realidad
+    # nadie sabe donde estaba. Una averia sin ubicacion sirve mucho mas que una
+    # averia con la ubicacion equivocada.
+    latitud: Optional[float] = None
+    longitud: Optional[float] = None
     descripcion_falla: str
     direccion_referencia: Optional[str] = None
     en_vialidad_publica: bool = False
@@ -473,6 +478,13 @@ class AveriaOut(ORMModel):
     puede_solicitar_arrastre: bool = False   # RN-04
     arrastre_id: Optional[int] = None
     arrastre_estado: Optional[str] = None
+    # Desenlace del despacho (v1.4). Ausente mientras nadie haya decidido.
+    fotos: list = []
+    desenlace: Optional[str] = None
+    desenlace_texto: Optional[str] = None
+    despachado_por: Optional[str] = None
+    fecha_despacho: Optional[datetime] = None
+    nota_despacho: Optional[str] = None
 
 
 class ArrastreOut(ORMModel):
@@ -480,7 +492,7 @@ class ArrastreOut(ORMModel):
     folio: str
     unidad: str
     chofer_responsable: Optional[str] = None
-    montacarguista: Optional[str] = None
+    chofer_grua: Optional[str] = None
     taller_destino: Optional[str] = None
     estado: str
     fecha_solicitud: datetime
@@ -701,3 +713,48 @@ class RequisicionOut(ORMModel):
 
 
 TokenOut.model_rebuild()
+
+
+# ------------------------------------------------------------- CU-ADM-30 -- #
+class DespachoIn(BaseModel):
+    """Lo que el administrador decide cuando ve una unidad varada."""
+    tipo: str                                   # telefono|llantero|mecanico|grua
+    tecnico_id: Optional[int] = None            # obligatorio en llantero y mecanico
+    chofer_grua_id: Optional[int] = None        # opcional en grua: si no, se difunde
+    taller_destino_id: Optional[int] = None
+    nota: Optional[str] = None
+
+
+class ApoyoTecnicoOut(BaseModel):
+    id: int
+    nombre: str
+    especialidad: str
+    modalidad: str
+    taller: Optional[str] = None
+    telefono: Optional[str] = None
+    km: Optional[float] = None
+    sale_a_carretera: bool
+    vehiculo_en_taller: bool = False
+
+
+class ApoyoGruaOut(BaseModel):
+    usuario_id: int
+    nombre: Optional[str] = None
+    telefono: Optional[str] = None
+    grua: Optional[str] = None
+    grua_desconocida: bool = False
+    libre: bool
+    motivo: Optional[str] = None
+
+
+class TallerCercaOut(BaseModel):
+    id: int
+    nombre: str
+    km: Optional[float] = None
+
+
+class ApoyoOut(BaseModel):
+    """Todo lo que el administrador necesita para decidir, en una sola llamada."""
+    tecnicos: list[ApoyoTecnicoOut] = []
+    gruas: list[ApoyoGruaOut] = []
+    talleres: list[TallerCercaOut] = []

@@ -1,9 +1,12 @@
 /** Modulo Chofer - CU-CHO-* de docs/casos-de-uso.md */
 import { useState } from 'react'
 import { Route, Routes } from 'react-router-dom'
+import { BotonEmergencia } from './BotonEmergencia.jsx'
+import { FotosAveria } from './FotosAveria.jsx'
 import { api, fmtFecha, fmtFechaHora, hoyTijuana } from '../../core/api.js'
 import {
-  Aviso, Badge, Card, Empty, EstadoBadge, Modal, Regla, Spinner, Tabla, useApi, useToast,
+  Aviso, Badge, Card, Empty, EstadoBadge, IcoListo, IcoPrestamos, IcoTaller, IcoUbicacion,
+  IcoUnidad, Modal, Regla, Spinner, Tabla, useApi, useToast,
 } from '../../ui/index.js'
 
 export default function Chofer({ usuario }) {
@@ -34,7 +37,7 @@ function MiUnidad({ usuario }) {
 
   if (unidad.cargando) return <Spinner />
   if (!unidad.data) {
-    return <Empty icono="🚚">No tienes una unidad asignada. Habla con tu supervisor.</Empty>
+    return <Empty icono={IcoUnidad}>No tienes una unidad asignada. Habla con tu supervisor.</Empty>
   }
 
   const u = unidad.data
@@ -127,7 +130,7 @@ function MiUnidad({ usuario }) {
 
       <Card title="Mis penalizaciones">
         {(penas.data || []).length === 0 ? (
-          <Empty icono="✅">Sin penalizaciones. Vas al corriente.</Empty>
+          <Empty icono={IcoListo}>Sin penalizaciones. Vas al corriente.</Empty>
         ) : (
           (penas.data || []).map((p) => (
             <div className="list-item" key={p.id}>
@@ -208,7 +211,7 @@ function Prestamos() {
 
       {prestamos.cargando ? <Spinner /> : (
         <Card>
-          {(prestamos.data || []).length === 0 ? <Empty icono="🔁">Sin préstamos</Empty> : (
+          {(prestamos.data || []).length === 0 ? <Empty icono={IcoPrestamos}>Sin préstamos</Empty> : (
             (prestamos.data || []).map((p) => (
               <div className="list-item" key={p.id}>
                 <div className="grow">
@@ -360,7 +363,7 @@ function MisCitas() {
                 interno no es asunto suyo: lo que necesita saber es si le toca
                 hacer algo. */}
             {c.confirmada_por_chofer
-              ? <Badge tono="ok">✓ Ya confirmaste</Badge>
+              ? <Badge tono="ok"><IcoListo size={13} className="ico-inline" aria-hidden="true" /> Ya confirmaste</Badge>
               : (
                 <>
                   <Badge tono="warn">Pendiente</Badge>
@@ -439,7 +442,7 @@ function Taller() {
 
       <Card title="Mis solicitudes">
         {solicitudes.cargando ? <Spinner /> : (
-          (solicitudes.data || []).length === 0 ? <Empty icono="🔧">Sin solicitudes</Empty> : (
+          (solicitudes.data || []).length === 0 ? <Empty icono={IcoTaller}>Sin solicitudes</Empty> : (
             (solicitudes.data || []).map((s) => (
               <div className="list-item" key={s.id}>
                 <div className="grow">
@@ -480,15 +483,16 @@ function Averias() {
 
   return (
     <>
-      <div className="card-head">
-        <h1>Averías</h1>
-        <button className="btn danger" disabled={!unidad.data} onClick={() => setAbrir(true)}>
-          Reportar avería
-        </button>
-      </div>
+      <h1 style={{ marginBottom: 14 }}>Averías</h1>
+
+      {/* El botón de pánico manda la alerta con dos toques. El formulario largo
+          sigue existiendo debajo para cuando NO hay prisa --una falla que se
+          detecta en el patio-- y ahí sí conviene llenarlo completo. */}
+      <BotonEmergencia unidad={unidad.data}
+                       onListo={() => averias.recargar()} />
 
       {averias.cargando ? <Spinner /> : (
-        (averias.data || []).length === 0 ? <Empty icono="✅">Sin averías reportadas</Empty> : (
+        (averias.data || []).length === 0 ? <Empty icono={IcoListo}>Sin averías reportadas</Empty> : (
           (averias.data || []).map((a) => (
             <Card key={a.id} title={`${a.folio} · ${a.unidad}`}
                   actions={<EstadoBadge estado={a.estado} />}>
@@ -504,6 +508,14 @@ function Averias() {
               {a.tiene_peritaje && (
                 <Aviso tipo="ok">Peritos avisados · folio {a.folio_peritos}</Aviso>
               )}
+              {!a.latitud && (
+                <Aviso tipo="warn">
+                  Esta alerta salió <strong>sin ubicación</strong>. Tu supervisor ya lo sabe,
+                  pero si tienes señal ahora, vuelve a entrar para que se complete sola.
+                </Aviso>
+              )}
+
+              <FotosAveria averia={a} onCambio={() => averias.recargar()} />
 
               <div className="btn-row">
                 {a.en_vialidad_publica && !a.tiene_peritaje && (
@@ -523,6 +535,16 @@ function Averias() {
           ))
         )
       )}
+
+      <div className="btn-row" style={{ marginTop: 10 }}>
+        <button className="btn" disabled={!unidad.data} onClick={() => setAbrir(true)}>
+          Reportar con formulario completo
+        </button>
+      </div>
+      <Regla>
+        El botón rojo es para cuando estás varado. El formulario completo sirve cuando hay
+        tiempo: pide referencia del lugar y si hay terceros involucrados.
+      </Regla>
 
       {abrir && (
         <ModalAveria unidad={unidad.data} onCerrar={() => setAbrir(false)}
@@ -544,27 +566,29 @@ function ModalAveria({ unidad, onCerrar, onListo }) {
   })
   const [gps, setGps] = useState(null)
   const [buscando, setBuscando] = useState(false)
+  const [falloGps, setFalloGps] = useState(false)
 
   const ubicar = () => {
     setBuscando(true)
     if (!navigator.geolocation) {
-      setGps({ lat: 32.5149, lng: -117.0382, aprox: true })
-      setBuscando(false)
+      // Antes aquí se ponían las coordenadas de Álamos. Eso no es un valor por
+      // omisión: es una mentira que nadie puede detectar después.
+      setGps(null); setFalloGps(true); setBuscando(false)
       return
     }
     navigator.geolocation.getCurrentPosition(
       (p) => { setGps({ lat: p.coords.latitude, lng: p.coords.longitude }); setBuscando(false) },
-      () => { setGps({ lat: 32.5149, lng: -117.0382, aprox: true }); setBuscando(false) },
+      () => { setGps(null); setFalloGps(true); setBuscando(false) },
       { timeout: 8000 }
     )
   }
 
   const enviar = async (e) => {
     e.preventDefault()
-    const pos = gps || { lat: 32.5149, lng: -117.0382 }
     try {
       await api.post('/chofer/averias', {
-        unidad_id: unidad.id, latitud: pos.lat, longitud: pos.lng,
+        unidad_id: unidad.id,
+        latitud: gps ? gps.lat : null, longitud: gps ? gps.lng : null,
         descripcion_falla: form.descripcion_falla,
         direccion_referencia: form.direccion_referencia,
         en_vialidad_publica: form.en_vialidad_publica,
@@ -591,12 +615,19 @@ function ModalAveria({ unidad, onCerrar, onListo }) {
         </div>
         <div className="field">
           <button type="button" className="btn block" onClick={ubicar} disabled={buscando}>
-            {buscando ? 'Ubicando…' : gps ? '📍 Ubicación lista' : '📍 Compartir mi ubicación'}
+            {buscando ? 'Ubicando…' : gps ? 'Ubicación lista' : 'Compartir mi ubicación'}
           </button>
           {gps && (
             <p className="sub" style={{ marginTop: 6 }}>
-              {gps.lat.toFixed(5)}, {gps.lng.toFixed(5)}{gps.aprox ? ' (aproximada)' : ''}
+              {gps.lat.toFixed(5)}, {gps.lng.toFixed(5)}
             </p>
+          )}
+          {falloGps && (
+            <Aviso tipo="warn">
+              El navegador no dio la ubicación. Se manda sin punto y tu supervisor recibe el
+              aviso de que llegó así. Si entraste por una dirección sin candado
+              (<code>http://</code>), el GPS está bloqueado por el navegador, no por la app.
+            </Aviso>
           )}
         </div>
         <label style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 10 }}>
