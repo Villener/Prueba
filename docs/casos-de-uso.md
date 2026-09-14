@@ -1,6 +1,6 @@
 # Diagrama y catálogo de casos de uso — Sistema de Gestión de Flota y Taller (Baja Gas)
 
-**Versión:** 2.0 · **Fecha:** 2026-08-18
+**Versión:** 2.1 · **Fecha:** 2026-09-14
 **Deriva de:** [modelo-clases.md](modelo-clases.md) v2.0
 **Relacionados:** [modelo-er.md](modelo-er.md) · [procesos.md](procesos.md) · [agenda-mantenimiento.md](agenda-mantenimiento.md) · [requerimientos.md](requerimientos.md)
 
@@ -17,6 +17,20 @@
 >
 > De 63 casos de uso a **94**.
 
+> **v2.1 (2026-09-14) — siete casos de uso que salieron de la junta con el cliente.**
+> CU-CHO-18 (choque, procedimiento aparte de la avería), CU-SUP-10 (amonestación),
+> CU-ADM-31 (evidencia fotográfica del preventivo), CU-GER-12/13/14 (gráficos, historial por
+> chofer, cumplimiento por mes y año) y CU-AUT-08 (amonestación automática). **De 99 a 106.**
+> Además, «cuadrilla» se parte en **plantilla** (choferes) y **flotilla** (unidades), y el
+> **perito Edgar** entra como actor primario interno. Detalle en
+> [`junta-2026-09-14.md`](junta-2026-09-14.md).
+>
+> **Ojo con el punto 5 de arriba.** La v2.0 quitó la penalización y dejó la conversación como
+> único canal: «gerente y Erick hablan con el chofer». El cliente ahora pide una **amonestación**,
+> que es un acto formal y va al expediente. No es volver atrás del todo —la amonestación se emite
+> *después* de esa conversación, no en lugar de ella—, pero sí reabre la pregunta de si el chofer
+> necesita un canal de defensa dentro de la app. Pregunta abierta #13 de `requerimientos.md`.
+
 ---
 
 ## 1. Diagramas
@@ -32,7 +46,7 @@ En `docs/diagramas/` como SVG. Para verlos todos juntos, abre
 | 3 | [03-modulo-administrador-taller.svg](diagramas/03-modulo-administrador-taller.svg) | 16 casos — **Pedro** (piso y almacén) y **Víctor** (agenda) |
 | 4 | [04-modulo-administrador-compras.svg](diagramas/04-modulo-administrador-compras.svg) | 9 casos — **Erick** (compras y enlace con gerencia) |
 | 5 | [05-modulo-mecanico-autonomo.svg](diagramas/05-modulo-mecanico-autonomo.svg) | 12 casos — **nuevo módulo** |
-| 6 | [06-modulo-montacarguista.svg](diagramas/06-modulo-montacarguista.svg) | 8 casos del montacarguista |
+| 6 | [06-modulo-chofer-grua.svg](diagramas/06-modulo-chofer-grua.svg) | 8 casos del chofer de grúa |
 | 7 | [07-modulo-gerente.svg](diagramas/07-modulo-gerente.svg) | 11 casos del gerente |
 
 **Por qué el administrador ocupa dos diagramas.** Erick, Pedro, Víctor y Pablo no hacen lo mismo y
@@ -53,21 +67,26 @@ proceso pero **no toca la aplicación**. Solo los mecánicos, carroceros y elect
 | Actor | Descripción |
 |---|---|
 | **Chofer** | Opera la unidad y responde por ella mientras la conduce |
-| **Supervisor** | Vigila una cuadrilla de choferes y sus unidades |
+| **Supervisor** | Vigila una **plantilla** de choferes y la **flotilla** de unidades que esa plantilla trae. No son la misma lista ni del mismo tamaño |
 | **Pedro** · *piso y almacén* | Espacios, colas de técnicos, surtido de piezas, captura del trabajo de los mecánicos de Álamos |
 | **Víctor** · *agenda* | Programa el mantenimiento preventivo y gestiona las citas |
 | **Erick** · *compras y enlace* | Presupuestos, órdenes de compra, y el único puente con el gerente |
 | **Pablo** · *operativo* | Cubre a Pedro y a Víctor **por suplencia de perfil**, no con cuenta propia |
 | **Mecánico autónomo** | Los 6 de las plantas satélite. Único técnico con acceso al sistema |
 | **Jaime Yair** · *capturista de datos* | Teclea las requisiciones de material del taller de Álamos. El puesto viene con ese nombre en la hoja TALLER del Excel del cliente (empleado 13905) |
-| **Montacarguista** | Arrastres y traslados entre plantas |
-| **Gerente** | Aprueba presupuestos, atiende alertas y avisos, consulta indicadores |
+| **Chofer de grúa** | Arrastres y traslados entre plantas |
+| **Gerente** · *Luis Tiscareño* | Aprueba presupuestos, atiende alertas y avisos, consulta indicadores |
+| **Edgar** · *perito* | Levanta el peritaje de choques y siniestros en vialidad. Es del **sindicato**, pero trabaja para Baja Gas: **actor interno, con cuenta propia**. Sin su peritaje, la unidad accidentada no se mueve (RN-04, RN-16) |
 
 ### Secundarios — participan, no inician
 
 **Otro chofer** (recibe una unidad en préstamo) · **Almacén de Álamos** (responde consultas y
-surte) · **Proveedor** (piezas en camino) · **Peritos / Aseguradora** (siniestros en vialidad
-pública).
+surte) · **Proveedor** (piezas en camino) · **Aseguradora** (atiende el siniestro después del
+peritaje de Edgar).
+
+> **Corrección (2026-09-14).** «Peritos / Aseguradora» estaba como un solo actor externo. Son dos:
+> **Edgar es de la casa** y sube a actor primario —se le avisa desde el sistema y levanta el
+> peritaje dentro—, mientras que la aseguradora sigue siendo externa y entra después.
 
 ### «business worker» — participa en el proceso, no usa el sistema
 
@@ -117,9 +136,10 @@ da el rol con fecha de fin. **Sin cuentas compartidas.**
 | CU-CHO-12 | Registrar aviso a peritos | Chofer, Peritos | Must |
 | CU-CHO-13 | Compartir ubicación en tiempo real | Chofer | Must |
 | **CU-CHO-14** | **Solicitar auxilio mecánico** | Chofer, Mecánico autónomo | Must |
-| CU-CHO-15 | Solicitar arrastre | Chofer, Montacarguista | Must |
+| CU-CHO-15 | Solicitar arrastre | Chofer, Chofer de grúa | Must |
 | **CU-CHO-16** | **Dar seguimiento al apoyo en camino** | Chofer | Must |
-| CU-CHO-17 | Consultar mis avisos de incumplimiento | Chofer | Must |
+| CU-CHO-17 | Consultar mis avisos de incumplimiento **y mis amonestaciones** | Chofer | Must |
+| **CU-CHO-18** | **Reportar un choque** | Chofer, Edgar (perito), Supervisor | Must |
 
 **`CU-CHO-03` sube de Should a Must.** Con la responsabilidad siguiendo a quien conduce, la
 jornada dejó de ser un dato de conveniencia: es la primera rama de `poseedorActual()`.
@@ -128,19 +148,34 @@ jornada dejó de ser un dato de conveniencia: es la primera rama de `poseedorAct
 chofer en persona — **la conversación es el canal de defensa**. Un trámite paralelo dentro de la
 app solo agregaría burocracia a algo que ya se resuelve hablando.
 
-### 3.3 Supervisor — CU-SUP (9)
+**`CU-CHO-18` es nuevo y no es una variante de `CU-CHO-12`.** Chocar y quedarse tirado son dos
+procedimientos distintos (RN-16). En la avería la unidad falla sola, llega grúa o mecánico, y solo
+se bloquea el arrastre si fue en vialidad pública. En el choque hay impacto y casi siempre un
+tercero: se avisa a **Edgar**, se levanta parte de accidente con daños y terceros, la unidad **no
+se mueve** hasta que haya peritaje, y termina en carrocería con un deducible de por medio.
+Hoy los dos caben en el mismo formulario, así que un choque se acaba describiendo en el campo
+«falla» y el gerente no puede ni contar cuántos hubo en el año.
+
+### 3.3 Supervisor — CU-SUP (10)
 
 | ID | Caso de uso | Actores | Prioridad |
 |---|---|---|---|
-| CU-SUP-01 | Consultar mi cuadrilla | Supervisor | Must |
+| CU-SUP-01 | Consultar mi plantilla y mi flotilla | Supervisor | Must |
 | CU-SUP-02 | Monitorear conductores y unidades en tiempo real | Supervisor | Must |
 | CU-SUP-03 | Consultar préstamos activos | Supervisor | Must |
 | CU-SUP-04 | Autorizar o vetar un préstamo | Supervisor, Chofer | Should |
 | CU-SUP-05 | Consultar estado de la unidad | Supervisor | Must |
 | CU-SUP-06 | Atender alerta de unidad varada | Supervisor | Must |
-| CU-SUP-07 | Escalar auxilio sin respuesta | Supervisor, Montacarguista, Mecánico autónomo | Should |
-| CU-SUP-08 | Consultar cumplimiento de mantenimiento de la cuadrilla | Supervisor | Should |
-| **CU-SUP-09** | **Consultar citas de taller de mi cuadrilla** | Supervisor | Should |
+| CU-SUP-07 | Escalar auxilio sin respuesta | Supervisor, Chofer de grúa, Mecánico autónomo | Should |
+| CU-SUP-08 | Consultar cumplimiento de mantenimiento de la plantilla | Supervisor | Should |
+| **CU-SUP-09** | **Consultar citas de taller de mi plantilla** | Supervisor | Should |
+| **CU-SUP-10** | **Emitir y consultar amonestaciones de mi plantilla** | Supervisor, Chofer, Gerente | Must |
+
+**`CU-SUP-10` solo se puede disparar sobre una cita confirmada e incumplida.** Si el taller nunca
+dio cita, o si no hubo cupo antes de la fecha límite, el sistema **no deja emitir la amonestación**
+— y la meta de 5 a 7 preventivos al día (RN-12) es la que lo prueba. Se aplica al **poseedor** de
+la unidad, no al titular. **Pendiente:** confirmar con el cliente si la firma el supervisor, Erick
+o el gerente, y qué pasa a la segunda.
 
 ### 3.4 Administrador — taller y agenda · CU-ADM-01 a 16
 
@@ -206,7 +241,7 @@ capturan lo suyo.
 > iba a poder aceptar, y la bandeja se llenaba de solicitudes muertas. El «no» tiene que llegar al
 > crearla, con el folio de la orden que la tiene adentro.
 
-### 3.5b Administrador — reporte de mantenimiento · CU-ADM-26 a 29
+### 3.5b Administrador — reporte de mantenimiento · CU-ADM-26 a 31
 
 El formato de papel que hoy se llena a mano en la pluma de Álamos: revisión rápida de 11
 puntos, los 10 sistemas del vehículo y las 5 firmas del pie. Es **la entrada** de la unidad,
@@ -220,6 +255,7 @@ diagnóstico.
 | **CU-ADM-28** | **Registrar firma del formato** | Pedro | Must |
 | **CU-ADM-29** | **Cerrar el formato y sellar la salida** | Pedro | Must |
 | **CU-ADM-30** | **Reasignar el responsable de un sistema** | Pedro | Must |
+| **CU-ADM-31** | **Adjuntar la evidencia fotográfica del preventivo** | Pedro, Mecánico asistido | Must |
 
 Reglas que hace cumplir:
 
@@ -228,6 +264,12 @@ Reglas que hace cumplir:
   simultáneas pasan la validación al mismo tiempo.
 - **No se cierra sin las dos firmas de salida** (Vo. Bo. del jefe de mantenimiento y quien
   recibe la unidad). El error dice cuáles faltan, no «409».
+- **Un preventivo no se cierra sin foto (RN-15, v2.1).** La firma prueba que alguien cerró el
+  formato; la foto prueba que el trabajo se hizo. La evidencia se **comprime en el teléfono antes
+  de subirse** —imagen redimensionada, no el original de la cámara—: con 5 a 7 preventivos al día
+  y varias fotos cada uno, el original acumula cientos de MB al mes en un servidor que ya está
+  pagado. **Pendiente:** qué fotos exactamente (¿pieza vieja, pieza nueva, odómetro?) y cuántas
+  por servicio; sin una lista, cada quien sube lo que se le ocurre y la evidencia no compara nada.
 - Un formato **cerrado no se reescribe**. Para corregirlo se levanta otro: un papel firmado
   que se edita sin dejar rastro deja de servir como prueba.
 - La **revisión rápida se captura solo al ingresar**: es el estado en que se recibió la unidad.
@@ -274,23 +316,23 @@ Solo los seis de las plantas satélite: Tecate, Rosarito, Guaycura (2), Carranza
 | CU-MEC-08 | Aceptar o rechazar el auxilio | Mecánico autónomo | Must |
 | CU-MEC-09 | Transmitir mi ubicación al chofer | Mecánico autónomo, Chofer | Must |
 | CU-MEC-10 | Cerrar auxilio en sitio | Mecánico autónomo | Must |
-| CU-MEC-11 | Enviar unidad a Álamos | Mecánico autónomo, Montacarguista | Must |
+| CU-MEC-11 | Enviar unidad a Álamos | Mecánico autónomo, Chofer de grúa | Must |
 | CU-MEC-12 | Emitir formato de salida | Mecánico autónomo | Must |
 
-### 3.7 Montacarguista — CU-MON (8)
+### 3.7 Chofer de grúa — CU-MON (8)
 
 | ID | Caso de uso | Actores | Prioridad |
 |---|---|---|---|
-| CU-MON-01 | Recibir alerta de unidad varada | Montacarguista, Supervisor | Must |
-| CU-MON-02 | Aceptar o rechazar el arrastre | Montacarguista | Must |
-| CU-MON-03 | Transmitir mi ubicación en tiempo real | Montacarguista, Chofer | Must |
-| CU-MON-04 | Registrar llegada al sitio | Montacarguista | Should |
-| CU-MON-05 | Cerrar arrastre y registrar taller destino | Montacarguista, Pedro | Must |
-| CU-MON-06 | Adjuntar evidencia fotográfica | Montacarguista | Should |
-| **CU-MON-07** | **Ejecutar traslado entre plantas** | Montacarguista, Mecánico autónomo | Must |
-| CU-MON-08 | Consultar historial de arrastres | Montacarguista | Should |
+| CU-MON-01 | Recibir alerta de unidad varada | Chofer de grúa, Supervisor | Must |
+| CU-MON-02 | Aceptar o rechazar el arrastre | Chofer de grúa | Must |
+| CU-MON-03 | Transmitir mi ubicación en tiempo real | Chofer de grúa, Chofer | Must |
+| CU-MON-04 | Registrar llegada al sitio | Chofer de grúa | Should |
+| CU-MON-05 | Cerrar arrastre y registrar taller destino | Chofer de grúa, Pedro | Must |
+| CU-MON-06 | Adjuntar evidencia fotográfica | Chofer de grúa | Should |
+| **CU-MON-07** | **Ejecutar traslado entre plantas** | Chofer de grúa, Mecánico autónomo | Must |
+| CU-MON-08 | Consultar historial de arrastres | Chofer de grúa | Should |
 
-### 3.8 Gerente — CU-GER (11)
+### 3.8 Gerente — CU-GER (14)
 
 | ID | Caso de uso | Actores | Prioridad |
 |---|---|---|---|
@@ -305,6 +347,25 @@ Solo los seis de las plantas satélite: Tecate, Rosarito, Guaycura (2), Carranza
 | CU-GER-09 | Consultar unidades atendidas por periodo | Gerente | Must |
 | **CU-GER-10** | **Atender aviso de incumplimiento** | Gerente, Erick, Chofer | Must |
 | **CU-GER-11** | **Comparar desempeño entre plantas** | Gerente | Should |
+| **CU-GER-12** | **Consultar las estadísticas por día, mes y año, en gráficos** | Gerente | Must |
+| **CU-GER-13** | **Consultar el historial acumulado de un chofer** | Gerente | Must |
+| **CU-GER-14** | **Consultar el cumplimiento por chofer, por mes y por año** | Gerente | Must |
+
+**Los tres son la misma petición vista desde ángulos distintos** y conviene no partirlos en tres
+pantallas sueltas. El gerente pidió dos cosas: que **todo** el tablero tenga un eje de tiempo —día,
+mes, año, no solo el ahora— y que se lea **en gráficos**, no en tablas. `CU-GER-13` es el
+expediente del chofer, el equivalente al de la unidad: citas confirmadas contra cumplidas,
+amonestaciones, préstamos recibidos, averías y choques. Sirve para sostener una amonestación **y
+para defender** al chofer al que el taller nunca le dio cita.
+
+Encima va la meta de RN-12: la tendencia de preventivos por día contra la banda de 5 a 7, con los
+días por debajo del piso marcados. Es el indicador que dice si el incumplimiento fue del chofer o
+del taller.
+
+> **Lo que hay que resolver antes de dibujar el primer gráfico.** Esto pide **datos agregados
+> históricos**, no el estado actual. La base guarda hoy el presente de cada unidad; para una serie
+> por mes y por año hay que decidir si se agrega al vuelo sobre la bitácora o si se materializan
+> cortes periódicos. Es una decisión de modelo, no de interfaz.
 
 ### 3.9 Capturista de datos — CU-CAP (5) · **módulo nuevo**
 
@@ -321,11 +382,11 @@ una hoja de Excel por cada papel que le baja el taller.
 | CU-CAP-04 | Buscar la unidad por número económico | Casa «BG-354P» con «BG354P» | Must |
 | CU-CAP-05 | Revisar los códigos que el catálogo no reconoce | En el Excel no se ven: quedan como texto suelto | Should |
 
-**Total: 99 casos de uso.**
+**Total: 106 casos de uso** (99 + los 7 de la junta del 2026-09-14).
 
 ---
 
-### 3.10 Automáticos — CU-AUT (7)
+### 3.10 Automáticos — CU-AUT (8)
 
 | ID | Caso de uso | Regla | Prioridad |
 |---|---|---|---|
@@ -336,6 +397,14 @@ una hoja de Excel por cada papel que le baja el taller.
 | **CU-AUT-05** | **Enviar avisos de cita a 48 h y 24 h** | — | Must |
 | **CU-AUT-06** | **Recalibrar duraciones de servicio** | — | Should |
 | **CU-AUT-07** | **Escalar auxilio sin respuesta** | — | Must |
+| **CU-AUT-08** | **Proponer la amonestación por cita confirmada incumplida** | RN-14 | Must |
+
+**`CU-AUT-08` propone, no sanciona.** El reloj detecta que la cita confirmada pasó sin que la
+unidad entrara y arma la amonestación con todo lo que hace falta para sostenerla: la cita, el
+**poseedor** de ese día y el historial del chofer. Quien la emite es una persona (`CU-SUP-10`).
+Una sanción que sale sola de un `cron` es la que nadie puede explicar cuando el chofer reclama —y
+según RN-14 hay casos en que **no debe existir**: si el taller nunca dio cita, o si no hubo cupo
+antes de la fecha límite, el problema es del taller.
 
 ---
 

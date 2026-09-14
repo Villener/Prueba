@@ -1,6 +1,14 @@
 # Especificación de Requerimientos — Sistema de Gestión de Flota y Taller (Baja Gas)
 
-**Versión:** 1.1 · **Fecha:** 2026-08-13 · **Autor:** Ingeniería de Requerimientos
+**Versión:** 1.2 · **Fecha:** 2026-09-14 · **Autor:** Ingeniería de Requerimientos
+
+> **v1.2 (2026-09-14).** Incorpora las diez notas de la junta con el cliente: renombre de
+> cuadrilla a **plantilla**/**flotilla**, el gerente es **Luis Tiscareño**, meta de **5 a 7
+> preventivos por día** (RN-12), **amonestación** al chofer que incumple (RN-14), **evidencia
+> fotográfica** obligatoria y ligera (RN-15, RF-GEN-15), **choque y avería** como procedimientos
+> distintos (RN-16), el **perito Edgar** como actor interno, y el tablero del gerente con
+> **estadísticas por día/mes/año y gráficos** (RF-GER-14 a 18). Trazabilidad nota por nota en
+> `junta-2026-09-14.md`. **Nada de esto está implementado todavía.**
 
 ---
 
@@ -8,11 +16,11 @@
 
 Sistema web/móvil para administrar el ciclo de vida operativo de las unidades de reparto de gas:
 asignación de vehículos a choferes, préstamos temporales, cumplimiento de mantenimiento
-preventivo, solicitudes e ingreso a taller, arrastres (grúa/montacargas), presupuestos de
+preventivo, solicitudes e ingreso a taller, arrastres (grúa), presupuestos de
 reparación y tablero directivo.
 
 **Dentro del alcance:** los **5 módulos por rol** (Chofer, Supervisor, Administrador,
-Montacarguista, Gerente), geolocalización en tiempo real, flujo de presupuestos y órdenes de
+Chofer de grúa, Gerente), geolocalización en tiempo real, flujo de presupuestos y órdenes de
 compra, indicadores de gerencia.
 
 > **Cambio de alcance (2026-08-13).** El cliente confirmó que **los mecánicos no usarán la
@@ -32,13 +40,24 @@ integración contable, telemetría del medidor de gas.
 | Actor | Descripción | Interés principal |
 |---|---|---|
 | Chofer | Opera y es responsable técnico de una unidad | Vender sin perder tiempo; reportar fallas |
-| Supervisor | Tiene una cuadrilla de choferes | Visibilidad de quién conduce qué y dónde |
+| Supervisor | Tiene una **plantilla** de choferes y la **flotilla** que esa plantilla trae | Visibilidad de quién conduce qué y dónde |
 | Administrador de taller | Gestiona espacios, cuadrillas técnicas y compras | Maximizar rotación de bahías |
-| Montacarguista | Realiza arrastres de unidades varadas | Recibir y cerrar arrastres |
+| Chofer de grúa | Realiza arrastres de unidades varadas | Recibir y cerrar arrastres |
 | Mecánico *(trabajador del negocio, **no usuario**)* | Diagnostica, presupuesta y repara. No opera el sistema: entrega su trabajo al administrador, que lo captura | Piezas y autorización a tiempo |
-| Gerente | Dirección | Cumplimiento de mantenimiento, ocupación, costos |
+| Gerente — **Luis Tiscareño** | Dirección | Cumplimiento de mantenimiento, ocupación, costos |
 | Almacén *(actor secundario)* | Surte piezas | Órdenes de compra autorizadas |
-| Peritos / aseguradora *(actor externo)* | Atienden siniestros en vialidad | Registro de folio de peritaje |
+| **Perito — Edgar** *(actor **interno**)* | Levanta el peritaje de choques y siniestros en vialidad. Es del sindicato, pero **trabaja para Baja Gas**: tiene cuenta propia y lo que registra queda a su nombre | Dejar el peritaje levantado para que la unidad se pueda mover |
+| Aseguradora *(actor externo)* | Atiende el siniestro después del peritaje | Parte de accidente y deducible |
+
+> **Corrección (2026-09-14).** «Cuadrilla» era una sola palabra para dos cosas. El cliente usa
+> **plantilla** para el grupo de **choferes** y **flotilla** para el grupo de **unidades**. No
+> coinciden: 55 choferes de plantilla no son 55 unidades de flotilla, porque hay préstamos,
+> unidades en taller y choferes sin unidad. La **cuadrilla técnica** del administrador —mecánicos,
+> carroceros, electricistas— no es ninguna de las dos y se queda sin nombre nuevo: pregunta
+> abierta #11.
+>
+> Y el perito dejó de ser un actor externo: **Edgar es de la casa**. Detalle en
+> `junta-2026-09-14.md`.
 
 ---
 
@@ -49,9 +68,21 @@ integración contable, telemetría del medidor de gas.
 - **Poseedor:** chofer que tiene la unidad ahora (titular o quien la recibió en préstamo).
 - **Préstamo:** cesión temporal de la unidad con transferencia de responsabilidad.
 - **Espacio / bahía:** posición física del taller donde entra una unidad.
-- **Arrastre:** traslado de una unidad varada mediante montacargas/grúa.
+- **Arrastre:** traslado de una unidad varada mediante grúa.
 - **Ventana de mantenimiento:** rango de fecha/km en el que la unidad debe ingresar a taller.
 - **Unidad parada:** unidad inmovilizada en taller sin avance de reparación.
+- **Plantilla:** grupo de **choferes** a cargo de un supervisor. Antes se decía «cuadrilla».
+- **Flotilla:** grupo de **unidades** que trae esa plantilla. No es del mismo tamaño que la
+  plantilla ni cambia con ella.
+- **Amonestación:** acto administrativo documentado contra el chofer que faltó a una cita
+  **confirmada**. Va a su expediente; no es un descuento (RN-14).
+- **Avería / quedarse tirado:** la unidad falla sola y queda inmovilizada. Se atiende con grúa o
+  mecánico.
+- **Choque / siniestro:** hay impacto, casi siempre con un tercero. **Procedimiento distinto** al
+  de la avería: exige peritaje antes de mover la unidad y termina en carrocería, no en mecánica
+  (RN-16).
+- **Evidencia del preventivo:** fotos que prueban que el servicio se hizo, comprimidas en el
+  teléfono antes de subirse (RN-15).
 
 ---
 
@@ -62,14 +93,18 @@ integración contable, telemetría del medidor de gas.
 | RN-01 | La responsabilidad técnica de la unidad recae **siempre en el poseedor actual**, no en el titular. Durante un préstamo activo, todas las obligaciones y penalizaciones aplican al chofer que la recibió. | Must |
 | RN-02 | Una unidad tiene **un solo poseedor activo** a la vez. No se puede prestar una unidad que ya está prestada ni una que está en taller. | Must |
 | RN-03 | El préstamo es **temporal y con fecha de fin**; al vencer, la responsabilidad vuelve automáticamente al titular salvo prórroga. | Must |
-| RN-04 | Si una unidad se vara **en vialidad pública**, el orden obligatorio de aviso es: **1) peritos, 2) mecánico/montacarguista**. El sistema no permite solicitar apoyo mecánico sin registrar antes el reporte a peritos (o marcarlo como no aplica con justificación). | Must |
-| RN-05 | Si el poseedor no ingresa la unidad al taller dentro de la ventana de mantenimiento, se genera una **penalización** registrada a su nombre. | Must |
+| RN-04 | Si una unidad se vara **en vialidad pública**, el orden obligatorio de aviso es: **1) peritos, 2) mecánico/chofer de grúa**. El sistema no permite solicitar apoyo mecánico sin registrar antes el reporte a peritos (o marcarlo como no aplica con justificación). **Desde 2026-09-14:** el perito es **interno** (Edgar), así que el aviso sale del propio sistema y el peritaje se levanta dentro, no se teclea después. | Must |
+| RN-05 | Si el poseedor no ingresa la unidad al taller dentro de la ventana de mantenimiento, se genera una **penalización** registrada a su nombre. La forma concreta de esa penalización es la **amonestación** de RN-14. | Must |
 | RN-06 | No se acepta un ingreso a taller si **no hay espacio disponible**; la solicitud queda en cola o se rechaza con motivo. | Must |
 | RN-07 | Flujo de presupuesto: **Mecánico (papel) → Administrador (captura) → Gerente**. Solo el Gerente aprueba o rechaza. Ninguna pieza se compra sin presupuesto aprobado. El presupuesto entra al sistema por captura del administrador, no por el mecánico. | Must |
 | RN-11 | Todo dato originado por un mecánico (diagnóstico, presupuesto, avance) queda registrado con **dos responsables**: el técnico que lo elaboró y el administrador que lo capturó. | Must |
 | RN-08 | Una unidad con **más de 3 meses** en taller genera alerta al Gerente, **recurrente hasta ser atendida**. | Must |
 | RN-09 | La orden de compra la autoriza el Administrador contra almacén, **solo sobre presupuesto ya aprobado** por Gerencia. | Should |
 | RN-10 | La ubicación del chofer se comparte **solo durante jornada activa o emergencia**, nunca fuera de horario. | Should |
+| RN-12 | La **meta de mantenimiento preventivo es de 5 a 7 unidades por día**. No es solo un techo de capacidad: es también un piso. Un día por debajo de 5 se reporta como incumplimiento **del taller**, y si el taller lleva semanas por debajo de la meta, el incumplimiento de los choferes deja de serles imputable — no hubo cupo para todos. | Must |
+| RN-14 | El chofer que falta a una cita **confirmada** recibe una **amonestación**: administrativa y documentada, al expediente, **no económica**. Se aplica al **poseedor** de la unidad (RN-01), nunca al titular por algo que ocurrió durante un préstamo. Si el taller nunca dio cita, o no hubo cupo antes de la fecha límite, **no hay amonestación**. El chofer la puede ver y se puede inconformar. | Must |
+| RN-15 | Un servicio preventivo **no se cierra sin evidencia fotográfica**. La firma prueba que alguien cerró el formato; la foto prueba que el trabajo se hizo. La evidencia se **comprime en el teléfono antes de subirse** (RF-GEN-15): se guarda la imagen redimensionada, nunca el original de la cámara. | Must |
+| RN-16 | **Choque y avería son dos procedimientos distintos**, no dos variantes del mismo. El choque exige peritaje **siempre** —no solo en vialidad pública—, bloquea el movimiento de la unidad hasta tenerlo, levanta parte de accidente con daños y terceros, y termina en carrocería con deducible de por medio. La avería solo bloquea en vialidad pública, levanta reporte de falla y termina en mecánica. | Must |
 
 ---
 
@@ -91,11 +126,12 @@ Prioridad MoSCoW: **M** = Must (sin esto no hay sistema), **S** = Should (import
 | RF-GEN-07 | Máquina de estados de la unidad: `Disponible → En ruta → Varada → En arrastre → En taller → En reparación → Lista → Disponible` | M | Es el núcleo del modelo de datos |
 | RF-GEN-08 | Historial completo por unidad (expediente del vehículo) | S | Base del historial de taller de gerencia |
 | RF-GEN-09 | Funcionamiento offline con sincronización diferida en la app del chofer | S | Hay zonas sin cobertura en ruta |
-| RF-GEN-10 | Carga de evidencia fotográfica en reportes | S | Respalda daños y estados |
+| RF-GEN-10 | Carga de evidencia fotográfica en reportes | **M** | Respalda daños y estados. **Sube a Must (2026-09-14):** RN-15 hace la foto obligatoria para cerrar un preventivo |
 | RF-GEN-11 | Exportación de reportes a PDF/Excel | C | Útil para dirección, no bloqueante |
 | RF-GEN-12 | Multi-taller (varios talleres con su propio administrador) | C | Ya está implícito en "determinado taller" |
 | RF-GEN-13 | App móvil nativa | W | Con web responsiva basta en v1 |
-| RF-GEN-14 | Integración con nómina para descontar penalizaciones | W | Fuera de alcance |
+| RF-GEN-14 | Integración con nómina para descontar penalizaciones | W | Fuera de alcance. RN-14 confirma que la consecuencia es administrativa, no económica: esto ya no hace falta |
+| RF-GEN-15 | **Comprimir la evidencia fotográfica en el cliente antes de subirla**: redimensionar al lado largo acordado, convertir a formato moderno y apuntar a ~200 KB por foto. El original de la cámara nunca sube | M | El «formato ligero» es el requisito, no un detalle: 5 a 7 preventivos al día con varias fotos cada uno son cientos de MB al mes en un servidor que ya está pagado |
 
 ### 5.2 Módulo Chofer (RF-CHO)
 
@@ -108,32 +144,34 @@ Prioridad MoSCoW: **M** = Must (sin esto no hay sistema), **S** = Should (import
 | RF-CHO-05 | **Prestar** su unidad a otro chofer indicando motivo (vacaciones, incapacidad) y fecha de retorno | M | Requerimiento explícito |
 | RF-CHO-06 | **Recibir/aceptar** una unidad prestada; la aceptación transfiere la responsabilidad (RN-01) | M | Requerimiento explícito |
 | RF-CHO-07 | Devolver la unidad y cerrar el préstamo, devolviendo la responsabilidad al titular | M | Cierre del ciclo de préstamo |
-| RF-CHO-08 | Reportar avería/varada compartiendo su ubicación, quedando **visible** para supervisor, montacarguista y mecánico | M | Requerimiento explícito |
+| RF-CHO-08 | Reportar avería/varada compartiendo su ubicación, quedando **visible** para supervisor, chofer de grúa y mecánico | M | Requerimiento explícito |
 | RF-CHO-09 | Al reportar varada en vialidad pública, el sistema **obliga primero el aviso a peritos** y captura el folio; hasta entonces no habilita la solicitud de mecánico (RN-04) | M | Requerimiento explícito y de riesgo legal |
-| RF-CHO-10 | Ver la ubicación en tiempo real del montacarguista que aceptó su arrastre | M | Requerimiento explícito |
+| RF-CHO-10 | Ver la ubicación en tiempo real del chofer de grúa que aceptó su arrastre | M | Requerimiento explícito |
 | RF-CHO-11 | Recibir aviso de penalización aplicada, con motivo y fecha | M | Debido proceso de RN-05 |
 | RF-CHO-12 | Recibir recordatorios previos al vencimiento de la ventana de mantenimiento | S | Reduce incumplimiento; evita disputas |
 | RF-CHO-13 | Checklist de inspección pre-operacional al inicio de jornada | S | Detecta fallas antes de la ruta |
 | RF-CHO-14 | Registrar entrada/salida de jornada (inicio y fin de conducción) | S | Alimenta el "quién está conduciendo" del supervisor |
-| RF-CHO-15 | Ver su historial de penalizaciones y cumplimiento | C | Transparencia |
-| RF-CHO-16 | Levantar inconformidad sobre una penalización | C | Deseable, no crítico en v1 |
+| RF-CHO-15 | Ver su historial de penalizaciones, **amonestaciones** y cumplimiento | **S** | Transparencia. **Sube de C a S (2026-09-14):** con RN-14 de por medio, un chofer no puede enterarse de su amonestación por el pasillo |
+| RF-CHO-16 | Levantar inconformidad sobre una penalización o amonestación | **S** | **Sube de C a S (2026-09-14):** si la amonestación va al expediente, tiene que haber a dónde reclamar |
 | RF-CHO-17 | Cálculo de comisiones del chofer | W | Fuera de alcance |
+| RF-CHO-18 | **Reportar un choque por un flujo propio, distinto del de avería** (RN-16): captura de daños, terceros involucrados, aviso automático al perito interno y bloqueo del movimiento de la unidad hasta que exista peritaje | M | Hoy un choque se describe en el campo «falla» de una avería. Los procedimientos son distintos y el gerente no puede ni contar cuántos choques hubo |
 
 ### 5.3 Módulo Supervisor (RF-SUP)
 
 | ID | Requerimiento | MoSCoW | Justificación |
 |---|---|---|---|
-| RF-SUP-01 | Ver su cuadrilla asignada de choferes | M | Base del módulo |
+| RF-SUP-01 | Ver su **plantilla** asignada de choferes y la **flotilla** que trae | M | Base del módulo. Renombrado el 2026-09-14: son dos listas, no una |
 | RF-SUP-02 | Ver en tiempo real qué chofer está conduciendo, con qué unidad, y quién no está conduciendo | M | Requerimiento explícito |
 | RF-SUP-03 | Ver los préstamos activos: quién prestó qué unidad a quién y hasta cuándo | M | Requerimiento explícito |
 | RF-SUP-04 | Ver si una unidad está en taller o repartiendo en la ciudad | M | Requerimiento explícito |
-| RF-SUP-05 | Ver alertas de unidades varadas que requieren montacarguista o mecánico | M | Requerimiento explícito |
-| RF-SUP-06 | Mapa con ubicación de las unidades de su cuadrilla | S | Hace usable RF-SUP-02/04 |
-| RF-SUP-07 | Autorizar o vetar un préstamo de su cuadrilla | S | Control de abusos; el enunciado no lo exige |
-| RF-SUP-08 | Ver el estado de cumplimiento de mantenimiento y penalizaciones de su cuadrilla | S | Le permite corregir antes de que escale a gerencia |
-| RF-SUP-09 | Escalar/despachar apoyo a una unidad varada y **registrar el envío del mecánico a sitio** | S | Redundancia si el montacarguista no responde. Absorbe RF-MEC-07: como el mecánico no tiene app, el supervisor deja la constancia |
-| RF-SUP-10 | Reasignar unidad entre choferes de la cuadrilla | C | Caso menos frecuente que el préstamo |
+| RF-SUP-05 | Ver alertas de unidades varadas que requieren chofer de grúa o mecánico | M | Requerimiento explícito |
+| RF-SUP-06 | Mapa con ubicación de las unidades de su flotilla | S | Hace usable RF-SUP-02/04 |
+| RF-SUP-07 | Autorizar o vetar un préstamo de su plantilla | S | Control de abusos; el enunciado no lo exige |
+| RF-SUP-08 | Ver el estado de cumplimiento de mantenimiento, penalizaciones y amonestaciones de su plantilla | S | Le permite corregir antes de que escale a gerencia |
+| RF-SUP-09 | Escalar/despachar apoyo a una unidad varada y **registrar el envío del mecánico a sitio** | S | Redundancia si el chofer de grúa no responde. Absorbe RF-MEC-07: como el mecánico no tiene app, el supervisor deja la constancia |
+| RF-SUP-10 | Reasignar unidad entre choferes de la plantilla | C | Caso menos frecuente que el préstamo |
 | RF-SUP-11 | Reportes de productividad por chofer | W | Fuera de alcance |
+| RF-SUP-12 | **Emitir y consultar amonestaciones de su plantilla** (RN-14), con el motivo, la cita incumplida que la originó y quién la firmó | M | Sin un lugar donde emitirla, la amonestación se queda en una conversación y no sostiene nada. **Pendiente:** confirmar si la firma el supervisor, Erick o el gerente (pregunta abierta #13) |
 
 ### 5.4 Módulo Administrador de taller (RF-ADM)
 
@@ -155,6 +193,8 @@ Prioridad MoSCoW: **M** = Must (sin esto no hay sistema), **S** = Should (import
 | RF-ADM-16 | **Capturar las piezas faltantes** detectadas por el mecánico | M | **Reasignado desde RF-MEC-03** |
 | RF-ADM-17 | **Registrar inicio, avance y término** de la reparación por técnico | M | **Reasignado desde RF-MEC-06**; alimenta ocupación y tiempos del gerente |
 | RF-ADM-18 | Emitir/imprimir la **hoja de trabajo** del día para entregarla a los técnicos en papel | M | Sin app, el mecánico necesita su cola en físico. Requerimiento **nuevo** que nace del cambio |
+| RF-ADM-23 | **Adjuntar la evidencia fotográfica del servicio preventivo y no dejar cerrar el formato sin ella** (RN-15), ligada a la actividad concreta que se ejecutó | M | La firma prueba que alguien cerró el formato; la foto prueba que el trabajo se hizo. **Pendiente:** qué fotos y cuántas por servicio (pregunta abierta #14) |
+| RF-ADM-24 | **Ver el avance del día contra la meta de 5 a 7 preventivos** (RN-12): cuántos van, cuántos faltan y qué citas quedan por delante | M | Una meta que nadie ve durante el día no se cumple, se reporta al final |
 | RF-ADM-19 | Registrar la **notificación al mecánico** del resultado del presupuesto (aprobado/rechazado) | S | **Reasignado desde RF-MEC-05**; el aviso es verbal, el sistema solo deja constancia |
 | RF-ADM-20 | Consultar el expediente/historial de reparaciones de la unidad para consulta del mecánico | S | **Reasignado desde RF-MEC-08** |
 | RF-ADM-21 | Adjuntar la foto o el escaneo del presupuesto en papel firmado por el mecánico | S | Respalda RN-11 ante una disputa de costos |
@@ -162,13 +202,13 @@ Prioridad MoSCoW: **M** = Must (sin esto no hay sistema), **S** = Should (import
 | RF-ADM-22 | Presupuestos a partir de plantillas de mano de obra y refacciones | C | **Reasignado desde RF-MEC-09**; acelera la captura, que ahora es cuello de botella |
 | RF-ADM-14 | Programación automática/óptima de cargas de trabajo | W | Complejidad alta, poco valor en v1 |
 
-> **Advertencia de carga de trabajo.** El administrador pasa de 14 a **22 requerimientos**. Todo
+> **Advertencia de carga de trabajo.** El administrador pasa de 14 a **24 requerimientos**. Todo
 > lo que antes capturaba el mecánico ahora lo teclea él, y es la misma persona que atiende
 > solicitudes de ingreso y mueve unidades entre espacios. Es el **cuello de botella del diseño**:
 > si el taller tiene mucha rotación, un solo administrador no da abasto. Vale la pena validar con
 > el cliente cuántos administradores hay por taller antes de cerrar la Fase 2.
 
-### 5.5 Módulo Montacarguista (RF-MON)
+### 5.5 Módulo Chofer de grúa (RF-MON)
 
 | ID | Requerimiento | MoSCoW | Justificación |
 |---|---|---|---|
@@ -180,7 +220,7 @@ Prioridad MoSCoW: **M** = Must (sin esto no hay sistema), **S** = Should (import
 | RF-MON-06 | Historial de arrastres realizados | S | Trazabilidad y control |
 | RF-MON-07 | Evidencia fotográfica al recoger y al entregar la unidad | S | Protege contra reclamos de daño |
 | RF-MON-08 | Navegación/ruta hacia la unidad varada | C | Se puede resolver con mapa externo |
-| RF-MON-09 | Asignación automática del montacarguista más cercano | C | Optimización posterior |
+| RF-MON-09 | Asignación automática del chofer de grúa más cercano | C | Optimización posterior |
 
 ### 5.6 Módulo Mecánico — **ELIMINADO** (trazabilidad del cambio)
 
@@ -228,10 +268,20 @@ un riesgo de proceso, no de software, y hay que decírselo al cliente.
 | RF-GER-07 | Alerta recurrente de unidades con **más de 3 meses** paradas, hasta que se atiendan (RN-08) | M | Requerimiento explícito |
 | RF-GER-08 | Cantidad de unidades atendidas en un periodo configurable | M | Requerimiento explícito |
 | RF-GER-09 | Aprobar o rechazar presupuestos remitidos por el administrador | M | Requerimiento explícito (RN-07) |
-| RF-GER-10 | Ver ranking/histórico de penalizaciones por chofer y por supervisor | S | Da consecuencia real a RN-05 |
+| RF-GER-10 | Ver ranking/histórico de penalizaciones y **amonestaciones** por chofer y por supervisor | S | Da consecuencia real a RN-05 y RN-14 |
 | RF-GER-11 | Costo acumulado de mantenimiento por unidad | S | Decisión de reemplazo de flota |
+| RF-GER-14 | **Ver todas las estadísticas del tablero por día, por mes y por año**, con selector de periodo, no solo el estado actual | M | RF-GER-08 daba «un periodo configurable» suelto. El cliente pidió un eje de tiempo de verdad sobre los mismos indicadores |
+| RF-GER-15 | **Presentar la información en gráficos**, no solo en tablas y números: tendencia de preventivos contra la meta, cumplimiento por mes, ocupación a lo largo del año | M | Petición directa del gerente. Un tablero directivo que solo tiene tablas obliga a leerlo; con gráficos se entiende de un vistazo, que es para lo que existe |
+| RF-GER-16 | **Historial acumulado por chofer**: citas confirmadas contra cumplidas, amonestaciones, préstamos recibidos, averías y choques reportados | M | Es el expediente del chofer, el equivalente al de la unidad (RF-GEN-08). Sirve para sostener una amonestación **y para defender** al chofer al que el taller nunca le dio cita |
+| RF-GER-17 | **Estadístico de cumplimiento por chofer, cortado por mes y por año** | M | Petición directa: sin el corte por periodo no se distingue al que falló una vez del que falla siempre |
+| RF-GER-18 | **Seguimiento de la meta de 5 a 7 preventivos por día** (RN-12), con los días por debajo del piso marcados | M | Es el indicador que dice si el incumplimiento es del chofer o del taller |
 | RF-GER-12 | Comparativo entre talleres | C | Solo aplica con multi-taller |
 | RF-GER-13 | Predicción de fallas / mantenimiento predictivo | W | Requiere histórico que aún no existe |
+
+> **Lo que esto pide por debajo.** RF-GER-14 a RF-GER-18 no son cinco pantallas: son **datos
+> agregados históricos**. La base guarda hoy el presente de cada unidad; para una serie por mes y
+> por año hay que decidir si se agrega al vuelo sobre la bitácora o si se materializan cortes
+> periódicos. Es una decisión de modelo, y conviene tomarla antes de dibujar el primer gráfico.
 
 ---
 
@@ -239,7 +289,7 @@ un riesgo de proceso, no de software, y hay que decírselo al cliente.
 
 | ID | Requerimiento | MoSCoW |
 |---|---|---|
-| RNF-01 | Interfaz web responsiva, usable desde celular por chofer y montacarguista | M |
+| RNF-01 | Interfaz web responsiva, usable desde celular por chofer y chofer de grúa | M |
 | RNF-02 | Latencia de actualización de ubicación ≤ 10 s en arrastre activo | M |
 | RNF-03 | Autenticación con contraseña cifrada (hash) y sesión con expiración | M |
 | RNF-04 | Autorización estricta por rol en el servidor, no solo en la interfaz | M |
@@ -276,17 +326,27 @@ Fase 1 puede ser *Must* en la Fase 3.
 
 ### 7.2 Distribución de esta especificación
 
-| Prioridad | Cantidad aprox. | Qué contiene |
+| Prioridad | Cantidad | Qué contiene |
 |---|---|---|
-| Must | 46 | Núcleo: roles, unidad, préstamo con responsabilidad, taller y espacios, arrastre, captura de presupuestos, dashboard |
-| Should | 25 | Mapas, evidencias, offline, historiales, penalizaciones detalladas, constancias de aviso al mecánico |
-| Could | 12 | Kanban, exportaciones, optimizaciones, plantillas de presupuesto |
-| Won't (v1) | 8 | Nómina, comisiones, app nativa, predictivo |
+| Must | 62 | Núcleo: roles, unidad, préstamo con responsabilidad, taller y espacios, arrastre, captura de presupuestos, dashboard. **Desde v1.2:** evidencia fotográfica, amonestación, choque como flujo propio y las estadísticas del gerente |
+| Should | 22 | Mapas, offline, historiales, penalizaciones detalladas, constancias de aviso al mecánico, inconformidad del chofer |
+| Could | 9 | Kanban, exportaciones, optimizaciones, plantillas de presupuesto |
+| Won't (v1) | 6 | Nómina, comisiones, app nativa, predictivo |
+| **Total** | **99** | |
 
-Tras eliminar el módulo Mecánico el total baja de 91 a **88 requerimientos**: se descartaron 3
-(cola de trabajo en pantalla, catálogo de tiempos estándar y la app del mecánico como tal) y se
-reasignaron 7 al administrador y 1 al supervisor. El esfuerzo **no baja en la misma proporción**:
-la captura sigue existiendo, solo cambió de manos.
+Tras eliminar el módulo Mecánico el total había bajado de 91 a 88: se descartaron 3 (cola de
+trabajo en pantalla, catálogo de tiempos estándar y la app del mecánico como tal) y se reasignaron
+7 al administrador y 1 al supervisor. El esfuerzo **no bajó en la misma proporción**: la captura
+sigue existiendo, solo cambió de manos.
+
+**La junta del 2026-09-14 sumó 10 requerimientos, todos Must**, y movió tres de prioridad
+(RF-GEN-10 de Should a Must; RF-CHO-15 y RF-CHO-16 de Could a Should). Los diez caen casi todos en
+dos lugares: el **tablero del gerente** —5 requerimientos que además piden datos agregados
+históricos que hoy la base no guarda— y el **administrador de taller**, que ya era el cuello de
+botella del diseño. **Conviene revisar la hoja de ruta de §7.3 antes de comprometer fechas.**
+
+> Las cifras de la tabla son el conteo real de filas de §5 al día de hoy, no las de la v1.1: ahí
+> los números eran aproximados y ya no cuadraban con el documento.
 
 ### 7.3 Hoja de ruta por incrementos
 
@@ -314,7 +374,7 @@ captura el diagnóstico y el avance que le entregan los técnicos, y emite la sa
 **Fase 3 — Emergencias y arrastre (2–3 semanas)**
 Entregables: RF-CHO-08, 09, 10 · RF-MON-01 a 04 · RF-SUP-05 · RF-GEN-06 · RN-04 · RNF-02.
 Criterio de salida: unidad varada en vialidad → aviso a peritos con folio → alerta al
-montacarguista → seguimiento en tiempo real → cierre con taller destino registrado.
+chofer de grúa → seguimiento en tiempo real → cierre con taller destino registrado.
 
 **Fase 4 — Presupuestos y compras (2 semanas)**
 Entregables: RF-ADM-09, 10, 11, 16, 19, 21 · RF-GER-09 · RN-07, RN-09, RN-11.
@@ -366,10 +426,23 @@ Should y Could pendientes según tiempo restante: mapas, offline, evidencias, ex
 4. ¿Cuántos talleres y cuántos espacios por taller?
 5. ¿"Más de 3 meses parada" se cuenta desde el ingreso al taller o desde que se detiene la reparación?
 6. ¿Existe un monto de presupuesto por debajo del cual el administrador puede aprobar sin el gerente?
-7. ¿El montacarguista es empleado interno o proveedor externo?
+7. ¿El chofer de grúa es empleado interno o proveedor externo?
 8. **¿Cuántos administradores hay por taller?** De esto depende si la captura del trabajo del mecánico es viable o si el sistema se atora en la Fase 2.
 9. **¿En cuánto tiempo debe capturar el administrador** lo que le entrega el mecánico? Sin un acuerdo explícito, el "tiempo real" del gerente es ficción.
 10. **¿Los carroceros y electricistas tampoco usarán la app?** Se asumió que no, igual que los mecánicos. Si alguno sí la usa, hay que reponerle su módulo.
+
+**Abiertas desde la junta del 2026-09-14** (detalle en `junta-2026-09-14.md`):
+
+11. **¿Cómo se le dice al grupo de técnicos** —mecánicos, carroceros, electricistas—, si no son plantilla (choferes) ni flotilla (unidades)? Por ahora se quedó «cuadrilla técnica», que es justo la palabra que el cliente ya no usa.
+12. **La meta de 5 a 7 preventivos al día, ¿es por taller o de toda la operación?** Álamos es el taller grande, pero hay plantas satélite. De la respuesta depende contra qué se mide RF-GER-18.
+13. **¿Quién firma la amonestación** —el supervisor, Erick o el gerente— y **qué pasa a la segunda o la tercera**? Sin escalamiento definido, la amonestación es un registro sin consecuencia.
+14. **¿Qué fotos validan un preventivo y cuántas por servicio?** ¿La pieza vieja, la nueva, el odómetro? Sin una lista, cada quien sube lo que se le ocurre y la evidencia no sirve para comparar.
+15. **¿Edgar es el único perito?** Si lo es y no contesta de madrugada, RN-04 deja el arrastre bloqueado sin salida. Hace falta un suplente o una regla de escalamiento.
+16. **¿El historial acumulado por chofer (RF-GER-16) lo puede ver también su supervisor**, o solo el gerente? Afecta el alcance de RF-SUP-08.
+
+> **Nota de vocabulario.** «Plantilla» ahora significa **grupo de choferes**, pero RF-ADM-22 ya
+> usaba «plantillas» para las **machotes de presupuesto**. Son dos cosas distintas con la misma
+> palabra: al implementar, no se llamen igual en el código.
 
 ---
 
