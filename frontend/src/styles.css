@@ -8,7 +8,7 @@
    TEMA: arranca SIEMPRE en claro. No sigue al sistema operativo; el
    usuario lo cambia con el interruptor y se le recuerda (src/tema.js).
 
-   Mobile-first: el chofer y el montacarguista trabajan desde el telefono;
+   Mobile-first: el chofer y el chofer de grua trabajan desde el telefono;
    el administrador y el gerente desde escritorio.
    ================================================================= */
 
@@ -48,6 +48,15 @@
   /* Colores oficiales del logo, tomados del archivo que entrego el cliente. */
   --logo-azul:  #0F3452;
   --logo-verde: #0E6235;
+
+  /* Colores de GRAFICA. Van aparte de --brand y --danger a proposito: los de
+     la interfaz estan afinados para texto y bordes, y una barra rellena tiene
+     otras exigencias de contraste. Estos dos pasaron el validador de paleta
+     --banda de luminosidad, piso de croma, separacion para daltonismo y
+     contraste contra la superficie-- en los dos temas. */
+  --grafica:        #0E5F8F;
+  --grafica-alerta: #C33131;
+  --grafica-pista:  #E4E9EC;
 }
 
 /* El tema oscuro NO se activa solo: lo enciende el usuario. */
@@ -81,6 +90,10 @@
      contrasta. En claro, que es el predeterminado, el logo va intacto. */
   --logo-azul:  #E8EEF2;
   --logo-verde: #3FBF77;
+
+  --grafica:        #3E9AD1;
+  --grafica-alerta: #D9614F;
+  --grafica-pista:  #223038;
 }
 
 * { box-sizing: border-box; }
@@ -172,7 +185,9 @@ a  { color: var(--brand); }
   border-top: 2px solid transparent; letter-spacing: .02em;
 }
 .nav a.active { color: var(--brand); border-top-color: var(--brand); background: var(--surface-2); }
-.nav .ico { font-size: 1.2rem; line-height: 1; }
+/* Los iconos son SVG, no texto: se centran con flex en vez de con font-size.
+   Heredan currentColor, asi que el estado activo del menu los tine solo. */
+.nav .ico { display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
 
 @media (min-width: 900px) {
   .app { flex-direction: row; }
@@ -296,6 +311,27 @@ input, select, textarea {
   border-radius: var(--radius-sm); padding: 9px 11px; width: 100%;
 }
 textarea { min-height: 80px; resize: vertical; }
+
+/* Opcion de radio con su explicacion debajo. Se usa donde elegir mal cuesta
+   caro --el despacho de auxilio-- y por eso cada opcion dice que implica en
+   lugar de ser solo una palabra.
+
+   El `label` global es mayusculas chiquitas para los titulos de campo; aqui hay
+   que devolverle el tamano normal o la fila entera sale ilegible. */
+.radio-fila {
+  display: flex; align-items: flex-start; gap: 9px;
+  padding: 9px 11px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); background: var(--surface);
+  font-family: var(--font); font-size: .92rem; font-weight: 400;
+  letter-spacing: normal; text-transform: none; color: var(--ink);
+  cursor: pointer;
+}
+.radio-fila + .radio-fila { margin-top: 6px; }
+.radio-fila input { width: auto; margin-top: 3px; flex: none; }
+.radio-fila strong { display: block; }
+.radio-fila small { display: block; margin-top: 2px; }
+.radio-fila:has(input:checked) { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-soft); }
+.radio-fila:has(input:disabled) { opacity: .55; cursor: not-allowed; }
 input:focus, select:focus, textarea:focus {
   outline: none; border-color: var(--brand);
   box-shadow: 0 0 0 3px var(--brand-soft);
@@ -361,7 +397,12 @@ tbody tr:hover { background: var(--surface-2); }
 }
 
 .empty { text-align: center; color: var(--muted); padding: 26px 12px; font-size: .87rem; }
-.empty .ico { display: block; font-size: 1.7rem; margin-bottom: 6px; opacity: .55; }
+.empty .ico { display: flex; justify-content: center; margin-bottom: 8px; opacity: .5; }
+
+/* Icono dentro de una linea de texto. El desplazamiento vertical lo baja a la
+   altura de la x de la tipografia: sin el, el SVG se sienta sobre la linea
+   base y parece flotar sobre las palabras. */
+.ico-inline { vertical-align: -.15em; margin-right: .28em; flex-shrink: 0; }
 
 .spinner {
   width: 22px; height: 22px; margin: 22px auto;
@@ -996,3 +1037,102 @@ tbody tr:hover { background: var(--surface-2); }
      de un renglon. Una hoja o nada. */
   .formato { page-break-inside: avoid; break-inside: avoid; }
 }
+
+
+/* --------------------------------------------------------------- graficas --- */
+/* Barras en HTML y no en SVG: el texto de las etiquetas se acomoda solo, no hay
+   viewBox que se desborde, y responden al ancho del contenedor sin recalcular
+   nada. Para barras rectas el SVG no aporta. */
+.grafica { display: flex; flex-direction: column; gap: 9px; }
+
+.gbarra { display: grid; grid-template-columns: minmax(88px, 148px) 1fr auto; gap: 10px;
+          align-items: center; }
+.gbarra .get { font-size: .82rem; color: var(--ink-2); text-align: right;
+               overflow-wrap: anywhere; }
+.gbarra .gpista { background: var(--grafica-pista); height: 15px; border-radius: 2px; }
+.gbarra .gval {
+  height: 100%; background: var(--grafica);
+  /* Punta redondeada solo del lado del dato; el otro extremo queda anclado a la
+     linea base, que es donde empieza a contar. */
+  border-radius: 2px 4px 4px 2px; min-width: 2px;
+}
+.gbarra.alerta .gval { background: var(--grafica-alerta); }
+.gbarra .gnum {
+  font-family: var(--font-data); font-size: .82rem; font-weight: 600;
+  color: var(--ink); min-width: 2.4em; text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Serie mensual: columnas. Aqui el eje del tiempo va horizontal porque leerlo
+   de izquierda a derecha es lo que el ojo espera. */
+.gcolumnas { display: flex; align-items: flex-end; gap: 4px; height: 168px;
+             padding-top: 18px; }
+.gcol { flex: 1; display: flex; flex-direction: column; justify-content: flex-end;
+        align-items: center; gap: 5px; height: 100%; }
+.gcol .gtorre { width: 100%; background: var(--grafica);
+                border-radius: 4px 4px 2px 2px; min-height: 2px; }
+.gcol .gpie { font-family: var(--font-data); font-size: .62rem; color: var(--muted);
+              white-space: nowrap; }
+.gcol .gcifra { font-family: var(--font-data); font-size: .68rem; font-weight: 600;
+                color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+/* ------------------------------------------------------- boton de panico --- */
+/* Grande de verdad: se aprieta parado en el acotamiento, con guantes, con el
+   telefono en una mano. 96px de alto es mas o menos el ancho de un pulgar por
+   tres, y es lo que hace que no se falle al primer intento.
+
+   El rojo es el unico de toda la aplicacion: si otros botones fueran rojos,
+   este dejaria de significar "emergencia" y pasaria a significar "boton". */
+.boton-panico {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; width: 100%; min-height: 96px; margin-bottom: 12px;
+  padding: 16px; border: 0; border-radius: var(--radius);
+  background: #B3261E; color: #fff; cursor: pointer;
+  font-family: var(--font-disp); font-size: 1.15rem; font-weight: 700;
+  letter-spacing: .02em;
+  box-shadow: 0 2px 0 #7F1B15, 0 6px 18px rgba(179, 38, 30, .28);
+  -webkit-tap-highlight-color: transparent;
+}
+.boton-panico small {
+  font-family: var(--font); font-size: .8rem; font-weight: 400; opacity: .9;
+  letter-spacing: normal;
+}
+.boton-panico:hover:not(:disabled) { background: #C62E25; }
+/* Se hunde al tocarlo: sin respuesta tactil la gente lo aprieta tres veces. */
+.boton-panico:active:not(:disabled) {
+  transform: translateY(2px); box-shadow: 0 0 0 #7F1B15;
+}
+.boton-panico:disabled { background: var(--muted); box-shadow: none; cursor: not-allowed; }
+.boton-panico:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { .boton-panico:active:not(:disabled) { transform: none; } }
+
+/* El numero economico en la confirmacion: es lo unico que detiene a tiempo a
+   quien apreto por error, asi que se lee desde lejos. */
+.panico-unidad {
+  font-family: var(--font-disp); font-size: 2.1rem; font-weight: 700;
+  text-align: center; color: var(--ink); margin: 4px 0 2px; letter-spacing: .01em;
+}
+.panico-gps {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  margin: 12px 0; padding: 9px 12px; border-radius: var(--radius-sm);
+  background: var(--surface-2, var(--bg)); border: 1px solid var(--border);
+  font-size: .88rem; color: var(--muted); text-align: center;
+}
+.panico-acciones { margin-top: 12px; }
+.panico-acciones .btn { flex: 1; justify-content: center; min-height: 46px; }
+
+/* ------------------------------------------------------ fotos de averia ---- */
+.fotos-averia { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 4px; }
+.fotos-fila { display: flex; flex-wrap: wrap; gap: 8px; }
+.foto-mini {
+  display: block; width: 92px; height: 92px; flex: none;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  overflow: hidden; background: var(--bg);
+}
+.foto-mini img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.foto-cargando { background: var(--border); }
+.foto-rota {
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  font-size: .72rem; color: var(--muted); padding: 6px;
+}
+.btn.disabled { opacity: .6; pointer-events: none; }

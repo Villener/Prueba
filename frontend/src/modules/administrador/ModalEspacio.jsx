@@ -7,7 +7,9 @@ el administrador esta parado frente al vehiculo, no buscando un folio. */
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, fmtFechaHora } from '../../core/api.js'
-import { Aviso, Badge, Empty, Modal, Regla, Spinner, useApi, useToast } from '../../ui/index.js'
+import {
+  Aviso, Badge, Empty, IcoPlano, IcoTecnico, Modal, Regla, Spinner, useApi, useToast,
+} from '../../ui/index.js'
 
 export function ModalEspacio({ espacioId, onCerrar, onCambio }) {
   const toast = useToast()
@@ -76,7 +78,7 @@ export function ModalEspacio({ espacioId, onCerrar, onCambio }) {
                   <div className="btn-row">
                     {rep.atendido_por.map((t) => (
                       <Badge key={t.tecnico_id} tono={t.pendientes ? 'info' : 'ok'}>
-                        🔧 {t.tecnico} · {t.especialidad}
+                        <IcoTecnico size={13} className="ico-inline" aria-hidden="true" /> {t.tecnico} · {t.especialidad}
                         {t.pendientes ? ` · ${t.pendientes} pend.` : ' · entregado'}
                       </Badge>
                     ))}
@@ -147,7 +149,7 @@ export function ModalEspacio({ espacioId, onCerrar, onCambio }) {
               </div>
             ))
           ) : (
-            <Empty icono="🅿️">
+            <Empty icono={IcoPlano}>
               No hay unidades esperando lugar en este taller. Solo aparecen las que ya tienen
               una orden abierta y no están en otro cajón.
             </Empty>

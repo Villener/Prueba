@@ -2,7 +2,10 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, fmtFecha, fmtFechaHora } from '../../core/api.js'
-import { Aviso, Badge, Card, Empty, EstadoBadge, Modal, Spinner, Tabla, useApi, useToast } from '../../ui/index.js'
+import {
+  Aviso, Badge, Card, Empty, EstadoBadge, IcoSolicitudes, Modal, Spinner, Tabla, useApi,
+  useToast,
+} from '../../ui/index.js'
 import { PlanoTaller } from './PlanoTaller.jsx'
 
 /* -------------------------------------------------- CU-ADM-01/02 ----------- */
@@ -23,7 +26,7 @@ export function Solicitudes() {
       </Aviso>
 
       <Card title={`Pendientes (${pendientes.length})`}>
-        {pendientes.length === 0 ? <Empty icono="📥">Bandeja vacía</Empty> : (
+        {pendientes.length === 0 ? <Empty icono={IcoSolicitudes}>Bandeja vacía</Empty> : (
           pendientes.map((s) => (
             <div className="list-item" key={s.id}>
               <div className="grow">

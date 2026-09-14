@@ -3,7 +3,8 @@ import { useState } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import { api, fmtFecha, fmtFechaHora } from '../../core/api.js'
 import {
-  Aviso, Badge, Card, Empty, EstadoBadge, Modal, Regla, Spinner, Tabla, useApi, useToast,
+  Aviso, Badge, Card, Empty, EstadoBadge, IcoCuadrilla, IcoListo, IcoPrestamos,
+  IcoUbicacion, Modal, Regla, Spinner, Tabla, useApi, useToast,
 } from '../../ui/index.js'
 
 export default function Supervisor() {
@@ -61,7 +62,7 @@ function Cuadrilla() {
               )}
               {c.ubicacion && (
                 <div className="s">
-                  📍 {c.ubicacion.lat.toFixed(4)}, {c.ubicacion.lng.toFixed(4)} ·{' '}
+                  <IcoUbicacion size={13} className="ico-inline" aria-hidden="true" /> {c.ubicacion.lat.toFixed(4)}, {c.ubicacion.lng.toFixed(4)} ·{' '}
                   {fmtFechaHora(c.ubicacion.fecha)}
                 </div>
               )}
@@ -69,7 +70,7 @@ function Cuadrilla() {
             {c.estado_unidad && <EstadoBadge estado={c.estado_unidad} />}
           </div>
         ))}
-        {(data || []).length === 0 && <Empty icono="👥">Sin choferes asignados</Empty>}
+        {(data || []).length === 0 && <Empty icono={IcoCuadrilla}>Sin choferes asignados</Empty>}
       </Card>
     </>
   )
@@ -90,7 +91,7 @@ function Prestamos() {
         Si vetas un préstamo activo, la responsabilidad regresa al titular.
       </Aviso>
       <Card>
-        {(data || []).length === 0 ? <Empty icono="🔁">Sin préstamos</Empty> : (
+        {(data || []).length === 0 ? <Empty icono={IcoPrestamos}>Sin préstamos</Empty> : (
           (data || []).map((p) => (
             <div className="list-item" key={p.id}>
               <div className="grow">
@@ -152,7 +153,7 @@ function Averias() {
   const escalar = async (a) => {
     try {
       const r = await api.post(`/supervisor/averias/${a.id}/despachar`, undefined,
-                               { tipo: 'montacarguista' })
+                               { tipo: 'chofer_grua' })
       toast(r.mensaje); recargar()
     } catch (e) { toast(e.message, 'err') }
   }
@@ -161,14 +162,14 @@ function Averias() {
   return (
     <>
       <h1 style={{ marginBottom: 14 }}>Unidades varadas</h1>
-      {(data || []).length === 0 ? <Empty icono="✅">Ninguna unidad varada</Empty> : (
+      {(data || []).length === 0 ? <Empty icono={IcoListo}>Ninguna unidad varada</Empty> : (
         (data || []).map((a) => (
           <Card key={a.id} title={`${a.folio} · ${a.unidad}`}
                 actions={<EstadoBadge estado={a.estado} />}>
             <p className="sub">{a.chofer} · {fmtFechaHora(a.fecha_hora)}</p>
             <p>{a.descripcion_falla}</p>
             {a.latitud && (
-              <p className="sub">📍 {a.latitud.toFixed(5)}, {a.longitud.toFixed(5)}</p>
+              <p className="sub"><IcoUbicacion size={13} className="ico-inline" aria-hidden="true" /> {a.latitud.toFixed(5)}, {a.longitud.toFixed(5)}</p>
             )}
             {a.en_vialidad_publica && !a.tiene_peritaje && (
               <Aviso tipo="warn">
@@ -178,7 +179,7 @@ function Averias() {
             )}
             <div className="btn-row">
               <button className="btn" disabled={!a.puede_solicitar_arrastre}
-                      onClick={() => escalar(a)}>Escalar a montacarguista</button>
+                      onClick={() => escalar(a)}>Escalar a chofer de grúa</button>
               <button className="btn" onClick={() => setEnviar(a)}>Registrar envío de mecánico</button>
             </div>
             <Regla>

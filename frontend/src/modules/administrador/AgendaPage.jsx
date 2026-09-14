@@ -6,7 +6,9 @@
  */
 import { useState } from 'react'
 import { api, fmtFecha } from '../../core/api.js'
-import { Aviso, Badge, Card, Empty, Modal, Spinner, Tabla, useApi, useToast } from '../../ui/index.js'
+import {
+  Aviso, Badge, Card, Empty, IcoAgenda, IcoListo, IcoPendiente, Modal, Spinner, Tabla, useApi, useToast,
+} from '../../ui/index.js'
 import { SelectorTaller } from './PlanoTaller.jsx'
 
 /* Días entre la cita y el límite técnico. Es el dato que decide si la agenda
@@ -18,14 +20,19 @@ function Holgura({ dias }) {
   return <Badge tono="ok">{dias} d de margen</Badge>
 }
 
+function Marca({ si }) {
+  const Ico = si ? IcoListo : IcoPendiente
+  return <Ico size={12} className="ico-inline" aria-hidden="true" />
+}
+
 function Confirmaciones({ cita }) {
   return (
     <div style={{ display: 'flex', gap: 6 }}>
       <Badge tono={cita.confirmada_por_taller ? 'ok' : ''}>
-        {cita.confirmada_por_taller ? '✓' : '·'} Taller
+        <Marca si={cita.confirmada_por_taller} /> Taller
       </Badge>
       <Badge tono={cita.confirmada_por_chofer ? 'ok' : ''}>
-        {cita.confirmada_por_chofer ? '✓' : '·'} Chofer
+        <Marca si={cita.confirmada_por_chofer} /> Chofer
       </Badge>
     </div>
   )
@@ -112,7 +119,7 @@ export function Agenda() {
 
       <Card title={`Propuestas por confirmar (${propuestas.length})`}>
         {propuestas.length === 0 ? (
-          <Empty icono="📅">
+          <Empty icono={IcoAgenda}>
             No hay propuestas. Usa «Recalcular» si liberaste espacios o registraste la llegada de
             unas piezas.
           </Empty>

@@ -15,7 +15,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api, fmtFecha, fmtFechaHora, hoyTijuana } from '../../core/api.js'
 import {
-  Aviso, Badge, BuscadorUnidad, Card, Empty, Modal, Regla, Spinner, useApi, useToast,
+  Aviso, Badge, BuscadorUnidad, Card, Empty, IcoImprimir, IcoReportes, IcoTecnico,
+  IcoUbicacion, IcoVolver, Modal, Regla, Spinner, useApi, useToast,
 } from '../../ui/index.js'
 import { Logo } from '../../ui/Logo.jsx'
 import { SelectorTaller } from './PlanoTaller.jsx'
@@ -151,7 +152,7 @@ export function ReportesMantenimiento() {
       </Card>
 
       {lista.cargando ? <Spinner /> : reportes.length === 0 ? (
-        <Empty icono="📋">
+        <Empty icono={IcoReportes}>
           {filtrando
             ? 'Ningún formato coincide con esa búsqueda.'
             : 'Sin reportes. Se levantan solos al aceptar un ingreso.'}
@@ -180,14 +181,14 @@ export function ReportesMantenimiento() {
           {/* Dónde está y quién responde por ella: las dos preguntas que el
               administrador hace antes de abrir el formato. */}
           <div className="s" style={{ marginTop: 6 }}>
-            {r.espacio ? `📍 ${r.espacio}` : '📍 sin espacio asignado'}
+            <><IcoUbicacion size={13} className="ico-inline" aria-hidden="true" />{r.espacio || 'sin espacio asignado'}</>
             {r.colocado_por ? ` · la colocó ${r.colocado_por}` : ''}
           </div>
           {r.atendido_por.length > 0 && (
             <div className="btn-row" style={{ marginTop: 6 }}>
               {r.atendido_por.map((t) => (
                 <Badge key={t.tecnico_id} tono={t.pendientes ? 'info' : 'ok'}>
-                  🔧 {t.tecnico}{t.pendientes ? ` · ${t.pendientes} pend.` : ''}
+                  <IcoTecnico size={13} className="ico-inline" aria-hidden="true" /> {t.tecnico}{t.pendientes ? ` · ${t.pendientes} pend.` : ''}
                 </Badge>
               ))}
             </div>
@@ -381,10 +382,10 @@ function Hoja({ id, catalogo, tecnicos, onVolver }) {
   return (
     <>
       <div className="card-head no-print">
-        <button className="btn sm" onClick={onVolver}>← Reportes</button>
+        <button className="btn sm" onClick={onVolver}><IcoVolver size={13} className="ico-inline" aria-hidden="true" /> Reportes</button>
         <div className="spacer" />
         <Badge tono={abierto ? 'warn' : 'ok'}>{r.estado}</Badge>
-        <button className="btn" onClick={() => window.print()}>🖨️ Imprimir</button>
+        <button className="btn" onClick={() => window.print()}><IcoImprimir size={13} className="ico-inline" aria-hidden="true" /> Imprimir</button>
         {abierto && (
           <button className="btn primary" onClick={() => setCerrando(true)}>
             Cerrar y sellar salida

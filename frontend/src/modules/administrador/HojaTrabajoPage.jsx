@@ -6,15 +6,33 @@
  */
 import { useState } from 'react'
 import { api, fmtFecha, hoyTijuana } from '../../core/api.js'
-import { Aviso, Badge, Card, Empty, EstadoBadge, Spinner, Tabla, useApi } from '../../ui/index.js'
+import {
+  Aviso, Badge, Card, Empty, EstadoBadge, IcoDescargar, IcoImprimir, Spinner, Tabla,
+  useApi, useToast,
+} from '../../ui/index.js'
 import { SelectorTaller } from './PlanoTaller.jsx'
 
 export function HojaTrabajo() {
   // Antes estaba fijo en el taller 1: los otros cinco no podían imprimir nada.
   const [tallerId, setTallerId] = useState(null)
+  const [bajando, setBajando] = useState(false)
+  const toast = useToast()
   const { data, cargando } = useApi(
     () => (tallerId ? api.get(`/admin/hoja-de-trabajo/${tallerId}`) : Promise.resolve(null)),
     [tallerId])
+
+  const bajarResumen = async () => {
+    setBajando(true)
+    try {
+      const nombre = await api.descargar('/admin/exportar/resumen',
+                                         { params: { taller_id: tallerId } })
+      toast(`Se descargó ${nombre}`)
+    } catch (e) {
+      toast(e.message, 'err')
+    } finally {
+      setBajando(false)
+    }
+  }
 
   if (cargando) return <Spinner />
   const tecnicos = data?.tecnicos || []
@@ -27,8 +45,12 @@ export function HojaTrabajo() {
         <h1>Hoja de trabajo del día</h1>
         <div className="spacer" />
         <SelectorTaller valor={tallerId} onCambio={setTallerId} />
+        <button className="btn" onClick={bajarResumen} disabled={bajando}>
+          <IcoDescargar size={13} className="ico-inline" aria-hidden="true" />
+          {bajando ? 'Generando…' : 'Resumen en Excel'}
+        </button>
         <button className="btn primary" disabled={!total} onClick={() => window.print()}>
-          🖨️ Imprimir
+          <IcoImprimir size={13} className="ico-inline" aria-hidden="true" /> Imprimir
         </button>
       </div>
 
@@ -37,6 +59,11 @@ export function HojaTrabajo() {
           Los mecánicos de Álamos no usan la aplicación: esta hoja se imprime y se les entrega en
           papel. Al imprimir sale <strong>solo la cola</strong> —sin menú ni botones— y cada
           técnico empieza en página nueva.
+        </Aviso>
+        <Aviso tipo="info">
+          <strong>Resumen en Excel</strong> baja el archivo con las secciones de siempre —RESUMEN,
+          PATIO y REPARADO— pero calculado de los movimientos, no tecleado. Los totales van como
+          fórmula.
         </Aviso>
       </div>
 
@@ -48,7 +75,7 @@ export function HojaTrabajo() {
       </div>
 
       {total === 0 ? (
-        <Empty icono="🖨️">
+        <Empty icono={IcoImprimir}>
           Nada pendiente en este taller. La hoja se llena cuando se asigna la cola de
           especialistas a una orden abierta.
         </Empty>

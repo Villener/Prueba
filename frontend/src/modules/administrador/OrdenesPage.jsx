@@ -16,7 +16,9 @@
  */
 import { api, fmtFecha, fmtFechaHora } from '../../core/api.js'
 import { useNavigate } from 'react-router-dom'
-import { Aviso, Badge, Card, Empty, EstadoBadge, Regla, Spinner, useApi } from '../../ui/index.js'
+import {
+  Aviso, Badge, Card, Empty, EstadoBadge, IcoNota, IcoOrdenes, Regla, Spinner, useApi,
+} from '../../ui/index.js'
 
 export function Ordenes() {
   const navegar = useNavigate()
@@ -40,7 +42,7 @@ export function Ordenes() {
         mantenimiento</strong>, que se abre solo cuando la unidad entra.
       </Aviso>
 
-      {ordenes.length === 0 ? <Empty icono="🔧">Sin órdenes abiertas</Empty> : (
+      {ordenes.length === 0 ? <Empty icono={IcoOrdenes}>Sin órdenes abiertas</Empty> : (
         ordenes.map((o) => {
           const rep = porOrden[o.id]
           return (
@@ -89,7 +91,7 @@ export function Ordenes() {
                       <div className="grow">
                         <div className="t">{a.tecnico}</div>
                         <div className="s">{a.especialidad}</div>
-                        {a.diagnostico && <div className="s">📝 {a.diagnostico}</div>}
+                        {a.diagnostico && <div className="s"><IcoNota size={13} className="ico-inline" aria-hidden="true" /> {a.diagnostico}</div>}
                         {a.capturado_por && (
                           <div className="s" style={{ color: 'var(--muted)' }}>
                             Capturado por {a.capturado_por} · {fmtFechaHora(a.fecha_captura)}

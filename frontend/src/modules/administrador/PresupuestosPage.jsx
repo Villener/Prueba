@@ -1,7 +1,10 @@
 /** CU-ADM-17 a 19 - captura del presupuesto y envio al gerente (RN-07). */
 import { useState } from 'react'
 import { api, fmtFecha, fmtFechaHora, fmtMoneda } from '../../core/api.js'
-import { Aviso, Badge, Card, Empty, EstadoBadge, Modal, Regla, Spinner, Tabla, useApi, useToast } from '../../ui/index.js'
+import {
+  Aviso, Badge, Card, Empty, EstadoBadge, IcoCerrar, IcoListo, IcoPresupuestos, Modal,
+  Regla, Spinner, Tabla, useApi, useToast,
+} from '../../ui/index.js'
 import { BuscadorPieza } from '../../ui/BuscadorPieza.jsx'
 
 /* ------------------------------------- CU-ADM-12/13/07/16/08 (v1.1) -------- */
@@ -88,12 +91,12 @@ export function Presupuestos() {
           </div>
           {p.fecha_aviso_al_tecnico && (
             <p className="sub" style={{ marginTop: 8 }}>
-              ✅ Se avisó al mecánico el {fmtFechaHora(p.fecha_aviso_al_tecnico)}
+              <IcoListo size={13} className="ico-inline" aria-hidden="true" /> Se avisó al mecánico el {fmtFechaHora(p.fecha_aviso_al_tecnico)}
             </p>
           )}
         </Card>
       ))}
-      {(data || []).length === 0 && <Empty icono="💰">Sin presupuestos capturados</Empty>}
+      {(data || []).length === 0 && <Empty icono={IcoPresupuestos}>Sin presupuestos capturados</Empty>}
 
       <Card title="Órdenes de compra">
         <Tabla
@@ -215,7 +218,7 @@ function ModalPresupuesto({ ordenes, tecnicos, onCerrar, onListo }) {
                    onChange={(e) => setLinea(i, 'precio_unitario', e.target.value)} />
             <button type="button" className="btn sm" title="Quitar esta pieza"
                     disabled={lineas.length === 1}
-                    onClick={() => setLineas(lineas.filter((_, j) => j !== i))}>✕</button>
+                    onClick={() => setLineas(lineas.filter((_, j) => j !== i))}><IcoCerrar size={13} aria-hidden="true" /></button>
           </div>
         ))}
         <button type="button" className="btn sm"

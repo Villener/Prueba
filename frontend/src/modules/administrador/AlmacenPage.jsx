@@ -2,7 +2,9 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../core/api.js'
 import { letras } from '../../core/busqueda.js'
-import { Aviso, Badge, Card, Empty, Spinner } from '../../ui/index.js'
+import {
+  Aviso, Badge, Card, Empty, IcoBuscar, Spinner,
+} from '../../ui/index.js'
 import { SelectorTaller } from './PlanoTaller.jsx'
 
 /* ============================================ CU-ADM-11: buscador de almacén == */
@@ -56,7 +58,7 @@ export function Almacen() {
 
         {letras(q) >= 2 && (
           buscando ? <Spinner /> : !datos ? null : datos.total === 0 ? (
-            <Empty icono="🔍">{datos.aviso}</Empty>
+            <Empty icono={IcoBuscar}>{datos.aviso}</Empty>
           ) : (
             <>
               <Aviso tipo={datos.con_existencia ? 'ok' : 'warn'}>

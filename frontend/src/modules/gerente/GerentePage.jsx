@@ -3,7 +3,8 @@ import { useState } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import { api, fmtFecha, fmtFechaHora, fmtMoneda } from '../../core/api.js'
 import {
-  Aviso, Badge, Card, Empty, EstadoBadge, Kpi, Modal, Regla, Spinner, Tabla, useApi, useToast,
+  Aviso, Badge, Card, Empty, EstadoBadge, IcoCampana, IcoListo, Kpi, Modal, Regla, Spinner,
+  Tabla, useApi, useToast,
 } from '../../ui/index.js'
 
 export default function Gerente() {
@@ -234,7 +235,7 @@ function Presupuestos() {
         Solo tú apruebas o rechazas. Ninguna pieza se compra sin tu autorización (RN-07).
       </Aviso>
 
-      {(data || []).length === 0 ? <Empty icono="✅">Nada pendiente</Empty> : (
+      {(data || []).length === 0 ? <Empty icono={IcoListo}>Nada pendiente</Empty> : (
         (data || []).map((p) => (
           <Card key={p.id} title={`${p.folio} · ${p.unidad}`}
                 actions={<strong>{fmtMoneda(p.total)}</strong>}>
@@ -337,7 +338,7 @@ function Alertas() {
         Las unidades con más de 3 meses paradas se vuelven a notificar todos los días hasta que
         alguien las atienda (RN-08). El contador muestra cuántas veces se ha insistido.
       </Aviso>
-      {(data || []).length === 0 ? <Empty icono="🔔">Sin alertas abiertas</Empty> : (
+      {(data || []).length === 0 ? <Empty icono={IcoCampana}>Sin alertas abiertas</Empty> : (
         (data || []).map((a) => (
           <Card key={a.id} title={a.unidad || a.tipo}
                 actions={<Badge tono={a.veces_notificada > 5 ? 'danger' : 'warn'}>

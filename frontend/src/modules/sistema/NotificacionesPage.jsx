@@ -1,6 +1,8 @@
 /** Modulo Sistema - CU-GEN-02 de docs/casos-de-uso.md */
 import { api, fmtFechaHora } from '../../core/api.js'
-import { Card, Empty, Spinner, useApi, useToast } from '../../ui/index.js'
+import {
+  Card, Empty, IcoCampana, Spinner, useApi, useToast,
+} from '../../ui/index.js'
 
 export default function Notificaciones() {
   const toast = useToast()
@@ -17,7 +19,7 @@ export default function Notificaciones() {
     <>
       <h1 style={{ marginBottom: 14 }}>Notificaciones</h1>
       <Card>
-        {(data || []).length === 0 ? <Empty icono="🔔">Sin notificaciones</Empty> : (
+        {(data || []).length === 0 ? <Empty icono={IcoCampana}>Sin notificaciones</Empty> : (
           (data || []).map((n) => (
             <div className="list-item" key={n.id} onClick={() => leer(n)}
                  style={{ cursor: n.leida ? 'default' : 'pointer' }}>

@@ -1,3 +1,4 @@
+import { IcoCerrar } from './iconos.jsx'
 import { useEffect } from 'react'
 
 export function Modal({ titulo, onClose, children }) {
@@ -15,7 +16,7 @@ export function Modal({ titulo, onClose, children }) {
       <div className="modal" role="dialog" aria-modal="true">
         <div className="card-head">
           <h2>{titulo}</h2>
-          <button className="btn sm" onClick={onClose} aria-label="Cerrar">✕</button>
+          <button className="btn sm" onClick={onClose} aria-label="Cerrar"><IcoCerrar size={14} aria-hidden="true" /></button>
         </div>
         {children}
       </div>
