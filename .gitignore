@@ -9,7 +9,9 @@ dist/
 
 # Secretos y credenciales: nunca al repositorio.
 .env
-credenciales.csv
+# Con comodin: sin el, solo tapaba el nombre exacto y un respaldo como
+# credenciales.csv.viejo-8sep se subia con los ~300 empleados dentro.
+credenciales.csv*
 
 # Datos reales que entrego Baja Gas: nombres y numeros de empleado de ~300
 # personas. El repositorio es PUBLICO; esto no puede acabar ahi.
