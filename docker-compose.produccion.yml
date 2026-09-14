@@ -1,0 +1,93 @@
+name: bajagas
+
+# La version para el servidor. NO sustituye a docker-compose.yml: aquel es para
+# trabajar en tu maquina, este es para la maquina que esta en internet.
+#
+# Se usa igual que el otro, nada mas nombrandolo:
+#   docker compose -f docker-compose.produccion.yml up -d --build
+#
+# Tres diferencias con el de casa, y las tres son de seguridad:
+#
+#   1. Ni la API ni la pantalla publican puertos. El unico que escucha en
+#      internet es Caddy. Con el compose de casa el 8000 quedaria abierto al
+#      mundo: cualquiera entraria a /docs y probaria endpoints a mano.
+#   2. Caddy pone HTTPS el solo, con certificado de Let's Encrypt que renueva
+#      sin que nadie se acuerde. Sin eso las contrasenas viajarian en claro.
+#   3. No hay servicios de tunel. Aqui la direccion es fija y es tuya; el tunel
+#      existia justamente para no tener una.
+
+services:
+
+  api:
+    build: ./backend
+    environment:
+      # El contenedor corre en la hora del taller, no en UTC. Importa: hay
+      # siete archivos que usan date.today(), que devuelve la fecha LOCAL del
+      # proceso. En UTC, despues de las 16:00 de Tijuana ya seria "manana" y
+      # los cortes del dia saldrian corridos.
+      TZ: America/Tijuana
+      DATABASE_URL: sqlite:////datos/bajagas.db
+      # Sin valor por omision, y es deliberado. En el compose de casa hay uno
+      # para que arranque sin configurar nada; aqui, si falta, el arranque
+      # falla en vez de firmar los tokens con la clave que esta publicada en
+      # core/security.py. Un servidor que arranca "de milagro" con la clave
+      # publica es peor que uno que no arranca.
+      SECRET_KEY: ${SECRET_KEY:?falta SECRET_KEY en el .env del servidor}
+      TOKEN_MINUTES: ${TOKEN_MINUTES:-480}
+    volumes:
+      # Lo que se capture sobrevive a un rebuild.
+      - bajagas_db:/datos
+      # Solo lectura, y el directorio entero en vez del archivo suelto: si se
+      # montara ./backend/bajagas.db y ese archivo no existiera, Docker crearia
+      # un DIRECTORIO con ese nombre y el arranque fallaria de forma confusa.
+      - ./backend:/semilla:ro
+    # expose y no ports: el puerto queda visible para los otros contenedores,
+    # nunca para internet.
+    expose:
+      - "8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3).status == 200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      # El arranque siembra, migra columnas y crea indices: darle margen.
+      start_period: 60s
+
+  web:
+    build: ./frontend
+    expose:
+      - "80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # El unico servicio asomado a internet. Termina el HTTPS y le pasa todo a la
+  # pantalla, que a su vez ya sabe mandar /api/ a la API por la red interna
+  # (ver frontend/nginx.conf). Esa cadena es la que hace que desde un telefono
+  # baste una sola direccion.
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # El 80 no es opcional aunque todo acabe en HTTPS: por ahi valida
+      # Let's Encrypt y por ahi se redirige a quien teclee http://
+      DOMINIO: ${DOMINIO:?falta DOMINIO en el .env del servidor}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Los certificados viven en el volumen. Sin esto, cada reinicio pediria
+      # uno nuevo y Let's Encrypt acabaria bloqueando el dominio por limite de
+      # peticiones -- con la pagina caida y sin explicacion visible.
+      - caddy_datos:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+    restart: unless-stopped
+
+volumes:
+  bajagas_db:
+  caddy_datos:
+  caddy_config:

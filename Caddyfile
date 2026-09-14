@@ -1,0 +1,38 @@
+# Configuracion del servidor de entrada. La lee el contenedor `caddy` de
+# docker-compose.produccion.yml.
+#
+# El dominio NO esta escrito aqui: sale de la variable DOMINIO del .env. Asi el
+# dia que cambies de una direccion de prueba a una propia, no se toca este
+# archivo -- se cambia una linea del .env y se reinicia el contenedor.
+
+{$DOMINIO} {
+	# Caddy saca y renueva el certificado solo. No hay nada que programar.
+
+	encode zstd gzip
+
+	# Todo va a la pantalla. Ella reparte: /api/ a la API y el resto al
+	# index.html (ver frontend/nginx.conf). La API no se expone por separado a
+	# proposito: un solo origen, como en el telefono.
+	reverse_proxy web:80
+
+	header {
+		# HSTS: una vez que el navegador entra por HTTPS, ya no acepta http
+		# para este dominio ni aunque alguien lo tecleé asi.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		# La aplicacion no se embebe en ningun lado, asi que se prohibe: es la
+		# defensa contra que alguien la meta en un iframe invisible y le robe
+		# los clics al usuario.
+		X-Frame-Options "DENY"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Nada de anunciar la version del servidor.
+		-Server
+	}
+
+	# Los errores del servidor no cuentan de mas: el detalle queda en el log,
+	# que se lee con `docker compose -f docker-compose.produccion.yml logs caddy`.
+	log {
+		output stdout
+		format console
+	}
+}
