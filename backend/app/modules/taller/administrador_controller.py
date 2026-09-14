@@ -8,7 +8,7 @@ llena en la pluma de Alamos. Ver modules/ordenes/reporte_model.py.
 """
 from datetime import date, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
@@ -20,9 +20,12 @@ from ...schemas import (ActividadesIn, AsignacionTecnicoIn, AsignacionTecnicoOut
                        FirmaReporteIn, FormatoSalidaIn, MensajeOut, OrdenServicioOut,
                        PresupuestoIn, PresupuestoOut, ReasignacionIn,
                        ReporteMantenimientoIn, ReporteMantenimientoOut,
-                       ResolucionSolicitudIn, SolicitudOut, TallerOut)
+                       ResolucionSolicitudIn, SolicitudOut, TallerOut,
+                       ApoyoOut, AveriaOut, DespachoIn)
 from ...core.security import notificar, registrar_bitacora, require_roles
 from ...core.tiempo import TZ_OPERACION, a_utc, ahora_utc
+from .exportar_resumen import construir as construir_resumen
+from .indicadores import calcular as calcular_indicadores
 
 router = APIRouter(prefix="/api/admin", tags=["administrador"])
 solo_admin = require_roles("administrador")
@@ -336,6 +339,52 @@ def registrar_avance(asig_id: int, datos: AvanceIn, usuario=Depends(solo_admin),
 
 
 # ---------------------------------------------------------------- CU-ADM-15 -- #
+# ------------------------------------------------------------- CU-ADM-15b -- #
+# ------------------------------------------------------------- CU-ADM-15c -- #
+def _nombre_taller(db: Session, taller_id: int | None) -> str | None:
+    """El id que manda la pantalla -> el nombre con el que el area etiqueta sus
+    movimientos. Se resuelve aqui y no en el cliente: el resto de la aplicacion
+    habla de talleres por id, y dejar que el navegador mande un nombre libre
+    invitaria a que un cambio de mayusculas rompiera el filtro en silencio."""
+    if not taller_id:
+        return None
+    t = db.query(m.Taller).filter(m.Taller.id == taller_id).first()
+    return t.nombre if t else None
+
+
+@router.get("/indicadores")
+def indicadores(taller_id: int | None = None, usuario=Depends(solo_admin),
+                db: Session = Depends(get_db)):
+    """Los numeros del taller para las graficas de pantalla.
+
+    Salen de la MISMA funcion que arma el Excel. Es a proposito: el area tiene
+    hoy una hoja Graficos que no cuadra con su hoja RESUMEN --de donde deberia
+    salir-- porque los cuatro indicadores se copian a mano de una a otra.
+    """
+    return calcular_indicadores(db, _nombre_taller(db, taller_id))
+
+
+@router.get("/exportar/resumen")
+def exportar_resumen(taller_id: int | None = None, usuario=Depends(solo_admin),
+                     db: Session = Depends(get_db)):
+    """El Excel del taller, con las secciones que el area ya conoce.
+
+    Sustituye el RESUMEN.xlsx que hoy se lleva a mano. Los totales salen como
+    formula y los conteos se calculan de los movimientos, asi que no puede
+    repetirse el error de dedo que tenian: al 27 de agosto su hoja decia 3 y 4
+    en refacciones chinas y talleres externos, y su propia hoja PATIO decia 4 y
+    3. El total cuadraba, y por eso nadie lo vio.
+    """
+    datos = construir_resumen(db, _nombre_taller(db, taller_id))
+    nombre = f"Resumen taller {date.today():%Y-%m-%d}.xlsx"
+    registrar_bitacora(db, usuario.id, "resumen_exportado", "taller", None, nombre)
+    db.commit()
+    return Response(
+        content=datos,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'})
+
+
 @router.get("/hoja-de-trabajo/{taller_id}")
 def hoja_de_trabajo(taller_id: int, usuario=Depends(solo_admin), db: Session = Depends(get_db)):
     """CU-ADM-15: la cola del dia para imprimir y entregar a los tecnicos en papel.
@@ -1158,3 +1207,178 @@ def colocar_unidad(espacio_id: int, orden_id: int, usuario=Depends(solo_admin),
                    db: Session = Depends(get_db)):
     """Mete una unidad con orden abierta en un espacio libre (CU-ADM-04)."""
     return mover_unidad(espacio_id, orden_id, usuario, db)
+
+
+# =========================================================================== #
+# CU-ADM-31 - Despacho de auxilio en carretera
+#
+# Antes esto vivia en el supervisor y era una COMPUERTA: la unidad varada
+# esperaba a que el supervisor validara para que alguien decidiera el apoyo.
+# Pablo pidio quitarse ese paso de encima, y el diagnostico es correcto: el
+# supervisor no aporta informacion que el administrador no tenga, solo tiempo.
+#
+# Lo que NO se quita es el aviso: el supervisor recibe la misma notificacion al
+# mismo tiempo, para enterarse de que su chofer esta parado. Deja de ser un
+# permiso y pasa a ser una copia.
+#
+# Y una compuerta si se queda: RN-04. Si la unidad esta en vialidad publica hay
+# que registrar el aviso a peritos antes del arrastre. Eso no es lentitud
+# administrativa, es la aseguradora.
+# =========================================================================== #
+
+@router.get("/averias", response_model=list[AveriaOut])
+def averias_abiertas(historial: bool = False, usuario=Depends(solo_admin),
+                     db: Session = Depends(get_db)):
+    """CU-ADM-31. Por omision solo lo que sigue sin resolverse."""
+    q = db.query(m.ReporteAveria)
+    if not historial:
+        q = q.filter(m.ReporteAveria.estado != "cerrado")
+    rs = q.order_by(m.ReporteAveria.fecha_hora.desc()).limit(200).all()
+    return [svc.averia_out(db, r) for r in rs]
+
+
+@router.get("/averias/{averia_id}/apoyo", response_model=ApoyoOut)
+def apoyo_para(averia_id: int, usuario=Depends(solo_admin), db: Session = Depends(get_db)):
+    """Quien puede ir, ordenado por cercania al punto donde quedo la unidad.
+
+    Va en una sola llamada --tecnicos, gruas y talleres-- porque las tres se
+    miran a la vez para tomar una decision. Partirlo en tres endpoints haria
+    que la pantalla pintara por pedazos justo cuando hay prisa.
+    """
+    r = db.query(m.ReporteAveria).filter(m.ReporteAveria.id == averia_id).first()
+    if not r:
+        raise HTTPException(404, "Reporte no encontrado")
+
+    talleres = []
+    for t in db.query(m.Taller).filter(m.Taller.activo.is_(True)).all():
+        talleres.append({"id": t.id, "nombre": t.nombre,
+                         "km": svc.km_entre(r.latitud, r.longitud, t.latitud, t.longitud)})
+    talleres.sort(key=lambda x: x["km"] if x["km"] is not None else 9e9)
+
+    return {"tecnicos": svc.apoyo_cercano(db, r.latitud, r.longitud),
+            "gruas": svc.gruas_disponibles(db),
+            "talleres": talleres}
+
+
+@router.post("/averias/{averia_id}/despachar", response_model=AveriaOut)
+def despachar(averia_id: int, datos: DespachoIn, usuario=Depends(solo_admin),
+              db: Session = Depends(get_db)):
+    """CU-ADM-31. Cuatro salidas, no dos.
+
+    La que faltaba es `telefono`, y es la mas frecuente: el administrador marca,
+    el chofer mueve algo el mismo y la unidad sigue su ruta. Sin registrarla, el
+    corte del mes decia "40 averias, 12 arrastres" y de las otras 28 no quedaba
+    ningun rastro de que habia pasado.
+    """
+    r = db.query(m.ReporteAveria).filter(m.ReporteAveria.id == averia_id).first()
+    if not r:
+        raise HTTPException(404, "Reporte no encontrado")
+    if datos.tipo not in svc.DESENLACES:
+        raise HTTPException(400, f"Desenlace desconocido: {datos.tipo}")
+    if r.desenlace:
+        raise HTTPException(409, f"Esta averia ya se despacho como '{r.desenlace}'")
+
+    # El supervisor del chofer se entera SIEMPRE, decida lo que decida el
+    # administrador. Es el aviso que sustituye a la autorizacion que se quito.
+    ch = db.query(m.Chofer).filter(m.Chofer.usuario_id == r.chofer_id).first()
+    sup_id = ch.cuadrilla.supervisor_id if ch and ch.cuadrilla else None
+    unidad = r.unidad.num_economico if r.unidad else "-"
+    mensaje = ""
+
+    if datos.tipo == "telefono":
+        # No sale nadie: se cierra en el acto. Es el unico desenlace que no
+        # genera trabajo para nadie mas, y por eso mismo el que se perdia.
+        r.estado = "cerrado"
+        mensaje = f"Averia de la unidad {unidad} resuelta por telefono"
+
+    elif datos.tipo in ("mecanico", "llantero"):
+        if not datos.tecnico_id:
+            raise HTTPException(400, "Indica que tecnico va a sitio")
+        t = db.query(m.Tecnico).filter(m.Tecnico.id == datos.tecnico_id).first()
+        if not t:
+            raise HTTPException(404, "Tecnico no encontrado")
+        if t.modalidad != "AUTONOMO":
+            # No es capricho: los 34 tecnicos de Alamos son ASISTIDO, no usan la
+            # aplicacion y no salen a carretera. Dejar elegirlos seria despachar
+            # a alguien que no va a ir, y la unidad se quedaria esperando.
+            raise HTTPException(409,
+                                f"{t.nombre} {t.apellidos} es ASISTIDO: trabaja dentro del "
+                                "taller y no sale a carretera. Elige un tecnico autonomo.")
+        r.estado = "en_atencion"
+        notificar(db, r.chofer_id, "Apoyo en camino",
+                  f"Va {t.nombre} {t.apellidos} ({t.telefono or 'sin telefono'}) a tu ubicacion",
+                  "averia", "reporte_averia", r.id)
+        mensaje = f"{t.nombre} {t.apellidos} enviado a la unidad {unidad}"
+
+    else:  # grua
+        if not svc.puede_solicitar_arrastre(r):
+            raise HTTPException(
+                409, "RN-04: la unidad esta en vialidad publica. Primero tiene que registrarse "
+                     "el aviso a peritos con su folio; hasta entonces no se habilita el "
+                     "arrastre. No es un tramite interno: sin peritaje la aseguradora puede "
+                     "no cubrir el siniestro.")
+        if r.arrastre:
+            raise HTTPException(409, f"Ya existe el arrastre {r.arrastre.folio} para esta averia")
+
+        a = m.Arrastre(folio=svc.siguiente_folio(db, m.Arrastre, "ARR"),
+                       reporte_averia_id=r.id, unidad_arrastrada_id=r.unidad_id,
+                       chofer_responsable_id=r.chofer_id,
+                       taller_destino_id=datos.taller_destino_id,
+                       estado="solicitado")
+        db.add(a)
+        r.requiere_arrastre = True
+        db.flush()
+
+        if datos.chofer_grua_id:
+            # Asignado a uno solo: se le avisa unicamente a el. El administrador
+            # ya sabe quien esta libre porque la pantalla se lo calculo.
+            a.chofer_grua_id = datos.chofer_grua_id
+            detalle = f"Unidad {unidad}. {r.descripcion_falla or ''}".strip()
+            notificar(db, datos.chofer_grua_id, "Arrastre asignado", detalle,
+                      "arrastre", "arrastre", a.id)
+            quien = svc.nombre_usuario(db, datos.chofer_grua_id)
+            mensaje = f"Arrastre {a.folio} asignado a {quien}"
+        else:
+            # Sin asignar: se difunde y lo toma el primero que pueda. Sirve
+            # cuando ninguno aparece libre o cuando corre mucha prisa.
+            for mo in db.query(m.Usuario).join(m.UsuarioRol).join(m.Rol).filter(
+                    m.Rol.nombre == "chofer_grua").all():
+                notificar(db, mo.id, "Nuevo arrastre solicitado",
+                          f"Unidad {unidad}", "arrastre", "arrastre", a.id)
+            mensaje = f"Arrastre {a.folio} difundido a los choferes de grua"
+        r.estado = "en_atencion"
+
+    r.desenlace = datos.tipo
+    r.despachado_por_usuario_id = usuario.id
+    r.fecha_despacho = ahora_utc()
+    r.nota_despacho = datos.nota
+
+    if sup_id:
+        notificar(db, sup_id, "Se despacho apoyo a tu chofer",
+                  f"{unidad}: {svc.DESENLACES[datos.tipo].lower()}. Lo decidio el "
+                  "administrador de taller.", "averia", "reporte_averia", r.id)
+    registrar_bitacora(db, usuario.id, f"averia_despachada_{datos.tipo}",
+                       "reporte_averia", r.id, datos_despues=mensaje)
+    db.commit()
+    db.refresh(r)
+    return svc.averia_out(db, r)
+
+
+@router.get("/arrastres")
+def registro_arrastres(usuario=Depends(solo_admin), db: Session = Depends(get_db)):
+    """El registro que faltaba: que arrastres se han hecho y como van.
+
+    Los datos ya estaban en la tabla desde siempre; lo que no habia era por
+    donde verlos.
+    """
+    out = []
+    for a in db.query(m.Arrastre).order_by(m.Arrastre.fecha_solicitud.desc()).limit(300).all():
+        d = svc.arrastre_out(db, a)
+        if a.fecha_solicitud:
+            fin = a.fecha_finalizacion or ahora_utc()
+            d["dias_abierto"] = (fin - a.fecha_solicitud).days
+        else:
+            d["dias_abierto"] = None
+        d["descripcion_falla"] = a.reporte.descripcion_falla if a.reporte else None
+        out.append(d)
+    return out

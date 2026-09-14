@@ -13,6 +13,8 @@ import { Ordenes } from './OrdenesPage.jsx'
 import { Presupuestos } from './PresupuestosPage.jsx'
 import { HojaTrabajo } from './HojaTrabajoPage.jsx'
 import { ReportesMantenimiento } from './ReporteMantenimientoPage.jsx'
+import { Indicadores } from './IndicadoresPage.jsx'
+import { Arrastres } from './ArrastresPage.jsx'
 
 export default function Administrador() {
   return (
@@ -26,6 +28,8 @@ export default function Administrador() {
       <Route path="/reportes" element={<ReportesMantenimiento />} />
       <Route path="/reportes/:id" element={<ReportesMantenimiento />} />
       <Route path="/hoja" element={<HojaTrabajo />} />
+      <Route path="/indicadores" element={<Indicadores />} />
+      <Route path="/arrastres" element={<Arrastres />} />
     </Routes>
   )
 }
