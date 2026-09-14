@@ -29,7 +29,7 @@
 <text x="797.5" y="165.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#6b7280" text-anchor="middle">25 casos - 4 perfiles</text>
 <rect x="665" y="234" width="265" height="68" rx="6" fill="#ffffff" stroke="#1d4ed8" stroke-width="1.6"/>
 <rect x="665" y="222" width="119" height="16" rx="3" fill="#ffffff" stroke="#1d4ed8" stroke-width="1.6"/>
-<text x="797.5" y="270.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#1f2933" text-anchor="middle">Modulo Montacarguista</text>
+<text x="797.5" y="270.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#1f2933" text-anchor="middle">Modulo Chofer de grúa</text>
 <text x="797.5" y="287.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#6b7280" text-anchor="middle">8 casos de uso</text>
 <rect x="665" y="356" width="265" height="68" rx="6" fill="#ffffff" stroke="#1d4ed8" stroke-width="1.6"/>
 <rect x="665" y="344" width="119" height="16" rx="3" fill="#ffffff" stroke="#1d4ed8" stroke-width="1.6"/>
@@ -85,7 +85,7 @@
 <line x1="1105" y1="249" x2="1135" y2="249" stroke="#1f2933" stroke-width="2"/>
 <line x1="1120" y1="266" x2="1107" y2="286" stroke="#1f2933" stroke-width="2"/>
 <line x1="1120" y1="266" x2="1133" y2="286" stroke="#1f2933" stroke-width="2"/>
-<text x="1120" y="302" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2933" text-anchor="middle">Montacarguista</text>
+<text x="1120" y="302" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2933" text-anchor="middle">Chofer de grúa</text>
 <circle cx="1120" cy="353" r="9" fill="none" stroke="#1f2933" stroke-width="2"/>
 <line x1="1120" y1="362" x2="1120" y2="388" stroke="#1f2933" stroke-width="2"/>
 <line x1="1105" y1="371" x2="1135" y2="371" stroke="#1f2933" stroke-width="2"/>

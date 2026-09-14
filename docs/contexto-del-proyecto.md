@@ -95,10 +95,10 @@ el mantenimiento mientras tenía la unidad a su cargo** — por eso
 `AvisoIncumplimiento` guarda `fundamento_poseedor` (jornada / préstamo /
 titularidad) con la FK correspondiente.
 
-### Montacarguista
+### Chofer de grúa
 
 Hace los arrastres. **Al cerrar el arrastre, el "chofer responsable" que se
-registra es el poseedor de la unidad, NUNCA el montacarguista.** Si eso se
+registra es el poseedor de la unidad, NUNCA el chofer de grúa.** Si eso se
 modela mal, la responsabilidad se transfiere sin que nadie lo decidiera y se
 rompe la regla que sostiene todo el sistema.
 
@@ -211,7 +211,7 @@ Resuelto así:
 ### No empezado
 
 - **App nativa (Expo).** El cliente la quiere para chofer, administrador de
-  taller y montacarguista, **contra la misma base de datos**.
+  taller y chofer de grúa, **contra la misma base de datos**.
 - **Notificaciones push** (FCM) y **ubicación en segundo plano**.
 - **Compartir ubicación por WhatsApp** con ruta trazada.
 - **Perfil de usuario** para todos los roles.
@@ -240,8 +240,9 @@ cd backend && DATOS_REALES=~/Downloads python -m app.importador
 **Es idempotente**: se puede correr varias veces sin duplicar, y **no hace falta
 borrar `bajagas.db`** (el servidor la tiene abierta y el borrado falla).
 
-**Contraseñas:** usuarios de demo `demo1234`; usuarios importados de los
-archivos reales `bajagas2026`, con correo `e<num_empleado>@bajagas.mx`.
+**Contraseñas:** todas las cuentas nacen con `bajagas2026`, con correo
+`e<num_empleado>@bajagas.mx`. Tras correr `rotar_passwords` cada una tiene la
+suya y quedan en `credenciales.csv`, que es la única copia.
 
 ---
 
@@ -374,7 +375,7 @@ Maqueta de referencia: `docs/mockups/tablero-gerente.html`.
    existen.
 3. **Módulo Mecánico en la interfaz.**
 4. **Perfiles y alta/baja jerárquica de cuentas.**
-5. **App nativa en Expo** para chofer, administrador y montacarguista.
+5. **App nativa en Expo** para chofer, administrador y chofer de grúa.
 
 Para la app nativa, lo ya decidido: **Expo/React Native**, teléfonos **Android de
 la empresa** (sin Play Store, sin Apple), **FCM** para push, ubicación en segundo

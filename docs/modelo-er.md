@@ -78,7 +78,7 @@ erDiagram
     ROL ||--o| ROL : "perfil de"
     USUARIO ||--o| CHOFER : "especializa"
     USUARIO ||--o| SUPERVISOR : "especializa"
-    USUARIO ||--o| MONTACARGUISTA : "especializa"
+    USUARIO ||--o| CHOFER_GRUA : "especializa"
     CHOFER ||--o{ LICENCIA_CONDUCIR : "historial de"
     USUARIO ||--o{ ADMINISTRADOR_PLAZA : "ocupa"
     USUARIO ||--o{ ADMINISTRADOR_TALLER : "gestiona"
@@ -147,7 +147,7 @@ erDiagram
     }
     ROL {
         int id PK
-        string clave UK "CHOFER|SUPERVISOR|MONTACARGUISTA|GERENTE|ADMIN_COMPRAS|ADMIN_PISO|ADMIN_AGENDA|ADMIN_OPERATIVO|MECANICO_AUTONOMO"
+        string clave UK "CHOFER|SUPERVISOR|CHOFER_GRUA|GERENTE|ADMIN_COMPRAS|ADMIN_PISO|ADMIN_AGENDA|ADMIN_OPERATIVO|MECANICO_AUTONOMO"
         string nombre
         int rol_padre_id FK "los 4 perfiles admin cuelgan de ADMINISTRADOR"
         bool es_exclusivo_por_ambito "true en los perfiles admin y en GERENTE"
@@ -204,7 +204,7 @@ erDiagram
 ```
 
 *(No se listan todas las columnas de las 23 tablas; el resto —`CHOFER`, `SUPERVISOR`,
-`MONTACARGUISTA`, `LICENCIA_CONDUCIR`, `ADMINISTRADOR_PLAZA`, `ADMINISTRADOR_TALLER`,
+`CHOFER_GRUA`, `LICENCIA_CONDUCIR`, `ADMINISTRADOR_PLAZA`, `ADMINISTRADOR_TALLER`,
 `ESPECIALIDAD`, `TECNICO_ESPECIALIDAD`, `CUADRILLA`, `CUADRILLA_SUPERVISOR`, `CUADRILLA_MIEMBRO`—
 sigue el mismo patrón de vigencia.)*
 
@@ -729,7 +729,7 @@ erDiagram
     ORDEN_AUXILIO ||--o| ARRASTRE : "escala a"
     REPORTE_AVERIA ||--o| ARRASTRE : "deriva en"
     TRASLADO_UNIDAD ||--o| ARRASTRE : "se ejecuta con"
-    MONTACARGUISTA ||--o{ ARRASTRE : "ejecuta"
+    CHOFER_GRUA ||--o{ ARRASTRE : "ejecuta"
     TALLER ||--o{ ARRASTRE : "destino"
     ARRASTRE ||--o{ UBICACION_ARRASTRE : "transmite"
 
@@ -794,10 +794,10 @@ erDiagram
         string folio UK
         int reporte_averia_id FK "arco exclusivo"
         int traslado_unidad_id FK "arco exclusivo"
-        int montacarguista_id FK
+        int chofer_grua_id FK
         int unidad_arrastrada_id FK
         int unidad_grua_id FK
-        int chofer_responsable_id FK "el POSEEDOR, NUNCA el montacarguista"
+        int chofer_responsable_id FK "el POSEEDOR, NUNCA el chofer de grúa"
         int taller_destino_id FK
         string estado "solicitado|aceptado|rechazado|en_ruta|en_traslado|finalizado|cancelado"
         datetime fecha_solicitud
@@ -812,7 +812,7 @@ erDiagram
         decimal latitud
         decimal longitud
         datetime capturado_en
-        string emisor "montacarguista|chofer"
+        string emisor "chofer_grua|chofer"
     }
     EVIDENCIA {
         int id PK
@@ -855,13 +855,13 @@ UPDATE ORDEN_AUXILIO
 | RI-G-03 | `estado ≥ aceptada` exige `tecnico_acepta_id NOT NULL` y `fecha_aceptacion` | CHECK condicional |
 | RI-G-04 | Solo se difunde a `TECNICO` con `modalidad = 'AUTONOMO'`, `disponible` y `activo` | Trigger sobre `DIFUSION_AUXILIO` |
 | RI-G-05 | Un técnico responde una vez por orden | Índice único `(orden_auxilio_id, tecnico_id)` |
-| RI-G-06 | **`ARRASTRE.chofer_responsable_id` es el poseedor de la unidad, nunca el montacarguista** | Trigger contra `poseedor_actual()` |
+| RI-G-06 | **`ARRASTRE.chofer_responsable_id` es el poseedor de la unidad, nunca el chofer de grúa** | Trigger contra `poseedor_actual()` |
 | RI-G-07 | A lo más un `ARRASTRE` activo por unidad | Índice único parcial |
 | RI-G-08 | `ARRASTRE` exige exactamente una de (`reporte_averia_id`, `traslado_unidad_id`) | CHECK `num_nonnulls(...) = 1` |
 | RI-G-09 | `REPORTE_AVERIA.clave_idempotencia` única: un reporte offline reenviado no se duplica | Índice único |
 | RI-G-10 | `EVIDENCIA` es polimórfica: la FK **no** la puede imponer la base | Validación en servicio — compromiso consciente |
 
-**RI-G-06 es la más importante del área.** Si el montacarguista queda como responsable al cerrar el
+**RI-G-06 es la más importante del área.** Si el chofer de grúa queda como responsable al cerrar el
 arrastre, la responsabilidad se transfiere sin que nadie lo decidiera y se rompe la regla que
 sostiene todo el sistema.
 

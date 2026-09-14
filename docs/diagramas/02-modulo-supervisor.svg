@@ -28,7 +28,7 @@
 <line x1="1090" y1="563" x2="1120" y2="563" stroke="#6b7280" stroke-width="2"/>
 <line x1="1105" y1="580" x2="1092" y2="600" stroke="#6b7280" stroke-width="2"/>
 <line x1="1105" y1="580" x2="1118" y2="600" stroke="#6b7280" stroke-width="2"/>
-<text x="1105" y="616" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#6b7280" text-anchor="middle">Montacarguista</text>
+<text x="1105" y="616" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#6b7280" text-anchor="middle">Chofer de grúa</text>
 <circle cx="1105" cy="657" r="9" fill="none" stroke="#6b7280" stroke-width="2"/>
 <line x1="1105" y1="666" x2="1105" y2="692" stroke="#6b7280" stroke-width="2"/>
 <line x1="1090" y1="675" x2="1120" y2="675" stroke="#6b7280" stroke-width="2"/>

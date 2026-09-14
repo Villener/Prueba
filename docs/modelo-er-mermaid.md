@@ -23,7 +23,7 @@ erDiagram
     ROL      ||--o{ USUARIO_ROL : "se asigna en"
     USUARIO  ||--o| CHOFER : "es"
     USUARIO  ||--o| SUPERVISOR : "es"
-    USUARIO  ||--o| MONTACARGUISTA : "es"
+    USUARIO  ||--o| CHOFER_GRUA : "es"
     TALLER   ||--o{ TECNICO : "adscribe"
 
     TIPO_UNIDAD ||--o{ UNIDAD : "clasifica"
@@ -70,7 +70,7 @@ erDiagram
 
 ## 1. Paquete A — Organización, plantas y personas (11 tablas)
 
-`CHOFER`, `SUPERVISOR` y `MONTACARGUISTA` no tienen `id` propio: su PK **es** la FK
+`CHOFER`, `SUPERVISOR` y `CHOFER_GRUA` no tienen `id` propio: su PK **es** la FK
 a `USUARIO` (herencia tabla-por-subclase). `TECNICO` sí tiene `id` propio y su
 `usuario_id` es opcional a propósito: solo el técnico AUTONOMO tiene cuenta.
 
@@ -137,7 +137,7 @@ erDiagram
         int usuario_id PK "FK a usuario.id"
         string zona
     }
-    MONTACARGUISTA {
+    CHOFER_GRUA {
         int usuario_id PK "FK a usuario.id"
         int unidad_grua_id FK
         string licencia_especial
@@ -183,7 +183,7 @@ erDiagram
     ROL ||--o{ LIMITE_AUTORIZACION : "topa con"
     USUARIO ||--o| CHOFER : "especializa"
     USUARIO ||--o| SUPERVISOR : "especializa"
-    USUARIO ||--o| MONTACARGUISTA : "especializa"
+    USUARIO ||--o| CHOFER_GRUA : "especializa"
     USUARIO |o--o| TECNICO : "opcional, solo AUTONOMO"
     SUPERVISOR ||--o{ CUADRILLA : "dirige"
     CUADRILLA ||--o{ CHOFER : "agrupa"
@@ -288,7 +288,7 @@ erDiagram
     UNIDAD ||--o{ JORNADA : "se opera en"
     CHOFER ||--o{ JORNADA : "abre"
     UNIDAD ||--o{ UBICACION_UNIDAD : "reporta"
-    UNIDAD |o--o| MONTACARGUISTA : "es su grúa"
+    UNIDAD |o--o| CHOFER_GRUA : "es su grúa"
     UNIDAD |o--o{ TECNICO : "es su vehículo de servicio"
 ```
 
@@ -860,7 +860,7 @@ erDiagram
         int id PK
         string folio UK "NN"
         int reporte_averia_id FK "NN"
-        int montacarguista_id FK
+        int chofer_grua_id FK
         int unidad_arrastrada_id FK "NN"
         int unidad_grua_id FK
         int chofer_responsable_id FK
@@ -881,7 +881,7 @@ erDiagram
         float latitud "NN"
         float longitud "NN"
         datetime capturado_en
-        string emisor "montacarguista"
+        string emisor "chofer_grua"
     }
     EVIDENCIA {
         int id PK
@@ -906,7 +906,7 @@ erDiagram
     TECNICO |o--o{ ORDEN_AUXILIO : "gana la toma"
     REPORTE_AVERIA ||--o| ARRASTRE : "escala a"
     ORDEN_AUXILIO |o--o| ARRASTRE : "escala a"
-    MONTACARGUISTA |o--o{ ARRASTRE : "ejecuta"
+    CHOFER_GRUA |o--o{ ARRASTRE : "ejecuta"
     UNIDAD ||--o{ ARRASTRE : "es arrastrada"
     UNIDAD |o--o{ ARRASTRE : "es la grúa"
     TALLER |o--o{ ARRASTRE : "recibe"

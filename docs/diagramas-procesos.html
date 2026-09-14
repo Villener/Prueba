@@ -263,7 +263,7 @@ footer{color:var(--tenue); font-size:.8rem; font-family:var(--dato);
         <td class="id"><a href="#P9">P9</a></td>
         <td class="nom">Arrastre y traslado a taller</td>
         <td><span class="chip t-sustantivo">Sustantivo</span></td>
-        <td class="dueno">Montacarguista</td>
+        <td class="dueno">Chofer de grúa</td>
         <td class="tras"><span class="barra alto" role="img" aria-label="5 traspasos"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class=""></i></span><span class="barra-n">5</span></td>
         <td class="rompe">El responsable es el poseedor, nunca la grúa</td>
       </tr>
@@ -642,7 +642,7 @@ footer{color:var(--tenue); font-size:.8rem; font-family:var(--dato);
     actor Sup as Supervisor
     actor M1 as Mecánico autónomo A
     actor M2 as Mecánico autónomo B
-    actor Mon as Montacarguista
+    actor Mon as Chofer de grúa
 
     C-&gt;&gt;S: CU-CHO-11 · Reporta la avería
     Note over C,S: «include» CU-CHO-13: la ubicación es parte del reporte
@@ -692,14 +692,14 @@ footer{color:var(--tenue); font-size:.8rem; font-family:var(--dato);
       <span class="chip t-sustantivo">Sustantivo</span>
     </header>
     <dl class="ph-meta">
-      <div><dt>Dueño</dt><dd>Montacarguista</dd></div>
+      <div><dt>Dueño</dt><dd>Chofer de grúa</dd></div>
       <div><dt>Traspasos</dt><dd class="tras"><span class="barra alto" role="img" aria-label="5 traspasos"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class=""></i></span><span class="barra-n">5</span></dd></div>
       <div class="ancho"><dt>Dónde se rompe</dt><dd>El responsable es el poseedor, nunca la grúa</dd></div>
     </dl>
     <div class="hoja"><pre class="mermaid">sequenceDiagram
     autonumber
     participant S as Sistema
-    actor Mon as Montacarguista
+    actor Mon as Chofer de grúa
     actor C as Chofer poseedor
     actor Pe as Pedro · piso
 
@@ -719,7 +719,7 @@ footer{color:var(--tenue); font-size:.8rem; font-family:var(--dato);
     Mon-&gt;&gt;S: CU-MON-05 · Cierra el arrastre
 
     rect rgb(253, 235, 235)
-        Note over Mon,Pe: DONDE SE ROMPE — y es la regla que sostiene todo el sistema.&lt;br/&gt;Al cerrar, el "chofer responsable" que se registra es el POSEEDOR&lt;br/&gt;de la unidad, NUNCA el montacarguista que la movió.&lt;br/&gt;Si esto se modela mal, la responsabilidad se transfiere sin que nadie&lt;br/&gt;lo decidiera y se rompe RN-01.
+        Note over Mon,Pe: DONDE SE ROMPE — y es la regla que sostiene todo el sistema.&lt;br/&gt;Al cerrar, el "chofer responsable" que se registra es el POSEEDOR&lt;br/&gt;de la unidad, NUNCA el chofer de grúa que la movió.&lt;br/&gt;Si esto se modela mal, la responsabilidad se transfiere sin que nadie&lt;br/&gt;lo decidiera y se rompe RN-01.
     end
 
     S-&gt;&gt;S: Abre la orden de servicio → se encadena con P4/P5</pre></div>

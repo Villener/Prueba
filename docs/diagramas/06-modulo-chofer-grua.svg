@@ -8,15 +8,15 @@
   </marker>
 </defs>
 <rect width="1250" height="850" fill="#ffffff"/>
-<text x="24" y="30" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#1f2933">Diagrama 6 - Modulo Montacarguista (v2.0)</text>
+<text x="24" y="30" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#1f2933">Diagrama 6 - Modulo Chofer de grúa (v2.0)</text>
 <rect x="296" y="62" width="660" height="720" rx="10" fill="#f8fafc" stroke="#1f2933" stroke-width="1.4"/>
-<text x="626.0" y="86" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12.5" font-weight="700" fill="#1f2933" text-anchor="middle" letter-spacing="0.6">MODULO MONTACARGUISTA</text>
+<text x="626.0" y="86" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12.5" font-weight="700" fill="#1f2933" text-anchor="middle" letter-spacing="0.6">MODULO CHOFER DE GRÚA</text>
 <circle cx="155" cy="349" r="9" fill="none" stroke="#1f2933" stroke-width="2"/>
 <line x1="155" y1="358" x2="155" y2="384" stroke="#1f2933" stroke-width="2"/>
 <line x1="140" y1="367" x2="170" y2="367" stroke="#1f2933" stroke-width="2"/>
 <line x1="155" y1="384" x2="142" y2="404" stroke="#1f2933" stroke-width="2"/>
 <line x1="155" y1="384" x2="168" y2="404" stroke="#1f2933" stroke-width="2"/>
-<text x="155" y="420" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2933" text-anchor="middle">Montacarguista</text>
+<text x="155" y="420" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2933" text-anchor="middle">Chofer de grúa</text>
 <circle cx="1105" cy="97" r="9" fill="none" stroke="#6b7280" stroke-width="2"/>
 <line x1="1105" y1="106" x2="1105" y2="132" stroke="#6b7280" stroke-width="2"/>
 <line x1="1090" y1="115" x2="1120" y2="115" stroke="#6b7280" stroke-width="2"/>
@@ -88,5 +88,5 @@
 <text x="810" y="510" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11.5" fill="#1f2933" text-anchor="middle">fotografica</text>
 <text x="810" y="525" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#6b7280" text-anchor="middle" letter-spacing="0.4">CU-MON-06</text>
 <text x="24" y="808" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10.5" fill="#6b7280">CU-MON-07 es nuevo: el traslado de una unidad que la satelite no pudo reparar hacia Alamos. En CU-MON-05 el chofer responsable que se registra es el POSEEDOR de la</text>
-<text x="24" y="823" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10.5" fill="#6b7280">unidad, nunca el montacarguista que la movio.</text>
+<text x="24" y="823" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10.5" fill="#6b7280">unidad, nunca el chofer de grúa que la movio.</text>
 </svg>

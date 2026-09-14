@@ -347,7 +347,7 @@ sequenceDiagram
     actor Sup as Supervisor
     actor M1 as Mecánico autónomo A
     actor M2 as Mecánico autónomo B
-    actor Mon as Montacarguista
+    actor Mon as Chofer de grúa
 
     C->>S: CU-CHO-11 · Reporta la avería
     Note over C,S: «include» CU-CHO-13: la ubicación es parte del reporte
@@ -396,13 +396,13 @@ sequenceDiagram
 ## P9 — Arrastre y traslado a taller
 
 **Disparador:** la unidad varada no puede moverse por su cuenta.
-**Dueño:** Montacarguista · **Traspasos:** 5 · **Casos de uso:** CU-MON-01 a CU-MON-07
+**Dueño:** Chofer de grúa · **Traspasos:** 5 · **Casos de uso:** CU-MON-01 a CU-MON-07
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant S as Sistema
-    actor Mon as Montacarguista
+    actor Mon as Chofer de grúa
     actor C as Chofer poseedor
     actor Pe as Pedro · piso
 
@@ -422,7 +422,7 @@ sequenceDiagram
     Mon->>S: CU-MON-05 · Cierra el arrastre
 
     rect rgb(253, 235, 235)
-        Note over Mon,Pe: DONDE SE ROMPE — y es la regla que sostiene todo el sistema.<br/>Al cerrar, el "chofer responsable" que se registra es el POSEEDOR<br/>de la unidad, NUNCA el montacarguista que la movió.<br/>Si esto se modela mal, la responsabilidad se transfiere sin que nadie<br/>lo decidiera y se rompe RN-01.
+        Note over Mon,Pe: DONDE SE ROMPE — y es la regla que sostiene todo el sistema.<br/>Al cerrar, el "chofer responsable" que se registra es el POSEEDOR<br/>de la unidad, NUNCA el chofer de grúa que la movió.<br/>Si esto se modela mal, la responsabilidad se transfiere sin que nadie<br/>lo decidiera y se rompe RN-01.
     end
 
     S->>S: Abre la orden de servicio → se encadena con P4/P5

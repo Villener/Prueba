@@ -43,7 +43,7 @@ varada" es un proceso aunque involucre siete casos de uso.
 | **P6** | Presupuesto y autorización del gasto | Apoyo | Administrador | **6** |
 | **P7** | Compra y abasto de piezas | Apoyo | Administrador | 5 |
 | **P8** | Atención de avería en ruta | Sustantivo | Chofer (poseedor) | 4 |
-| **P9** | Arrastre y traslado a taller | Sustantivo | Montacarguista | 5 |
+| **P9** | Arrastre y traslado a taller | Sustantivo | Chofer de grúa | 5 |
 | **P10** | Penalización por incumplimiento | Control | Gerente | 3 |
 | **P11** | Control gerencial e indicadores | Control | Gerente | 2 |
 | **P12** | Administración de datos maestros | Soporte | Administrador | 0 |
@@ -66,7 +66,7 @@ varada" es un proceso aunque involucre siete casos de uso.
 | **Pedro** · piso y almacén | — | — | I | **E** | **E** | — | **E** | — | I | — | — | **E** |
 | **Víctor** · agenda | — | — | **E/D** | **E/D** | I | — | — | — | — | I | — | I |
 | **Pablo** · operativo | — | — | — | S | S | — | S | — | S | — | — | — |
-| Montacarguista | — | — | — | — | — | — | — | I | **E/D** | — | — | — |
+| Chofer de grúa | — | — | — | — | — | — | — | I | **E/D** | — | — | — |
 | Mecánico *(papel)* | — | — | — | — | **P** | **P** | — | P | — | — | — | — |
 | Gerente | — | — | I | — | I | **D** | I | — | — | **D/P** | **E** | E |
 | Almacén | — | — | — | — | — | — | **E** | — | — | — | — | — |
@@ -288,7 +288,7 @@ dato de segunda mano presentado como si fuera de primera.
 | # | Interacción |
 |---|---|
 | 1 | **Chofer → ⚙** reporta la avería; el sistema captura la ubicación |
-| 2 | **⚙ → Supervisor + Montacarguista** alerta en tiempo real; la unidad queda visible |
+| 2 | **⚙ → Supervisor + Chofer de grúa** alerta en tiempo real; la unidad queda visible |
 | 3 | *(si es vialidad pública)* **Chofer → Peritos** llamada **fuera del sistema** |
 | 4 | **Peritos → Chofer → ⚙** el chofer captura el folio del peritaje |
 | 5 | **Chofer → ⚙** hasta aquí se habilita solicitar arrastre o auxilio mecánico |
@@ -309,16 +309,16 @@ la pena decirlo así en la defensa del proyecto, en vez de presentarlo como un c
 
 | # | Interacción |
 |---|---|
-| 1 | **⚙ → Montacarguista** alerta con la ubicación reportada por el chofer |
-| 2 | **Montacarguista → ⚙** acepta el arrastre |
-| 3 | **⚙ → Chofer** le muestra al montacarguista en el mapa; ambos comparten ubicación |
-| 4 | **Montacarguista → ⚙** registra llegada al sitio y adjunta evidencia fotográfica |
-| 5 | **Montacarguista → Administrador** entrega física de la unidad en el taller destino |
-| 6 | **Montacarguista → ⚙** cierra el arrastre: taller destino, unidad, **chofer responsable**, hora |
+| 1 | **⚙ → Chofer de grúa** alerta con la ubicación reportada por el chofer |
+| 2 | **Chofer de grúa → ⚙** acepta el arrastre |
+| 3 | **⚙ → Chofer** le muestra al chofer de grúa en el mapa; ambos comparten ubicación |
+| 4 | **Chofer de grúa → ⚙** registra llegada al sitio y adjunta evidencia fotográfica |
+| 5 | **Chofer de grúa → Administrador** entrega física de la unidad en el taller destino |
+| 6 | **Chofer de grúa → ⚙** cierra el arrastre: taller destino, unidad, **chofer responsable**, hora |
 | 7 | **⚙ →** se encadena con P4/P5 abriendo la orden de servicio |
 
 **Dónde se rompe:** el paso 6. "Chofer responsable" debe seguir siendo **el poseedor de la
-unidad**, no el montacarguista que la movió. Si esto se modela mal, la responsabilidad se
+unidad**, no el chofer de grúa que la movió. Si esto se modela mal, la responsabilidad se
 transfiere sin querer y se rompe RN-01, que es la regla que sostiene todo el sistema.
 
 ---

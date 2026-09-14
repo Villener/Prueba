@@ -26,7 +26,7 @@ Si necesitas cambiar algo, el nombre del archivo te dice si es el lugar correcto
 
 | Paquete UML | Carpeta | Clases |
 |---|---|---|
-| **A** · Organización | `modules/organizacion/` | Planta, Taller, Usuario, Rol, UsuarioRol, Chofer, Supervisor, Montacarguista, LimiteAutorizacion, Cuadrilla, Tecnico |
+| **A** · Organización | `modules/organizacion/` | Planta, Taller, Usuario, Rol, UsuarioRol, Chofer, Supervisor, Chofer de grúa, LimiteAutorizacion, Cuadrilla, Tecnico |
 | **B** · Flota | `modules/flota/` | TipoUnidad, Unidad, AsignacionUnidad, PrestamoUnidad, Jornada, UbicacionUnidad |
 | **C** · Taller | `modules/taller/` | ZonaTaller, Espacio, OcupacionEspacio |
 | **D** · Mantenimiento | `modules/mantenimiento/` | PlanMantenimiento, ProgramaMantenimiento, TipoServicio, CitaTaller, Reprogramacion, AvisoIncumplimiento |
@@ -65,7 +65,7 @@ backend/app/
     ├── ordenes/               solicitud · orden · traslado
     ├── piezas/                pieza · solicitud_pieza · presupuesto · compra + piezas_service
     ├── emergencias/           averia · auxilio · arrastre · evidencia
-    │                          + emergencias_service + montacarguista_controller
+    │                          + emergencias_service + chofer de grúa_controller
     └── sistema/               notificacion · bitacora · configuracion
                                + comun_service + gerente_controller
 ```
@@ -124,7 +124,7 @@ frontend/src/
     ├── chofer/          ChoferPage            CU-CHO-*
     ├── supervisor/      SupervisorPage        CU-SUP-*
     ├── administrador/   9 archivos, ver abajo CU-ADM-*
-    ├── montacarguista/  MontacarguistaPage    CU-MON-*
+    ├── chofer de grúa/  Chofer de grúaPage    CU-MON-*
     ├── gerente/         GerentePage           CU-GER-*
     └── sistema/         NotificacionesPage    CU-GEN-02
 ```

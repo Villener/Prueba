@@ -40,7 +40,7 @@ la distinción que `modelo-er.md` §5 anticipó con
 | `PATIO` | 76 | El backlog **de hoy**: 65 unidades esperando | Estado inicial del sistema |
 | `REPARADO` | 2,064 | Bitácora diaria de unidades reparadas, 2025-01 → 2026-08 | **Duraciones reales** |
 | `IN-OUT` | 85 × 162 | Servicio del día: entra y sale, julio 2026 | El segundo flujo del taller (§3) |
-| `ARRASTRES` | 82 | 51 arrastres de junio 2026, por montacarguista | Valida `Arrastre` y `TrasladoUnidad` |
+| `ARRASTRES` | 82 | 51 arrastres de junio 2026, por chofer de grúa | Valida `Arrastre` y `TrasladoUnidad` |
 | `Graficos` | 13 | Patio inicio/fin de mes y servicios por mes | — |
 | `CROQUIS` | 18 × 41 | El plano físico de Álamos | `ZonaTaller` y `Espacio` |
 | `Mecanicos` | 40 | Nómina de técnicos con número de empleado y puesto | `Tecnico` |
@@ -165,7 +165,7 @@ distintos**, pero tres personas hicieron el 65% del trabajo — Osmar Sánchez
 |---|---|---|---|
 | 1 | **37 técnicos** (hoja TALLER) | **40** en la hoja `Mecanicos` | Reconciliar las dos hojas antes de sembrar |
 | 2 | Especialidades: MECANICO, CARROCERO, ELECTRICISTA, LLANTERO | También **SOLDADOR** (1) y un `SUPERVISOR REPARTO` que no es técnico | Agregar `SOLDADOR` al enum; sacar al supervisor del catálogo |
-| 3 | **2 montacarguistas** (`CHOFER DE GRUA`) | **3 personas hacen arrastres**: Rubén Espejo (20), José Espinoza (18) y **Ricardo Muñiz (13)** — que no está en la nómina de taller | Preguntar quién es Muñiz: ¿otra área, o externo? |
+| 3 | **2 choferes de grúa** (`CHOFER DE GRUA`) | **3 personas hacen arrastres**: Rubén Espejo (20), José Espinoza (18) y **Ricardo Muñiz (13)** — que no está en la nómina de taller | Preguntar quién es Muñiz: ¿otra área, o externo? |
 | 4 | `Unidad` se clasifica en reparto / pipa / utilitario | Aparecen **LECHERÍA, FORÁNEAS, AZUCENA, MINIZETAS, OPERACIONES** | `TipoUnidad` necesita estos valores |
 | 5 | Los talleres son Álamos + 5 satélites | `RESUMEN` lleva **«Talleres Externos»** como categoría propia (3 unidades hoy) | El modelo no contempla taller de terceros |
 | 6 | `EstadoOrden.ESPERA_REFACCIONES` | `RESUMEN` separa **«Pendientes por Compras»** de **«Refacciones chinas»** | Son dos esperas distintas: una de días, otra de meses |

@@ -242,7 +242,7 @@ de conectar lo real— es correcto. Lo que ya se puede sembrar hoy con
   cada uno con su perfil real (`ADMIN_COMPRAS`, `ADMIN_PISO`, `ADMIN_AGENDA`,
   `ADMIN_OPERATIVO`), no un `admin@bajagas.mx` genérico.
 - **El o los gerentes**, incluido el que menciona el cliente (ver §6).
-- **Los montacarguistas**, que hoy son un usuario de demo. En la hoja TALLER hay
+- **Los choferes de grúa**, que hoy son un usuario de demo. En la hoja TALLER hay
   dos personas con puesto `CHOFER DE GRUA`: esos son.
 
 ---
@@ -287,7 +287,7 @@ dos gerentes con alcances distintos.
 1. **Marcar el origen y la fecha del dato de almacén** — es chico y evita que
    alguien tome una decisión con un número viejo. Se puede hacer hoy.
 2. **Sembrar los perfiles que faltan**: los cuatro administradores por nombre,
-   los montacarguistas reales, y el o los gerentes según §6.
+   los choferes de grúa reales, y el o los gerentes según §6.
 3. **Extraer el `AlmacenAdapter`** con la implementación de Excel. Sin esto,
    cada etapa siguiente es una cirugía.
 4. **WebSocket + `useApi` escuchando** — habilita el requisito de que la web

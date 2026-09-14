@@ -144,7 +144,7 @@ classDiagram
         +colocarUnidad(Unidad u, Espacio e) Ocupacion
     }
 
-    class Montacarguista {
+    class ChoferGrua {
         +String licenciaEspecial
         +boolean enServicio
         +aceptarArrastre(Arrastre a) void
@@ -209,7 +209,7 @@ classDiagram
     Usuario <|-- Chofer
     Usuario <|-- Supervisor
     Usuario <|-- Administrador
-    Usuario <|-- Montacarguista
+    Usuario <|-- ChoferGrua
     Usuario <|-- Gerente
 
     Planta "1" *-- "1" Taller : contiene
@@ -631,7 +631,7 @@ meses después, si un dato es de primera o de segunda mano.
 ### `TrasladoUnidad` reutiliza `Arrastre`
 
 Cuando el mecánico de Tecate no puede reparar una unidad, la manda a Álamos **con grúa**. Eso ya
-es un arrastre: mismo montacarguista, misma ubicación en tiempo real, misma evidencia. No se
+es un arrastre: mismo chofer de grúa, misma ubicación en tiempo real, misma evidencia. No se
 duplica la clase; `TrasladoUnidad` la referencia y agrega lo suyo (motivo técnico, taller origen,
 reporte a administradores).
 
@@ -869,7 +869,7 @@ classDiagram
     RespuestaAuxilio "*" --> "1" Tecnico : de
     OrdenAuxilio "0..1" --> "0..1" Tecnico : atendida por
     OrdenAuxilio "1" --> "0..1" Arrastre : escala a
-    Arrastre "*" --> "1" Montacarguista : ejecutada por
+    Arrastre "*" --> "1" ChoferGrua : ejecutada por
     Arrastre "*" --> "1" Taller : destino
     ReporteAveria "1" --> "*" Evidencia : documenta
 ```
