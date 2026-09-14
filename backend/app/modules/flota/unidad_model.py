@@ -43,6 +43,12 @@ class Unidad(Base, TimestampMixin):
     # que dice donde esta AHORA.
     taller_asignado_id = Column(Integer, ForeignKey("taller.id"))
     activo = Column(Boolean, default=True, nullable=False)
+    # De donde salio esta unidad. 'catalogo' = la trae UNIDADES BAJA GAS, que es
+    # el padron de Logistica. 'taller' = NO esta en ese padron: el taller la
+    # atiende pero nadie la dio de alta. Son remolques, retros y apodos como
+    # 'MALIBU', y pesan el 12% del historial de reparaciones. Sin esta columna
+    # no hay forma de sacar la lista para pedirle a Logistica que las registre.
+    origen = Column(String(16))
     fecha_baja = Column(Date)
     fecha_alta = Column(Date)
 
