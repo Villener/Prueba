@@ -2,7 +2,7 @@
 
 Prototipo funcional construido sobre los documentos de análisis que están en [`docs/`](docs/).
 **React** en el frontend, **Python (FastAPI)** en el backend. Responsivo: el chofer y el
-montacarguista trabajan desde el teléfono, el administrador y el gerente desde escritorio.
+chofer de grúa trabajan desde el teléfono, el administrador y el gerente desde escritorio.
 
 > **v1.1** — Los mecánicos **no usan la aplicación**. El administrador captura el trabajo que el
 > mecánico le entrega en papel, y todo dato capturado guarda dos responsables: quién lo hizo y
@@ -35,29 +35,63 @@ montacarguista trabajan desde el teléfono, el administrador y el gerente desde 
 
 ## Cómo correrlo
 
-Necesitas dos terminales.
+En Windows, desde la carpeta que tiene los lanzadores:
+
+```
+dev              modo desarrollo: abre las dos ventanas y recarga al guardar
+dev abajo        las cierra
+bajagas arriba   con Docker: build de producción en http://localhost:8081
+bajagas abajo    apaga Docker
+```
+
+`dev.cmd` y `bajagas.cmd` son archivos `.cmd` **a propósito**, no `.ps1`: en Windows PowerShell
+5.1 la política de ejecución está en `Restricted` y bloquea cualquier script, `npm` incluido
+—`npm` es en realidad un `npm.ps1`—. Los `.cmd` no le aplican, así que los lanzadores funcionan
+sin cambiar ningún ajuste del sistema.
+
+Si prefieres correrlo a mano, necesitas **dos terminales**. Ojo con el `&&`: no existe en Windows
+PowerShell 5.1, solo en PowerShell 7 (`pwsh`) y en `cmd`. Con PowerShell 5.1 usa `;`.
 
 **1. Backend** (puerto 8000):
 
 ```bash
-cd backend && pip install -r requirements.txt && python -m uvicorn app.main:app --reload --port 8000
+cd backend
+pip install -r requirements.txt
+python -m uvicorn app.main:app --reload --port 8000
 ```
 
 **2. Frontend** (puerto 5173):
 
 ```bash
-cd frontend && npm install && npm run dev
+cd frontend
+npm install
+npm run dev
 ```
 
-Abre <http://localhost:5173>. La documentación interactiva de la API queda en
-<http://127.0.0.1:8000/docs>.
+Abre <http://localhost:5173>. Con `localhost`, no con `127.0.0.1`: Vite escucha en IPv6 y por la
+dirección numérica no contesta. La documentación interactiva de la API queda en
+<http://localhost:8000/docs>.
+
+**Los dos modos usan bases distintas.** El nativo escribe en `backend/bajagas.db`; Docker, en su
+volumen. Si trabajas en nativo y quieres que Docker muestre lo mismo, borra el volumen y deja que
+`entrypoint.sh` lo vuelva a llenar desde el repo:
+
+```bash
+bajagas abajo
+docker volume rm bajagas_bajagas_db
+bajagas arriba
+```
 
 La base (SQLite, `backend/bajagas.db`) se crea y se siembra sola al arrancar. Para empezar de
 cero, borra ese archivo.
 
 ### Usuarios de prueba
 
-Todos con la contraseña `demo1234`:
+Todos con la contraseña `bajagas2026`.
+
+> Si ya corriste `bajagas rotar`, esa contraseña **ya no sirve**: cada cuenta tiene la suya y
+> están en `credenciales.csv`, que es la única copia. Y ojo con cuál base estás mirando —el modo
+> nativo y Docker tienen la suya, y solo una de las dos está rotada.
 
 Todas son **personas reales** del Excel del cliente, con su número de empleado. La convención de
 correo es la misma para todos:
@@ -65,20 +99,36 @@ correo es la misma para todos:
 - con número de empleado → `e<num>@bajagas.mx`
 - sin número (los supervisores no lo traen en el Excel) → `<nombre+sucursal, 12 letras>@bajagas.mx`
 
-| Correo | Rol | Persona | Para qué sirve en el demo |
+**Una cuenta por módulo**, para recorrer los seis de punta a punta:
+
+| Correo | Módulo | Persona | Qué ver ahí |
 |---|---|---|---|
-| `gerente@bajagas.mx` | Gerente | Luis Siscareño | Tablero, aprobar presupuestos, alertas |
-| `e925@bajagas.mx` | Administrador | Erick Ávalos | Presupuestos, compras, enlace con gerencia |
-| `e10853@bajagas.mx` | Administrador | Pedro Montaño | Espacios, colas de trabajo, almacén |
-| `e647@bajagas.mx` | Administrador | Víctor Sallas | Agenda de mantenimiento |
-| `e13905@bajagas.mx` | **Capturista** | Jaime Yair Domínguez | Las 99 requisiciones del libro `REQUIS` |
-| `ricardoandre@bajagas.mx` | **Supervisor** | Ricardo Andrés Flores | Carranza, la cuadrilla más grande: **55 choferes** |
-| `e3145@bajagas.mx` | **Chofer** | Blas Mauricio Cota | Titular de la **1009**, Tecate |
-| `e4932@bajagas.mx` | Montacarguista | Rubén Espejo | Arrastres |
+| `gerente@bajagas.mx` | Gerente | Luis Siscareño | Tablero, autorizar presupuestos, alertas |
+| `e925@bajagas.mx` | Administrador | Erick Ávalos | Solicitudes, plano, presupuestos, hoja del día |
+| `e13905@bajagas.mx` | Capturista | Jaime Yair Domínguez | Las 99 requisiciones del libro `REQUIS` |
+| `ricardoandre@bajagas.mx` | Supervisor | Ricardo Andrés Flores | Carranza: la cuadrilla más grande, **55 choferes** |
+| `e4932@bajagas.mx` | Chofer de grúa | Rubén Espejo | Alertas, arrastres, historial |
+| `e3145@bajagas.mx` | Chofer | Blas Mauricio Cota | Titular de la **1009**, Tecate. Pantalla de teléfono |
+
+**Cuentas de repuesto**, por si necesitas dos sesiones del mismo módulo a la vez —un préstamo
+entre choferes, por ejemplo, necesita dos— o quieres ver el mismo módulo con otros datos:
+
+| Módulo | Cuántas hay | Otras cuentas |
+|---|---|---|
+| Administrador | 4 | `e10853@bajagas.mx` (Pedro Montaño) · `e647@bajagas.mx` (Víctor Sallas) · `e11807@bajagas.mx` (Pablo Reyes) |
+| Supervisor | 13 | `franciscofau@bajagas.mx` (Tecate) · `carlosantoni@bajagas.mx` · `gerardoemman@bajagas.mx` |
+| Chofer de grúa | 3 | `e13624@bajagas.mx` (José Espinoza) · `e13924@bajagas.mx` (Ricardo Muñiz) |
+| Chofer | 297 | `e13425@bajagas.mx` · `e6099@bajagas.mx` · y los 294 restantes, por su número de empleado |
+| Gerente | 1 | — |
+| Capturista | 1 | — |
 
 **Los 297 choferes y los 13 supervisores tienen cuenta**, no solo los de arriba: los crea el
-importador desde `INFO CHOFERES 2026 ACTUAL.xlsx`. Los de la tabla son solo la puerta de entrada
-al demo; a cualquier otro se entra con su correo.
+importador desde `INFO CHOFERES 2026 ACTUAL.xlsx`. Para entrar con cualquier otro, arma su correo
+con su número de empleado.
+
+> La pantalla de acceso **no** lista las cuentas. Antes tenía un panel con la plantilla que se
+> rellenaba de un clic, y se quitó: hacía que la pantalla de desarrollo no fuera la misma que la
+> de producción, y publicaba nombres reales antes de iniciar sesión. Esta tabla lo sustituye.
 
 Los mecánicos **no tienen cuenta**: están en el catálogo `TECNICO` y se les asigna trabajo, pero
 no inician sesión. Por eso existe el capturista.
@@ -114,7 +164,7 @@ Ese es el problema que el cliente planteó: sin esa distinción, se penaliza al 
 1. Como **Ana** → *Averías* → **Reportar avería**, marca *Estoy en vialidad pública*.
 2. El botón **Solicitar arrastre** queda deshabilitado.
 3. **Registrar aviso a peritos** con su folio → el arrastre se habilita.
-4. Como **Montacarguista** → aceptar, enviar ubicación, registrar llegada y **cerrar arrastre**
+4. Como **Chofer de grúa** → aceptar, enviar ubicación, registrar llegada y **cerrar arrastre**
    indicando el taller destino. El cierre genera automáticamente la solicitud de ingreso.
 
 ### 3. No se acepta un ingreso sin espacio compatible (RN-06)
@@ -232,7 +282,7 @@ backend/
       ordenes/      Solicitud de ingreso, orden de servicio, traslados,
                     reporte de mantenimiento (el formato de papel)
       piezas/       Pieza, Presupuesto, Compra, Requisición + capturista
-      emergencias/  Avería, auxilio, arrastre + montacarguista
+      emergencias/  Avería, auxilio, arrastre + chofer de grúa
       sistema/      Notificaciones, bitácora + gerente
 datos/              los .xlsx del cliente, versionados con el proyecto
 frontend/
@@ -241,7 +291,7 @@ frontend/
     ui/             Card, Tabla, Modal, Badge, useApi, toasts, BuscadorPieza
     App.jsx         ruteo por rol (nav inferior en móvil, lateral en escritorio)
     modules/        acceso, chofer, supervisor, administrador, capturista,
-                    montacarguista, gerente, sistema
+                    chofer de grúa, gerente, sistema
 docs/
   requerimientos.md   requerimientos con MoSCoW y roadmap
   modelo-er.md        modelo entidad-relación
