@@ -25,7 +25,7 @@ class Tecnico(Base, TimestampMixin):
     nombre = Column(String(80), nullable=False)
     apellidos = Column(String(120), nullable=False)
     num_empleado = Column(String(30), unique=True)
-    especialidad = Column(String(30), nullable=False)  # mecanico|carrocero|electricista|llantero
+    especialidad = Column(String(30), nullable=False)  # mecanico|carrocero|electricista|llantero|grua
     taller_id = Column(Integer, ForeignKey("taller.id"))
     modalidad = Column(String(12), default="ASISTIDO", nullable=False)  # AUTONOMO|ASISTIDO
     # Solo el autonomo trae vehiculo propio para salir a auxiliar.

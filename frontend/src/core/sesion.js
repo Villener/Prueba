@@ -26,6 +26,6 @@ export const clearSession = () => {
 /** El rol define que modulo ve el usuario. El servidor lo revalida (RNF-04). */
 export const rolPrincipal = (usuario) => {
   const orden = ['gerente', 'administrador', 'capturista', 'supervisor',
-                 'montacarguista', 'chofer']
+                 'chofer_grua', 'chofer']
   return orden.find((r) => usuario?.roles?.includes(r)) || null
 }

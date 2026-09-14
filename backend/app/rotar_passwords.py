@@ -17,7 +17,7 @@ USO
 Sin `--si` no hace nada: solo dice a cuantas cuentas les tocaria.
 
     --solo-staff   rota unicamente las cuentas que no son chofer ni supervisor
-                   (gerente, administradores, capturista, montacarguistas).
+                   (gerente, administradores, capturista, choferes de grua).
                    Los 300+ choferes se quedan como estan.
     --choferes N   cuantos choferes de muestra se imprimen en pantalla (3 por
                    omision). Con 0 no se imprime ninguno. No cambia a quien se
@@ -36,7 +36,7 @@ from . import models as m
 # nada de l/I/1, ni O/0. Que alguien no pueda entrar porque leyo una ele donde
 # habia un uno es un problema de soporte, no de seguridad.
 ALFABETO = "abcdefghijkmnpqrstuvwxyzACDEFGHJKLMNPQRSTUVWXYZ23456789"
-ROLES_STAFF = {"gerente", "administrador", "capturista", "montacarguista"}
+ROLES_STAFF = {"gerente", "administrador", "capturista", "chofer_grua"}
 
 
 def generar() -> str:

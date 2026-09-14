@@ -59,7 +59,7 @@ TALLER_SUSTITUTO = {"LIBERTAD": "ALAMOS"}
 PUESTO_A_ESPECIALIDAD = [
     ("CARROCER", "carrocero"), ("SOLDADOR", "carrocero"),
     ("ELECTRIC", "electricista"), ("LLANT", "llantero"),
-    ("GRUA", "montacarguista"), ("MECANIC", "mecanico"),
+    ("GRUA", "grua"), ("MECANIC", "mecanico"),
 ]
 
 

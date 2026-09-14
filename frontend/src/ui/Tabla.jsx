@@ -1,7 +1,7 @@
 import { Empty } from './Feedback.jsx'
 
 /** Tabla que en el telefono se vuelve una tarjeta por fila, con la etiqueta
- *  al frente de cada dato. El chofer y el montacarguista trabajan asi. */
+ *  al frente de cada dato. El chofer y el chofer de grua trabajan asi. */
 export function Tabla({ columnas, filas, vacio = 'Sin registros', onFila }) {
   if (!filas?.length) return <Empty>{vacio}</Empty>
   return (

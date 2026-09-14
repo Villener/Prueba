@@ -21,7 +21,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("TOKEN_MINUTES", "480"))
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
-ROLES = ["chofer", "supervisor", "administrador", "montacarguista", "gerente",
+ROLES = ["chofer", "supervisor", "administrador", "chofer_grua", "gerente",
          "capturista"]
 
 

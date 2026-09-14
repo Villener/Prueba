@@ -12,7 +12,7 @@ from .core.base_model import Base, TimestampMixin, _now  # noqa: F401
 # Paquete A - Organizacion, plantas y personas
 from .modules.organizacion import (  # noqa: F401
     Planta, Taller, Usuario, Rol,
-    UsuarioRol, Chofer, Supervisor, Montacarguista,
+    UsuarioRol, Chofer, Supervisor, ChoferGrua,
     LimiteAutorizacion, Cuadrilla, Tecnico,
 )
 
@@ -37,6 +37,7 @@ from .modules.mantenimiento import (  # noqa: F401
 from .modules.ordenes import (  # noqa: F401
     SolicitudIngreso, OrdenServicio, AsignacionTecnico, FormatoSalida,
     ReporteMantenimiento, PuntoRevision, ActividadReporte, FirmaReporte,
+    MovimientoTaller,
     SISTEMAS, PUNTOS_REVISION, ESTADOS_PUNTO, NIVELES_COMBUSTIBLE, AREAS,
     TIPOS_SERVICIO, FIRMAS, FIRMAS_OBLIGATORIAS_SALIDA,
     TrasladoUnidad,

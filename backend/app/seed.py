@@ -120,15 +120,15 @@ USUARIOS_REALES = [
     # Es quien teclea el libro REQUIS todos los dias; el puesto viene escrito
     # con ese nombre en el archivo, no es una etiqueta que inventamos.
     ("Jaime Yair", "Dominguez Sanchez",  13905,  "capturista",     "bajagas2026"),
-    ("Ruben",  "Espejo Hernandez",       4932,   "montacarguista", "bajagas2026"),
-    ("Jose",   "Espinoza Herrera",       13624,  "montacarguista", "bajagas2026"),
-    ("Ricardo", "Muniz Estrada",         13924,  "montacarguista", "bajagas2026"),
+    ("Ruben",  "Espejo Hernandez",       4932,   "chofer_grua",    "bajagas2026"),
+    ("Jose",   "Espinoza Herrera",       13624,  "chofer_grua",    "bajagas2026"),
+    ("Ricardo", "Muniz Estrada",         13924,  "chofer_grua",    "bajagas2026"),
 ]
 
 
 # Un rol por modulo de la aplicacion. El servidor los revalida en cada
 # endpoint (RNF-04); esta lista es solo el catalogo que se siembra.
-ROLES_DEL_SISTEMA = ["chofer", "supervisor", "administrador", "montacarguista",
+ROLES_DEL_SISTEMA = ["chofer", "supervisor", "administrador", "chofer_grua",
                      "gerente", "capturista"]
 
 # La misma que usa el importador para la gente que saca del Excel.
@@ -366,6 +366,7 @@ def asegurar_roles(db: Session) -> dict:
     `asegurar_usuarios_demo` porque el rol no estaba en el catalogo.
     """
     hecho = {"creados": 0, "existentes": 0}
+
     ya = {r.nombre for r in db.query(m.Rol).all()}
     for nombre in ROLES_DEL_SISTEMA:
         if nombre in ya:
@@ -388,7 +389,7 @@ def asegurar_usuarios_demo(db: Session) -> dict:
     Solo AGREGA. No toca contrasenas ni roles de quien ya existe: si alguien
     cambio algo a mano, se respeta.
     """
-    hecho = {"usuarios": 0, "choferes": 0, "montacarguistas": 0}
+    hecho = {"usuarios": 0, "choferes": 0, "choferes_grua": 0}
     roles = {r.nombre: r for r in db.query(m.Rol).all()}
     if not roles:
         return hecho          # base vacia: de esto se encarga sembrar()
@@ -414,9 +415,9 @@ def asegurar_usuarios_demo(db: Session) -> dict:
                             vencimiento_licencia=date.today() + timedelta(days=365),
                             cuadrilla_id=cuadrilla.id if cuadrilla else None))
             hecho["choferes"] += 1
-        elif rol == "montacarguista":
-            db.add(m.Montacarguista(usuario_id=u.id, licencia_especial=f"ME-{u.id:04d}"))
-            hecho["montacarguistas"] += 1
+        elif rol == "chofer_grua":
+            db.add(m.ChoferGrua(usuario_id=u.id, licencia_especial=f"ME-{u.id:04d}"))
+            hecho["choferes_grua"] += 1
     db.commit()
     return hecho
 
@@ -728,8 +729,8 @@ def sembrar(db: Session):
 
     # Los tres choferes de grua reales, no uno de mentira.
     for u, rol in usuarios.values():
-        if rol == "montacarguista":
-            db.add(m.Montacarguista(usuario_id=u.id,
+        if rol == "chofer_grua":
+            db.add(m.ChoferGrua(usuario_id=u.id,
                                     licencia_especial=f"ME-{u.id:04d}"))
 
     # ------------------------------------------------------ mantenimiento --- #
