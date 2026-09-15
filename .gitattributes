@@ -1,0 +1,29 @@
+# Los finales de linea los decide el repositorio, no la maquina de quien clona.
+#
+# Sin este archivo mandaba core.autocrlf, que en este equipo viene puesto a
+# nivel de SISTEMA (C:/Program Files/Git/etc/gitconfig). O sea que el
+# comportamiento dependia de como estuviera instalado el Git de cada quien:
+# dos personas clonando el mismo commit podian terminar con archivos distintos.
+#
+# eol=lf y no crlf porque todo esto acaba corriendo en Linux: la imagen de
+# Docker es Ubuntu y desplegar.sh es bash. Un .sh con CRLF falla con un error
+# que no explica nada -- el shell se queja de un caracter invisible al final
+# de la primera linea.
+* text=auto eol=lf
+
+# Binarios: que git ni los mire. Hoy no hay ninguno rastreado, pero el dia que
+# entre una foto o un Excel del cliente, sin esto git intentaria "arreglarle"
+# los saltos de linea y lo dejaria corrupto.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.pdf   binary
+*.xlsx  binary
+*.xls   binary
+*.pptx  binary
+*.docx  binary
+*.woff  binary
+*.woff2 binary
+*.db    binary
