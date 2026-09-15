@@ -60,6 +60,94 @@ function Columnas({ datos }) {
   )
 }
 
+/** RN-12 — la meta de 5 a 7 preventivos por día.
+ *
+ *  Es techo Y PISO, y el piso es lo que la hace distinta de una restricción de
+ *  capacidad: un día con 3 no está «dentro de capacidad», está por debajo de la
+ *  meta y el que incumplió es el taller. De eso depende si un chofer que faltó
+ *  es responsable o no.
+ *
+ *  Cuando no hay programas de mantenimiento cargados NO se pinta «0 de 5»: eso
+ *  culparía al taller de un hueco de datos. Se dice lo que falta.
+ */
+function MetaPreventivo() {
+  const hoy = useApi(() => api.get('/admin/meta-preventivo'))
+  const serie = useApi(() => api.get('/admin/meta-preventivo/serie', { dias: 30 }))
+
+  if (hoy.cargando) return <Spinner />
+  if (hoy.error) return <Aviso tipo="err">{hoy.error}</Aviso>
+  const d = hoy.data || {}
+  const s = serie.data || {}
+  const dem = d.demanda || {}
+  const cob = d.cobertura || {}
+
+  if (d.estado === 'sin_datos') {
+    return (
+      <Card title="Meta de mantenimiento preventivo"
+            sub={`El objetivo acordado es de ${d.meta_min} a ${d.meta_max} unidades por día`}>
+        <Aviso tipo="warn">
+          Todavía no se puede medir: solo <strong>{cob.programas}</strong> de
+          las <strong>{cob.unidades_con_plan}</strong> unidades con plan tienen programa de
+          mantenimiento cargado ({cob.porcentaje}%).
+        </Aviso>
+        <Regla>
+          La flota pide <strong>{dem.al_dia} preventivos al día</strong> según los planes
+          activos, pero no hay programas contra los cuales contarlos. Con esta cobertura el
+          tablero diría <em>0 de {d.meta_min}</em> todos los días, y eso no mediría al taller:
+          mediría un hueco de captura y lo pintaría de rojo como si fuera culpa suya. El número
+          empieza a querer decir algo a partir del 10% de la flota cargada.
+        </Regla>
+      </Card>
+    )
+  }
+
+  const tono = d.estado === 'bajo' ? 'alert' : (d.estado === 'sobre' ? 'warn' : '')
+  const tope = Math.max(...(s.puntos || [{ cumplidos: 0 }]).map((p) => p.cumplidos),
+                        d.meta_max || 7, 1)
+
+  return (
+    <Card title="Meta de mantenimiento preventivo"
+          sub={`Objetivo de ${d.meta_min} a ${d.meta_max} unidades por día · RN-12`}>
+      <div className="grid g4">
+        <Kpi valor={d.cumplidos} etiqueta="Preventivos de hoy" tono={tono}
+             hint={d.estado === 'bajo'
+               ? `Faltan ${d.faltan_para_el_piso} para el piso`
+               : (d.estado === 'sobre' ? 'Por encima del techo' : 'Dentro de la meta')} />
+        <Kpi valor={d.agendados_pendientes} etiqueta="Citas de hoy sin cerrar" />
+        <Kpi valor={s.promedio ?? '—'} etiqueta="Promedio de 30 días"
+             tono={s.promedio != null && s.promedio < d.meta_min ? 'alert' : ''} />
+        <Kpi valor={s.dias_bajo_piso ?? '—'} etiqueta="Días bajo el piso"
+             tono={s.dias_bajo_piso ? 'alert' : ''}
+             hint={s.dias_evaluados ? `de ${s.dias_evaluados} días evaluados` : ''} />
+      </div>
+
+      {(s.puntos || []).length > 0 && (
+        <div className="gcolumnas meta" style={{ marginTop: 14 }}>
+          {s.puntos.map((p) => (
+            <div className={`gcol${p.bajo_piso ? ' bajo' : ''}${p.es_hoy ? ' hoy' : ''}`}
+                 key={p.fecha}
+                 title={`${p.fecha}: ${p.cumplidos} preventivos`
+                        + (p.bajo_piso ? ` · por debajo del piso de ${s.meta_min}` : '')
+                        + (p.es_hoy ? ' · hoy, el día no ha terminado' : '')}>
+              <span className="gcifra">{p.cumplidos}</span>
+              <div className="gtorre" style={{ height: `${(p.cumplidos / tope) * 100}%` }} />
+              <span className="gpie">{p.fecha.slice(8)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Regla>
+        La flota pide <strong>{dem.al_dia} preventivos al día</strong> según los planes activos
+        ({(dem.detalle || []).map((x) => `${x.unidades} ${x.plan.toLowerCase().replace('servicio preventivo ', '')} cada ${x.cada_dias} d`).join(' · ')}).
+        Con la meta en {d.meta_min}–{d.meta_max}, el margen es el que es: si el taller se queda
+        en el piso, la demanda se acumula. El día de hoy no cuenta como incumplido —todavía no
+        termina—, por eso va marcado aparte.
+      </Regla>
+    </Card>
+  )
+}
+
 export function Indicadores() {
   const [tallerId, setTallerId] = useState(null)
   const { data, cargando, error } = useApi(
@@ -78,6 +166,8 @@ export function Indicadores() {
         <div className="spacer" />
         <SelectorTaller valor={tallerId} onCambio={setTallerId} />
       </div>
+
+      <MetaPreventivo />
 
       <div className="grid g4">
         <Kpi valor={patio} etiqueta="Unidades en el patio" />

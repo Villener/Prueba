@@ -1136,3 +1136,12 @@ tbody tr:hover { background: var(--surface-2); }
   font-size: .72rem; color: var(--muted); padding: 6px;
 }
 .btn.disabled { opacity: .6; pointer-events: none; }
+
+/* Meta de preventivos (RN-12). El piso es lo que importa: un día por debajo se
+   marca en rojo, y el día en curso va apagado porque todavía no termina y
+   pintarlo de rojo cada mañana sería mentir. */
+.gcolumnas.meta { height: 132px; }
+.gcolumnas.meta .gcol.bajo .gtorre { background: var(--grafica-alerta); }
+.gcolumnas.meta .gcol.hoy .gtorre { opacity: .45; }
+.gcolumnas.meta .gcol.hoy .gpie { font-weight: 700; color: var(--texto); }
+.gcolumnas.meta .gpie { font-size: .58rem; }

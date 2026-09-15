@@ -23,7 +23,8 @@ from .modules.taller.administrador_controller import router as router_administra
 from .core.security import require_roles
 from .core.migraciones import (asegurar_columnas, asegurar_indices,
                                asegurar_renombres)
-from .seed import (asegurar_plano, asegurar_reportes_de_ordenes_abiertas,
+from .seed import (asegurar_parametros, asegurar_plano,
+                   asegurar_reportes_de_ordenes_abiertas,
                    asegurar_roles, asegurar_tipos_servicio,
                    asegurar_usuarios_demo, reconciliar_cuentas, sembrar)
 
@@ -93,6 +94,10 @@ def startup():
         # funcion aparte porque sembrar() se rinde si la base ya tiene datos,
         # y el catalogo tambien tiene que llegarle a una base previa.
         log.info("tipos de servicio: %s", asegurar_tipos_servicio(db))
+        # La meta de RN-12 vive en `configuracion` para poder cambiarla sin
+        # desplegar: el cliente todavia no confirma si 5-7 es por taller o de
+        # toda la operacion (pregunta abierta #12).
+        log.info("parametros: %s", asegurar_parametros(db))
         sembrar(db)
         # Despues de sembrar: pone al dia el plano de una base que ya existia
         # (etiquetas por fila y que zonas admiten unidad). En una base nueva no

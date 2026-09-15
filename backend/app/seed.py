@@ -853,3 +853,35 @@ def inicializar():
 
 if __name__ == "__main__":
     print(inicializar())
+
+
+# --------------------------------------------------------------------------- #
+# Parametros de operacion
+# --------------------------------------------------------------------------- #
+# Mismo patron que asegurar_tipos_servicio(): `sembrar()` se rinde entero si la
+# base ya tiene datos, asi que los parametros NUEVOS nunca le llegarian a una
+# base que ya existia -- y el indicador de la meta leeria su valor por omision
+# en vez del que el cliente acordo.
+PARAMETROS = [
+    ("meta_preventivos_min", "5",
+     "RN-12: piso de unidades en preventivo por dia. Por debajo, incumple el TALLER"),
+    ("meta_preventivos_max", "7",
+     "RN-12: techo de unidades en preventivo por dia"),
+]
+
+
+def asegurar_parametros(db: Session) -> dict:
+    """Agrega los parametros que falten. No pisa los que ya tienen valor.
+
+    Si el cliente cambio la meta a mano, un reinicio no debe devolverla a 5-7.
+    """
+    hecho = {"creados": 0, "existentes": 0}
+    for clave, valor, desc in PARAMETROS:
+        if db.query(m.Configuracion).filter_by(clave=clave).first():
+            hecho["existentes"] += 1
+            continue
+        db.add(m.Configuracion(clave=clave, valor=valor, descripcion=desc))
+        hecho["creados"] += 1
+    if hecho["creados"]:
+        db.commit()
+    return hecho

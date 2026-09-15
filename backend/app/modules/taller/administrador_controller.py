@@ -26,6 +26,7 @@ from ...core.security import notificar, registrar_bitacora, require_roles
 from ...core.tiempo import TZ_OPERACION, a_utc, ahora_utc
 from .exportar_resumen import construir as construir_resumen
 from .indicadores import calcular as calcular_indicadores
+from ..mantenimiento import meta_preventivo
 
 router = APIRouter(prefix="/api/admin", tags=["administrador"])
 solo_admin = require_roles("administrador")
@@ -362,6 +363,26 @@ def indicadores(taller_id: int | None = None, usuario=Depends(solo_admin),
     salir-- porque los cuatro indicadores se copian a mano de una a otra.
     """
     return calcular_indicadores(db, _nombre_taller(db, taller_id))
+
+
+@router.get("/meta-preventivo")
+def meta_preventivo_hoy(usuario=Depends(solo_admin), db: Session = Depends(get_db)):
+    """RN-12: como va el dia contra la meta de 5 a 7 preventivos.
+
+    Una meta que nadie ve durante el dia no se cumple: se reporta al final.
+    """
+    return meta_preventivo.del_dia(db)
+
+
+@router.get("/meta-preventivo/serie")
+def meta_preventivo_serie(dias: int = 30, usuario=Depends(solo_admin),
+                          db: Session = Depends(get_db)):
+    """La tendencia, con los dias que quedaron por debajo del piso.
+
+    Es el dato que dice si el incumplimiento de un chofer es suyo o del taller.
+    """
+    dias = max(7, min(dias, 180))
+    return meta_preventivo.serie(db, dias)
 
 
 @router.get("/exportar/resumen")
