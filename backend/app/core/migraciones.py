@@ -141,3 +141,54 @@ def asegurar_indices(engine) -> list[str]:
                 log.warning(aviso)
                 avisos.append(aviso)
     return avisos
+
+
+# --------------------------------------------------------------------------- #
+# Renombres deliberados
+# --------------------------------------------------------------------------- #
+# El cliente corrigio el vocabulario el 2026-09-14: al grupo de CHOFERES se le
+# dice PLANTILLA, no cuadrilla. Renombrar en el modelo no basta: `create_all`
+# habria creado una tabla `plantilla` vacia al lado de la `cuadrilla` con los
+# datos adentro, y el supervisor abriria su pantalla sin un solo chofer.
+#
+# Por eso esto corre ANTES de create_all, y por eso es un renombre y no un
+# "crear y copiar": renombrar conserva los ids, y los ids son lo que apunta
+# chofer.plantilla_id.
+RENOMBRES_TABLA = [("cuadrilla", "plantilla")]
+RENOMBRES_COLUMNA = [("chofer", "cuadrilla_id", "plantilla_id")]
+
+
+def asegurar_renombres(engine) -> list[str]:
+    """Aplica los renombres de tabla y columna que el modelo ya da por hechos.
+
+    Idempotente: si el renombre ya ocurrio, no hace nada. En una base recien
+    creada tampoco hace nada, porque no existe el nombre viejo.
+    """
+    hechos = []
+    insp = inspect(engine)
+    tablas = set(insp.get_table_names())
+
+    with engine.begin() as cx:
+        for viejo, nuevo in RENOMBRES_TABLA:
+            if viejo in tablas and nuevo not in tablas:
+                cx.execute(text(f"ALTER TABLE {viejo} RENAME TO {nuevo}"))
+                hechos.append(f"tabla {viejo} -> {nuevo}")
+            elif viejo in tablas and nuevo in tablas:
+                # Las dos existen: alguien arranco con el modelo nuevo antes de
+                # migrar y create_all creo la vacia. No se adivina cual conservar.
+                hechos.append(
+                    f"ATENCION: existen '{viejo}' y '{nuevo}' a la vez. "
+                    f"Revisa cual tiene los datos antes de borrar la otra.")
+
+        tablas = set(inspect(engine).get_table_names())
+        for tabla, viejo, nuevo in RENOMBRES_COLUMNA:
+            if tabla not in tablas:
+                continue
+            cols = {c["name"] for c in inspect(engine).get_columns(tabla)}
+            if viejo in cols and nuevo not in cols:
+                cx.execute(text(f"ALTER TABLE {tabla} RENAME COLUMN {viejo} TO {nuevo}"))
+                hechos.append(f"columna {tabla}.{viejo} -> {nuevo}")
+
+    for h in hechos:
+        log.info("renombre: %s", h)
+    return hechos

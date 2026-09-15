@@ -247,8 +247,8 @@ def prestar_unidad(datos: PrestamoIn, usuario=Depends(solo_chofer),
               f"por {datos.motivo}.{aviso}", "prestamo", "prestamo_unidad", p.id)
 
     ch = db.query(m.Chofer).filter(m.Chofer.usuario_id == usuario.id).first()
-    if ch and ch.cuadrilla and ch.cuadrilla.supervisor_id:
-        notificar(db, ch.cuadrilla.supervisor_id, "Prestamo solicitado en tu cuadrilla",
+    if ch and ch.plantilla and ch.plantilla.supervisor_id:
+        notificar(db, ch.plantilla.supervisor_id, "Prestamo solicitado en tu plantilla",
                   f"{usuario.nombre_completo} -> unidad {unidad.num_economico}",
                   "prestamo", "prestamo_unidad", p.id)
     registrar_bitacora(db, usuario.id, "prestamo_solicitado", "prestamo_unidad", p.id)
@@ -343,7 +343,7 @@ def companeros(usuario=Depends(solo_chofer), db: Session = Depends(get_db)):
         if not c.usuario or not c.usuario.activo:
             continue
         out.append({"id": c.usuario_id, "nombre": c.usuario.nombre_completo,
-                    "cuadrilla": c.cuadrilla.nombre if c.cuadrilla else None})
+                    "plantilla": c.plantilla.nombre if c.plantilla else None})
     return out
 
 
@@ -359,7 +359,7 @@ def reportar_averia(datos: AveriaIn, usuario=Depends(solo_chofer),
         raise HTTPException(403, "Solo el poseedor actual puede reportar la averia (RN-01)")
 
     ch = db.query(m.Chofer).filter(m.Chofer.usuario_id == usuario.id).first()
-    sup_id = ch.cuadrilla.supervisor_id if ch and ch.cuadrilla else None
+    sup_id = ch.plantilla.supervisor_id if ch and ch.plantilla else None
 
     r = m.ReporteAveria(folio=svc.siguiente_folio(db, m.ReporteAveria, "AVE"),
                         unidad_id=unidad.id, chofer_id=usuario.id,

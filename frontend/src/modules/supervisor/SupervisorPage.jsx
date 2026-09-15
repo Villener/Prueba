@@ -3,14 +3,14 @@ import { useState } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import { api, fmtFecha, fmtFechaHora } from '../../core/api.js'
 import {
-  Aviso, Badge, Card, Empty, EstadoBadge, IcoCuadrilla, IcoListo, IcoPrestamos,
+  Aviso, Badge, Card, Empty, EstadoBadge, IcoPlantilla, IcoListo, IcoPrestamos,
   IcoUbicacion, Modal, Regla, Spinner, Tabla, useApi, useToast,
 } from '../../ui/index.js'
 
 export default function Supervisor() {
   return (
     <Routes>
-      <Route path="/" element={<Cuadrilla />} />
+      <Route path="/" element={<Plantilla />} />
       <Route path="/prestamos" element={<Prestamos />} />
       <Route path="/averias" element={<Averias />} />
       <Route path="/cumplimiento" element={<Cumplimiento />} />
@@ -19,8 +19,8 @@ export default function Supervisor() {
 }
 
 /* -------------------------------------------------- CU-SUP-01/02/05 -------- */
-function Cuadrilla() {
-  const { data, cargando, error } = useApi(() => api.get('/supervisor/cuadrilla'))
+function Plantilla() {
+  const { data, cargando, error } = useApi(() => api.get('/supervisor/plantilla'))
   if (cargando) return <Spinner />
   if (error) return <Aviso tipo="err">{error}</Aviso>
 
@@ -28,7 +28,7 @@ function Cuadrilla() {
 
   return (
     <>
-      <h1 style={{ marginBottom: 14 }}>Mi cuadrilla</h1>
+      <h1 style={{ marginBottom: 14 }}>Mi plantilla</h1>
       <div className="grid g3" style={{ marginBottom: 4 }}>
         <div className="card kpi"><div className="val">{data?.length || 0}</div>
           <div className="lbl">Choferes</div></div>
@@ -70,7 +70,7 @@ function Cuadrilla() {
             {c.estado_unidad && <EstadoBadge estado={c.estado_unidad} />}
           </div>
         ))}
-        {(data || []).length === 0 && <Empty icono={IcoCuadrilla}>Sin choferes asignados</Empty>}
+        {(data || []).length === 0 && <Empty icono={IcoPlantilla}>Sin choferes asignados</Empty>}
       </Card>
     </>
   )
@@ -85,7 +85,7 @@ function Prestamos() {
   if (cargando) return <Spinner />
   return (
     <>
-      <h1 style={{ marginBottom: 14 }}>Préstamos de la cuadrilla</h1>
+      <h1 style={{ marginBottom: 14 }}>Préstamos de la plantilla</h1>
       <Aviso tipo="info">
         Durante un préstamo activo, quien responde por la unidad es quien la recibió (RN-01).
         Si vetas un préstamo activo, la responsabilidad regresa al titular.
@@ -242,7 +242,7 @@ function Cumplimiento() {
       </Aviso>
       <Card>
         <Tabla
-          vacio="Toda la cuadrilla al corriente"
+          vacio="Toda la plantilla al corriente"
           columnas={[
             { k: 'chofer', t: 'Chofer' },
             { k: 'unidad', t: 'Unidad' },

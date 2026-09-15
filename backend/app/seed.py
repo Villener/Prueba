@@ -394,7 +394,7 @@ def asegurar_usuarios_demo(db: Session) -> dict:
     if not roles:
         return hecho          # base vacia: de esto se encarga sembrar()
 
-    cuadrilla = db.query(m.Cuadrilla).first()
+    plantilla = db.query(m.Plantilla).first()
     for nombre, apellidos, email, rol, pwd in USUARIOS_DEMO:
         if db.query(m.Usuario).filter(m.Usuario.email == email).first():
             continue
@@ -408,12 +408,12 @@ def asegurar_usuarios_demo(db: Session) -> dict:
         hecho["usuarios"] += 1
 
         # El perfil que cuelga del usuario segun su rol. Sin el, un chofer
-        # nuevo entra al sistema pero no tiene unidad ni aparece en cuadrilla.
+        # nuevo entra al sistema pero no tiene unidad ni aparece en plantilla.
         if rol == "chofer":
             db.add(m.Chofer(usuario_id=u.id, num_licencia=f"LIC-{u.id:04d}",
                             tipo_licencia="E",
                             vencimiento_licencia=date.today() + timedelta(days=365),
-                            cuadrilla_id=cuadrilla.id if cuadrilla else None))
+                            plantilla_id=plantilla.id if plantilla else None))
             hecho["choferes"] += 1
         elif rol == "chofer_grua":
             db.add(m.ChoferGrua(usuario_id=u.id, licencia_especial=f"ME-{u.id:04d}"))
@@ -628,14 +628,14 @@ def sembrar(db: Session):
     def _primero(rol):
         return next((u for u, r in usuarios.values() if r == rol), None)
 
-    cuadrilla = None
+    plantilla = None
     u_sup = _primero("supervisor")
     if u_sup:
         sup = m.Supervisor(usuario_id=u_sup.id, zona="Tijuana Centro")
         db.add(sup)
         db.flush()
-        cuadrilla = m.Cuadrilla(nombre="Cuadrilla Centro", supervisor_id=sup.usuario_id)
-        db.add(cuadrilla)
+        plantilla = m.Plantilla(nombre="Plantilla Centro", supervisor_id=sup.usuario_id)
+        db.add(plantilla)
         db.flush()
 
     # Los CHOFERES ya no se siembran: los 297 reales los crea el importador

@@ -13,7 +13,7 @@ from .core.base_model import Base, TimestampMixin, _now  # noqa: F401
 from .modules.organizacion import (  # noqa: F401
     Planta, Taller, Usuario, Rol,
     UsuarioRol, Chofer, Supervisor, ChoferGrua,
-    LimiteAutorizacion, Cuadrilla, Tecnico,
+    LimiteAutorizacion, Plantilla, Tecnico,
 )
 
 # Paquete B - Flota y responsabilidad

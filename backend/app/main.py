@@ -21,7 +21,8 @@ from .modules.piezas.capturista_controller import router as router_capturista
 from .modules.sistema.gerente_controller import router as router_gerente
 from .modules.taller.administrador_controller import router as router_administrador
 from .core.security import require_roles
-from .core.migraciones import asegurar_columnas, asegurar_indices
+from .core.migraciones import (asegurar_columnas, asegurar_indices,
+                               asegurar_renombres)
 from .seed import (asegurar_plano, asegurar_reportes_de_ordenes_abiertas,
                    asegurar_roles, asegurar_tipos_servicio,
                    asegurar_usuarios_demo, reconciliar_cuentas, sembrar)
@@ -53,6 +54,14 @@ for r in [router_auth, router_chofer, router_supervisor, router_administrador,
 
 @app.on_event("startup")
 def startup():
+    # ANTES de create_all, y el orden no es negociable: el modelo ya dice
+    # `plantilla`, asi que create_all crearia esa tabla vacia al lado de la
+    # `cuadrilla` que trae los datos, y el supervisor abriria su pantalla sin
+    # un solo chofer. Renombrar primero conserva los ids.
+    import logging as _logging
+    for hecho in asegurar_renombres(engine):
+        _logging.getLogger("bajagas").info("migracion: %s", hecho)
+
     Base.metadata.create_all(bind=engine)
     # create_all no toca las tablas que YA existian: ni les agrega las columnas
     # nuevas del modelo ni los indices. Sin estos dos pasos, una base previa

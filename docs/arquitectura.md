@@ -26,7 +26,7 @@ Si necesitas cambiar algo, el nombre del archivo te dice si es el lugar correcto
 
 | Paquete UML | Carpeta | Clases |
 |---|---|---|
-| **A** · Organización | `modules/organizacion/` | Planta, Taller, Usuario, Rol, UsuarioRol, Chofer, Supervisor, Chofer de grúa, LimiteAutorizacion, Cuadrilla, Tecnico |
+| **A** · Organización | `modules/organizacion/` | Planta, Taller, Usuario, Rol, UsuarioRol, Chofer, Supervisor, Chofer de grúa, LimiteAutorizacion, Plantilla, Tecnico |
 | **B** · Flota | `modules/flota/` | TipoUnidad, Unidad, AsignacionUnidad, PrestamoUnidad, Jornada, UbicacionUnidad |
 | **C** · Taller | `modules/taller/` | ZonaTaller, Espacio, OcupacionEspacio |
 | **D** · Mantenimiento | `modules/mantenimiento/` | PlanMantenimiento, ProgramaMantenimiento, TipoServicio, CitaTaller, Reprogramacion, AvisoIncumplimiento |
@@ -57,7 +57,7 @@ backend/app/
 │   └── migraciones.py         columnas e índices que create_all no aplica
 │
 └── modules/                   ── un paquete por paquete del UML
-    ├── organizacion/          planta · usuario · cuadrilla · tecnico + auth_controller
+    ├── organizacion/          planta · usuario · plantilla · tecnico + auth_controller
     ├── flota/                 unidad · prestamo · jornada · ubicacion
     │                          + flota_service + chofer_controller + supervisor_controller
     ├── taller/                espacio + taller_service + administrador_controller

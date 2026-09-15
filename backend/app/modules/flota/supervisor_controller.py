@@ -16,13 +16,13 @@ solo_sup = require_roles("supervisor")
 
 
 def _mis_choferes(db: Session, supervisor_id: int):
-    return (db.query(m.Chofer).join(m.Cuadrilla)
-            .filter(m.Cuadrilla.supervisor_id == supervisor_id).all())
+    return (db.query(m.Chofer).join(m.Plantilla)
+            .filter(m.Plantilla.supervisor_id == supervisor_id).all())
 
 
 # ------------------------------------------------------------- CU-SUP-01/02 -- #
-@router.get("/cuadrilla")
-def mi_cuadrilla(usuario=Depends(solo_sup), db: Session = Depends(get_db)):
+@router.get("/plantilla")
+def mi_plantilla(usuario=Depends(solo_sup), db: Session = Depends(get_db)):
     """CU-SUP-02: quien esta conduciendo, con que unidad, y quien no."""
     out = []
     for c in _mis_choferes(db, usuario.id):
@@ -62,7 +62,7 @@ def mi_cuadrilla(usuario=Depends(solo_sup), db: Session = Depends(get_db)):
 
 # ---------------------------------------------------------------- CU-SUP-03 -- #
 @router.get("/prestamos", response_model=list[PrestamoOut])
-def prestamos_cuadrilla(usuario=Depends(solo_sup), db: Session = Depends(get_db)):
+def prestamos_plantilla(usuario=Depends(solo_sup), db: Session = Depends(get_db)):
     ids = [c.usuario_id for c in _mis_choferes(db, usuario.id)]
     if not ids:
         return []
@@ -98,7 +98,7 @@ def vetar_prestamo(prestamo_id: int, motivo: str, usuario=Depends(solo_sup),
 
 # ------------------------------------------------------------- CU-SUP-05/06 -- #
 @router.get("/averias", response_model=list[AveriaOut])
-def averias_cuadrilla(usuario=Depends(solo_sup), db: Session = Depends(get_db)):
+def averias_plantilla(usuario=Depends(solo_sup), db: Session = Depends(get_db)):
     ids = [c.usuario_id for c in _mis_choferes(db, usuario.id)]
     rs = (db.query(m.ReporteAveria)
           .filter(m.ReporteAveria.chofer_id.in_(ids) if ids else False,
@@ -161,7 +161,7 @@ def cumplimiento(usuario=Depends(solo_sup), db: Session = Depends(get_db)):
                             m.ProgramaMantenimiento.estado == "pendiente",
                             m.ProgramaMantenimiento.fecha_limite < date.today()).all())
         # AvisoIncumplimiento, no la tabla `penalizacion` de la v1.1: esa ya no
-        # la escribe nadie y la columna salia en 0 para toda la cuadrilla.
+        # la escribe nadie y la columna salia en 0 para toda la plantilla.
         pen = db.query(m.AvisoIncumplimiento).filter(
             m.AvisoIncumplimiento.chofer_id == cid,
             m.AvisoIncumplimiento.estado == "abierto").count()

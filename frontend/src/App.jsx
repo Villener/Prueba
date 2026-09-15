@@ -13,7 +13,7 @@ import Notificaciones from './modules/sistema/NotificacionesPage.jsx'
 import { Logo } from './ui/Logo.jsx'
 import {
   IcoAgenda, IcoAlertas, IcoAlmacen, IcoArrastres, IcoAverias, IcoCampana, IcoCapturar,
-  IcoCuadrilla, IcoCumplimiento, IcoHistorial, IcoHoja, IcoIncumplimiento, IcoIndicadores,
+  IcoPlantilla, IcoCumplimiento, IcoHistorial, IcoHoja, IcoIncumplimiento, IcoIndicadores,
   IcoOrdenes,
   IcoPendientes, IcoPlano, IcoPrestamos, IcoPresupuestos, IcoReportes, IcoSolicitudes,
   IcoTablero, IcoTaller, IcoTemaClaro, IcoTemaOscuro, IcoUnidad,
@@ -28,7 +28,7 @@ const MODULOS = {
     { to: '/averias', Ico: IcoAverias, txt: 'Averías' },
   ] },
   supervisor: { titulo: 'Supervisor', Componente: Supervisor, tabs: [
-    { to: '/', Ico: IcoCuadrilla, txt: 'Cuadrilla' },
+    { to: '/', Ico: IcoPlantilla, txt: 'Plantilla' },
     { to: '/prestamos', Ico: IcoPrestamos, txt: 'Préstamos' },
     { to: '/averias', Ico: IcoAverias, txt: 'Averías' },
     { to: '/cumplimiento', Ico: IcoCumplimiento, txt: 'Cumplimiento' },

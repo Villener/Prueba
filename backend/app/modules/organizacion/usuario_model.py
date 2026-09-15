@@ -59,7 +59,7 @@ class Chofer(Base):
     num_licencia = Column(String(40), unique=True)
     tipo_licencia = Column(String(20))
     vencimiento_licencia = Column(Date)
-    cuadrilla_id = Column(Integer, ForeignKey("cuadrilla.id"))
+    plantilla_id = Column(Integer, ForeignKey("plantilla.id"))
     disponible = Column(Boolean, default=True)
 
     # Los tres salen de los Excel de Logistica y existen para poder ARMAR EL
@@ -77,7 +77,7 @@ class Chofer(Base):
     perfil = Column(String(16))
 
     usuario = relationship("Usuario", back_populates="chofer")
-    cuadrilla = relationship("Cuadrilla", back_populates="choferes")
+    plantilla = relationship("Plantilla", back_populates="choferes")
 
 class Supervisor(Base):
     __tablename__ = "supervisor"
@@ -85,7 +85,7 @@ class Supervisor(Base):
     zona = Column(String(80))
 
     usuario = relationship("Usuario", back_populates="supervisor")
-    cuadrillas = relationship("Cuadrilla", back_populates="supervisor")
+    plantillas = relationship("Plantilla", back_populates="supervisor")
 
 class ChoferGrua(Base):
     __tablename__ = "chofer_grua"

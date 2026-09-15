@@ -395,11 +395,11 @@ def importar(db: Session, carpeta: str, con_partes: bool = True) -> dict:
 
     wb = openpyxl.load_workbook(ruta_personas, data_only=True)
 
-    # ----------------------------------------- supervisores y sus cuadrillas --
-    # Las cuadrillas ya creadas se reutilizan: correr el importador dos veces
+    # ----------------------------------------- supervisores y sus plantillas --
+    # Las plantillas ya creadas se reutilizan: correr el importador dos veces
     # no debe dejar 13 supervisores repetidos.
-    cuadrillas = {}
-    ya_cuadrillas = {c.nombre: c for c in db.query(m.Cuadrilla).all()}
+    plantillas = {}
+    ya_plantillas = {c.nombre: c for c in db.query(m.Plantilla).all()}
     for hoja in _hojas_flota(wb):
         ws = wb[hoja]
         cab, hr = _cabecera(ws)
@@ -410,16 +410,16 @@ def importar(db: Session, carpeta: str, con_partes: bool = True) -> dict:
             if iS >= len(r) or not r[iS] or iSup >= len(r) or not r[iSup]:
                 continue
             suc, nom = _norm(r[iS]), re.sub(r"\s+", " ", str(r[iSup]).strip())
-            if (suc, nom) in cuadrillas:
+            if (suc, nom) in plantillas:
                 continue
             # La columna SUPERVISOR va al reves que la columna CHOFER: aqui el
             # nombre va primero. Ver _partir_nombre.
             n, a = _partir_nombre(nom, nombre_primero=True)
-            clave_cuadrilla = f"{suc.title()} - {a}"
+            clave_plantilla = f"{suc.title()} - {a}"
 
             # El correo NO depende de como se parta el nombre --sale del texto
             # crudo del Excel-- asi que sirve de identidad estable. Con el se
-            # reconoce al supervisor que ya existe aunque su cuadrilla se llame
+            # reconoce al supervisor que ya existe aunque su plantilla se llame
             # como se llamaba antes de corregir el orden del nombre.
             #
             # Se busca con _correo_BASE, no con _correo: _correo resuelve
@@ -432,17 +432,17 @@ def importar(db: Session, carpeta: str, con_partes: bool = True) -> dict:
                 if (previo.nombre, previo.apellidos) != (n, a):
                     previo.nombre, previo.apellidos = n, a
                 sup_previo = db.query(m.Supervisor).filter_by(usuario_id=previo.id).first()
-                cua = (db.query(m.Cuadrilla).filter_by(supervisor_id=previo.id).first()
+                cua = (db.query(m.Plantilla).filter_by(supervisor_id=previo.id).first()
                        if sup_previo else None)
                 if cua:
-                    cua.nombre = clave_cuadrilla
-                    cuadrillas[(suc, nom)] = cua
-                    ya_cuadrillas[clave_cuadrilla] = cua
+                    cua.nombre = clave_plantilla
+                    plantillas[(suc, nom)] = cua
+                    ya_plantillas[clave_plantilla] = cua
                     continue
 
-            existente = ya_cuadrillas.get(clave_cuadrilla)
+            existente = ya_plantillas.get(clave_plantilla)
             if existente:
-                cuadrillas[(suc, nom)] = existente
+                plantillas[(suc, nom)] = existente
                 continue
             u = m.Usuario(nombre=n, apellidos=a, email=_correo("", nom + suc, usados),
                           password_hash=hash_password(PASSWORD_PRUEBA))
@@ -450,10 +450,10 @@ def importar(db: Session, carpeta: str, con_partes: bool = True) -> dict:
             db.add(m.UsuarioRol(usuario_id=u.id, rol_id=roles["supervisor"].id))
             s = m.Supervisor(usuario_id=u.id, zona=suc.title())
             db.add(s); db.flush()
-            c = m.Cuadrilla(nombre=clave_cuadrilla, supervisor_id=s.usuario_id)
+            c = m.Plantilla(nombre=clave_plantilla, supervisor_id=s.usuario_id)
             db.add(c); db.flush()
-            cuadrillas[(suc, nom)] = c
-            ya_cuadrillas[clave_cuadrilla] = c
+            plantillas[(suc, nom)] = c
+            ya_plantillas[clave_plantilla] = c
             res["supervisores"] += 1
     db.flush()
 
@@ -491,10 +491,10 @@ def importar(db: Session, carpeta: str, con_partes: bool = True) -> dict:
                 db.add(m.UsuarioRol(usuario_id=u.id, rol_id=roles["chofer"].id))
                 cua = None
                 if iSup is not None and iSup < len(r) and r[iSup]:
-                    cua = cuadrillas.get((suc, re.sub(r"\s+", " ", str(r[iSup]).strip())))
+                    cua = plantillas.get((suc, re.sub(r"\s+", " ", str(r[iSup]).strip())))
                 chofer = m.Chofer(usuario_id=u.id, num_licencia=f"LIC-{emp}",
                                   vencimiento_licencia=date.today() + timedelta(days=400),
-                                  cuadrilla_id=cua.id if cua else None)
+                                  plantilla_id=cua.id if cua else None)
                 db.add(chofer); db.flush()
                 res["choferes"] += 1
 

@@ -1281,7 +1281,7 @@ def despachar(averia_id: int, datos: DespachoIn, usuario=Depends(solo_admin),
     # El supervisor del chofer se entera SIEMPRE, decida lo que decida el
     # administrador. Es el aviso que sustituye a la autorizacion que se quito.
     ch = db.query(m.Chofer).filter(m.Chofer.usuario_id == r.chofer_id).first()
-    sup_id = ch.cuadrilla.supervisor_id if ch and ch.cuadrilla else None
+    sup_id = ch.plantilla.supervisor_id if ch and ch.plantilla else None
     unidad = r.unidad.num_economico if r.unidad else "-"
     mensaje = ""
 
