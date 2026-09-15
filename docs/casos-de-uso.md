@@ -1,6 +1,6 @@
 # Diagrama y catálogo de casos de uso — Sistema de Gestión de Flota y Taller (Baja Gas)
 
-**Versión:** 2.1 · **Fecha:** 2026-09-14
+**Versión:** 2.2 · **Fecha:** 2026-09-15
 **Deriva de:** [modelo-clases.md](modelo-clases.md) v2.0
 **Relacionados:** [modelo-er.md](modelo-er.md) · [procesos.md](procesos.md) · [agenda-mantenimiento.md](agenda-mantenimiento.md) · [requerimientos.md](requerimientos.md)
 
@@ -30,6 +30,13 @@
 > que es un acto formal y va al expediente. No es volver atrás del todo —la amonestación se emite
 > *después* de esa conversación, no en lugar de ella—, pero sí reabre la pregunta de si el chofer
 > necesita un canal de defensa dentro de la app. Pregunta abierta #13 de `requerimientos.md`.
+
+> **v2.2 (2026-09-15) — módulo propuesto de auditorías de campo a reparto.**
+> 12 casos CU-AUD en §3.11 más CU-AUT-09, que **se cuentan aparte de los 106**: el módulo no está
+> aprobado. Sale de los dos documentos que entregó el cliente, y depende de una pregunta que
+> todavía no tiene respuesta — si la evidencia fotográfica puede vivir en web, donde **la galería
+> no se puede bloquear**. Análisis en [`auditorias-de-campo.md`](auditorias-de-campo.md), modelo de
+> datos en el Paquete I de [`modelo-er-mermaid.md`](modelo-er-mermaid.md).
 
 ---
 
@@ -384,9 +391,13 @@ una hoja de Excel por cada papel que le baja el taller.
 
 **Total: 106 casos de uso** (99 + los 7 de la junta del 2026-09-14).
 
+Más **13 propuestos** y no aprobados del módulo de auditorías de campo: los 12 CU-AUD de §3.11
+y CU-AUT-09. Se cuentan aparte a propósito — el módulo depende de una respuesta del cliente
+(ver [`auditorias-de-campo.md`](auditorias-de-campo.md)).
+
 ---
 
-### 3.10 Automáticos — CU-AUT (8)
+### 3.10 Automáticos — CU-AUT (9)
 
 | ID | Caso de uso | Regla | Prioridad |
 |---|---|---|---|
@@ -398,6 +409,7 @@ una hoja de Excel por cada papel que le baja el taller.
 | **CU-AUT-06** | **Recalibrar duraciones de servicio** | — | Should |
 | **CU-AUT-07** | **Escalar auxilio sin respuesta** | — | Must |
 | **CU-AUT-08** | **Proponer la amonestación por cita confirmada incumplida** | RN-14 | Must |
+| **CU-AUT-09** | **Alertar por reincidencia en auditorías de campo** | RN-14, CU-AUD-12 | Should |
 
 **`CU-AUT-08` propone, no sanciona.** El reloj detecta que la cita confirmada pasó sin que la
 unidad entrara y arma la amonestación con todo lo que hace falta para sostenerla: la cita, el
@@ -405,6 +417,67 @@ unidad entrara y arma la amonestación con todo lo que hace falta para sostenerl
 Una sanción que sale sola de un `cron` es la que nadie puede explicar cuando el chofer reclama —y
 según RN-14 hay casos en que **no debe existir**: si el taller nunca dio cita, o si no hubo cupo
 antes de la fecha límite, el problema es del taller.
+
+---
+
+### 3.11 Auditorías de campo a reparto — CU-AUD (12) · **módulo propuesto**
+
+> **No está aprobado todavía.** Sale de los dos documentos que entregó el cliente; el análisis, los
+> tres choques con el alcance actual y las cinco preguntas abiertas están en
+> [`auditorias-de-campo.md`](auditorias-de-campo.md). El modelo de datos es el Paquete I de
+> [`modelo-er-mermaid.md`](modelo-er-mermaid.md).
+
+Auditar es de **reparto**, no de taller: el supervisor sale a la colonia donde el chofer está
+repartiendo y documenta lo que ve. Entra aquí porque los actores son los mismos —los 13
+supervisores y los 435 choferes ya tienen cuenta— y porque el sistema ya sabe la mitad de lo que
+el formato pregunta.
+
+| ID | Caso de uso | Actores | Prioridad |
+|---|---|---|---|
+| CU-AUD-01 | Levantar una auditoría de campo | Supervisor, Chofer | Must |
+| CU-AUD-02 | Capturar evidencia fotográfica con GPS, hora y sello | Supervisor | Must |
+| CU-AUD-03 | Contestar control operativo y seguridad (10 puntos) | Supervisor | Must |
+| CU-AUD-04 | Contestar ejecución comercial en campo (8 puntos) | Supervisor | Must |
+| CU-AUD-05 | Registrar el inventario de envases 10/20/45 kg | Supervisor | Must |
+| CU-AUD-06 | Registrar la observación de productividad | Supervisor | **Condicionado** |
+| CU-AUD-07 | Registrar hallazgo, compromiso y resultado | Supervisor | Must |
+| CU-AUD-08 | Firmar y cerrar la auditoría | Supervisor, Chofer | Must |
+| CU-AUD-09 | Sincronizar las auditorías levantadas sin conexión | Supervisor, Programador | Must |
+| CU-AUD-10 | Consultar y filtrar auditorías | Supervisor, Gerente | Must |
+| CU-AUD-11 | Exportar el reporte de auditorías | Gerente | Should |
+| CU-AUD-12 | Consultar el historial de auditorías de un chofer | Gerente, Supervisor | Must |
+
+**`CU-AUD-01` no arranca en blanco.** Al escoger al chofer, el sistema ya trae su ruta
+(`Chofer.ruta`), la unidad que trae hoy —el **poseedor**, no el titular (RN-01)— y el odómetro
+(`Unidad.km_actual`). Y contesta solo la primera casilla del formato: «licencia vigente» sale de
+`Chofer.vencimiento_licencia`. Hoy el supervisor le pide la licencia al chofer y la mira; una
+auditoría que solo transcribe el papel no aporta eso.
+
+**`CU-AUD-02` es el caso de uso que decide el proyecto.** El cliente pidió que la foto se tome
+desde la app y que **no** se pueda subir de la galería. En un navegador eso no se puede garantizar
+—`capture` es una sugerencia, no una restricción— así que de la respuesta del cliente depende si
+este módulo vive aquí o es una app aparte. Mientras tanto, el caso de uso asume el camino de
+compensar: GPS con precisión obligatoria (RN-18), hora de servidor cuando hay señal, hash para
+detectar la misma foto repetida, y el sello puesto **en el servidor**, no en el cliente. Un sello
+que dibuja el teléfono lo puede dibujar cualquiera.
+
+**`CU-AUD-06` está condicionado a propósito.** Pide kg vendidos y piezas de 10 y 45 kg, y eso está
+declarado fuera de alcance en `requerimientos.md` §1 y como Won't en RF-SUP-11. Se diseñó en su
+propia tabla para que, si el cliente confirma que no entra, se borre una tabla en vez de
+desenredar ocho columnas de la cabecera.
+
+**`CU-AUD-09` es lo más caro del módulo y no se ve.** En el taller se podía vivir sin offline —el
+administrador está frente a un escritorio—. En campo no: la auditoría se levanta donde hay zonas
+sin cobertura, y si la app exige conexión, se levanta en papel y volvimos al principio. Cola
+local, reintentos, fotos pesadas esperando señal y una regla de qué pasa si la misma auditoría se
+sincroniza dos veces (de ahí el `UNIQUE(auditoria_id, punto_id)` del Paquete I).
+
+**`CU-AUD-08` cierra y congela.** Una auditoría firmada no se reescribe, igual que el formato de
+mantenimiento en CU-ADM-29. Para corregir se levanta otra.
+
+**`CU-AUD-12` no es una pantalla nueva.** Es el mismo expediente del chofer de RF-GER-16, con las
+auditorías dentro. Dos historiales paralelos del mismo chofer —uno de mantenimiento y otro de
+reparto— es como se pierden las reincidencias.
 
 ---
 

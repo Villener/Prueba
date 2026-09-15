@@ -1,6 +1,13 @@
 # Especificación de Requerimientos — Sistema de Gestión de Flota y Taller (Baja Gas)
 
-**Versión:** 1.2 · **Fecha:** 2026-09-14 · **Autor:** Ingeniería de Requerimientos
+**Versión:** 1.3 · **Fecha:** 2026-09-15 · **Autor:** Ingeniería de Requerimientos
+
+> **v1.3 (2026-09-15).** Entran **RN-17** y **RN-18**, las dos del módulo **propuesto** de
+> auditorías de campo a reparto: la evidencia no se edita y el sello lo pone el servidor (RN-17),
+> y no se guarda una auditoría sin GPS ni con precisión peor que el umbral (RN-18). Van marcadas
+> como propuestas porque el módulo **no está aprobado**: depende de si la evidencia puede vivir en
+> web, donde la galería no se puede bloquear. Análisis en `auditorias-de-campo.md`, casos de uso
+> en §3.11 de `casos-de-uso.md`, modelo de datos en el Paquete I de `modelo-er-mermaid.md`.
 
 > **v1.2 (2026-09-14).** Incorpora las diez notas de la junta con el cliente: renombre de
 > cuadrilla a **plantilla**/**flotilla**, el gerente es **Luis Tiscareño**, meta de **5 a 7
@@ -105,6 +112,8 @@ integración contable, telemetría del medidor de gas.
 | RN-14 | El chofer que falta a una cita **confirmada** recibe una **amonestación**: administrativa y documentada, al expediente, **no económica**. Se aplica al **poseedor** de la unidad (RN-01), nunca al titular por algo que ocurrió durante un préstamo. Si el taller nunca dio cita, o no hubo cupo antes de la fecha límite, **no hay amonestación**. El chofer la puede ver y se puede inconformar. | Must |
 | RN-15 | Un servicio preventivo **no se cierra sin evidencia fotográfica**. La firma prueba que alguien cerró el formato; la foto prueba que el trabajo se hizo. La evidencia se **comprime en el teléfono antes de subirse** (RF-GEN-15): se guarda la imagen redimensionada, nunca el original de la cámara. | Must |
 | RN-16 | **Choque y avería son dos procedimientos distintos**, no dos variantes del mismo. El choque exige peritaje **siempre** —no solo en vialidad pública—, bloquea el movimiento de la unidad hasta tenerlo, levanta parte de accidente con daños y terceros, y termina en carrocería con deducible de por medio. La avería solo bloquea en vialidad pública, levanta reporte de falla y termina en mecánica. | Must |
+| RN-17 | **La evidencia de una auditoría de campo no se puede editar después de guardada**: ni la hora, ni la ubicación, ni la foto. Se conserva **la imagen original** además de la sellada, y el sello lo pone el **servidor**, no el teléfono — un sello que dibuja el cliente lo puede dibujar cualquiera. *Propuesto, módulo de auditorías (§ `auditorias-de-campo.md`).* | Must |
+| RN-18 | Una auditoría **no se guarda sin GPS activo**, y se rechaza si la **precisión supera el umbral** configurado (el cliente propone 30–50 m). La precisión se guarda junto con las coordenadas: una dirección escrita a mano no prueba dónde se levantó nada. *Propuesto, módulo de auditorías.* | Must |
 
 ---
 

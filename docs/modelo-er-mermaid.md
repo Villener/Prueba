@@ -976,7 +976,145 @@ erDiagram
 
 ---
 
-## 9. Inventario verificado
+## 9. Paquete I — Auditorías de campo a reparto (6 tablas) · **PROPUESTO**
+
+> **Este paquete no existe todavía en `bajagas.db`.** Es el diseño derivado de los dos documentos
+> que entregó el cliente; el análisis y lo que falta decidir están en
+> [`auditorias-de-campo.md`](auditorias-de-campo.md). No lo cuentes en el inventario verificado de
+> §10 hasta que esté migrado.
+
+Tres decisiones sostienen el diseño:
+
+**El cuestionario es catálogo, no columnas.** Los 18 puntos SÍ/NO de las secciones 1 y 3 del
+formato viven en `PUNTO_AUDITORIA` y las respuestas en renglones. Con 18 columnas booleanas, cada
+vez que el cliente agregue o quite una pregunta habría que migrar la base — y ese formato dice
+«FORMATO 2026» en el encabezado, o sea que ya va por versiones.
+
+**El GPS va en la foto, no en la auditoría.** El documento pide latitud, longitud y precisión
+«al momento de la foto», y un supervisor se mueve entre una toma y otra. Ponerlo en la cabecera
+mediría dónde empezó la auditoría, no dónde se tomó cada evidencia — que es justo lo que hay que
+poder defender. Por eso `EVIDENCIA`, que ya es polimórfica, gana columnas en vez de nacer una
+tabla de fotos nueva.
+
+**La productividad va aparte.** La sección 4 del formato está declarada fuera de alcance en
+`requerimientos.md` §1 y como Won't en RF-SUP-11. Si el cliente confirma que no entra, se borra
+una tabla; si estuviera mezclada en la cabecera, habría que desenredar ocho columnas.
+
+```mermaid
+erDiagram
+    ZONA_REPARTO {
+        int id PK
+        string nombre UK "NN"
+        string ciudad
+        string estado_geo "B.C."
+        bool activa "NN"
+    }
+    AUDITORIA_CAMPO {
+        int id PK
+        string folio UK "NN, AUD-2026-001245"
+        int supervisor_id FK "NN, quien la levanta"
+        int chofer_id FK "NN, el POSEEDOR del dia, RN-01"
+        int unidad_id FK "NN"
+        string ruta "copiada de chofer.ruta al levantarla"
+        int zona_id FK
+        string colonia_calle
+        int odometro "copiado de unidad.km_actual"
+        datetime fecha_hora_dispositivo "NN"
+        datetime fecha_hora_servidor "la que vale si hay señal"
+        bool sin_conexion "NN, se levantó offline"
+        datetime sincronizada_en
+        bool licencia_vigente "auto: chofer.vencimiento_licencia"
+        text hallazgo_principal
+        text accion_compromiso
+        string resultado "NN, CUMPLE|OBSERVACION|CRITICO"
+        date seguimiento_fecha
+        int seguimiento_responsable_id FK
+        string firma_chofer "trazo o registro"
+        string firma_supervisor
+        datetime cerrada_en "NN una vez firmada: ya no se edita"
+        datetime creado_en
+        datetime actualizado_en
+    }
+    PUNTO_AUDITORIA {
+        int id PK
+        string version_formato "NN, 2026"
+        int seccion "NN, 1=control 3=comercial"
+        int orden "NN"
+        string texto "NN"
+        bool activo "NN"
+    }
+    RESPUESTA_AUDITORIA {
+        int id PK
+        int auditoria_id FK "NN, UK con punto_id"
+        int punto_id FK "NN"
+        bool cumple "NN"
+        string observacion
+    }
+    INVENTARIO_ENVASES {
+        int id PK
+        int auditoria_id FK "NN, UK con presentacion"
+        string presentacion "NN, 10|20|45 kg"
+        int llenos "NN"
+        int vacios "NN"
+        string observacion
+    }
+    OBSERVACION_PRODUCTIVIDAD {
+        int id PK
+        int auditoria_id FK "UK, NN"
+        float venta_acumulada_kg
+        time hora_corte
+        int piezas_10kg
+        int piezas_45kg
+        int clientes_atendidos
+        int paradas_observadas
+        int ventas_observadas
+        int prospectos_detectados
+        int minutos_observados
+        int minutos_improductivos
+    }
+    EVIDENCIA {
+        int id PK
+        string entidad_tipo "NN, 'auditoria' reusa lo que ya existe"
+        int entidad_id "NN, sin FK real"
+        string url_archivo "NN, la ORIGINAL, se conserva"
+        string url_sellada "la que lleva el sello visible"
+        string hash_imagen "detecta duplicados"
+        float latitud
+        float longitud
+        float precision_gps "umbral 30-50 m, RN-18"
+        string direccion_aproximada
+        datetime hora_dispositivo
+        datetime hora_servidor
+        bool sin_conexion
+        string descripcion
+        int subida_por_usuario_id FK
+        datetime fecha
+    }
+
+    ZONA_REPARTO       ||--o{ AUDITORIA_CAMPO : "ubica"
+    AUDITORIA_CAMPO    ||--o{ RESPUESTA_AUDITORIA : "contesta"
+    PUNTO_AUDITORIA    ||--o{ RESPUESTA_AUDITORIA : "se pregunta en"
+    AUDITORIA_CAMPO    ||--o{ INVENTARIO_ENVASES : "cuenta"
+    AUDITORIA_CAMPO    ||--o| OBSERVACION_PRODUCTIVIDAD : "observa"
+    AUDITORIA_CAMPO    ||--o{ EVIDENCIA : "prueba con"
+```
+
+**Restricciones que sostienen el paquete:**
+
+- `UNIQUE(auditoria_id, punto_id)` — una respuesta por pregunta. Sin esto, sincronizar dos veces
+  la misma auditoría offline la duplicaría renglón por renglón.
+- `UNIQUE(auditoria_id, presentacion)` — un conteo por presentación de envase.
+- `UNIQUE(hash_imagen)` **no** va: la misma foto puede aparecer legítimamente en dos auditorías
+  distintas. El hash sirve para *detectar* el caso y revisarlo, no para impedirlo.
+- **Una auditoría con `cerrada_en` no se reescribe.** Misma regla que el formato de mantenimiento
+  (CU-ADM-29): un papel firmado editado sin rastro deja de servir como prueba. Para corregir, se
+  levanta otra.
+- `resultado` y `precision_gps` son obligatorios antes de cerrar. Una auditoría sin precisión GPS
+  registrada no prueba dónde se levantó.
+
+---
+
+## 10. Inventario verificado
 
 | Paquete | Tablas | Módulo |
 |---|---|---|
@@ -989,3 +1127,7 @@ erDiagram
 | G · Emergencias, auxilio y arrastre | 8 | `modules/emergencias/` |
 | H · Transversales | 4 | `modules/sistema/` |
 | **Total** | **54** | coincide con `bajagas.db` |
+
+| Paquete | Tablas | Estado |
+|---|---|---|
+| I · Auditorías de campo a reparto | 6 | **Propuesto**, §9. No está en la base ni cuenta en el total |
