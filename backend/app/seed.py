@@ -107,11 +107,11 @@ LAYOUT_TALLER = [
 #
 # (nombre, apellidos, num_empleado, rol, password)
 USUARIOS_REALES = [
-    # PENDIENTE: Luis Siscareno es el gerente y NO aparece en ningun archivo
+    # PENDIENTE: Luis Tiscareno es el gerente y NO aparece en ningun archivo
     # entregado --ni en la hoja EMPLEADO de REQUIS, que son los 100 del taller,
     # ni en INFO CHOFERES--. El nombre es real; falta su numero de empleado.
     # Mientras tanto entra por gerente@bajagas.mx.
-    ("Luis",   "Siscareno",              None,   "gerente",        "bajagas2026"),
+    ("Luis",   "Tiscareno",              None,   "gerente",        "bajagas2026"),
     ("Erick",  "Avalos Gomez",           925,    "administrador",  "bajagas2026"),
     ("Pedro",  "Montano Lopez",          10853,  "administrador",  "bajagas2026"),
     ("Victor", "Sallas Molina",          647,    "administrador",  "bajagas2026"),

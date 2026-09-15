@@ -103,7 +103,7 @@ correo es la misma para todos:
 
 | Correo | Módulo | Persona | Qué ver ahí |
 |---|---|---|---|
-| `gerente@bajagas.mx` | Gerente | Luis Siscareño | Tablero, autorizar presupuestos, alertas |
+| `gerente@bajagas.mx` | Gerente | Luis Tiscareño | Tablero, autorizar presupuestos, alertas |
 | `e925@bajagas.mx` | Administrador | Erick Ávalos | Solicitudes, plano, presupuestos, hoja del día |
 | `e13905@bajagas.mx` | Capturista | Jaime Yair Domínguez | Las 99 requisiciones del libro `REQUIS` |
 | `ricardoandre@bajagas.mx` | Supervisor | Ricardo Andrés Flores | Carranza: la cuadrilla más grande, **55 choferes** |
