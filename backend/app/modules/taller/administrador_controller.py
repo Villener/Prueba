@@ -385,6 +385,22 @@ def meta_preventivo_serie(dias: int = 30, usuario=Depends(solo_admin),
     return meta_preventivo.serie(db, dias)
 
 
+@router.post("/meta-preventivo/generar-programas")
+def generar_programas(confirmar: bool = False, usuario=Depends(solo_admin),
+                      db: Session = Depends(get_db)):
+    """Crea el programa de mantenimiento que le falta a cada unidad de la flota.
+
+    Por omision SIMULA: devuelve lo que haria sin escribir una fila. Son ~700
+    registros sobre la base, y eso se mira antes de hacerse. Con
+    `?confirmar=true` los escribe.
+    """
+    r = meta_preventivo.generar_programas(db, simular=not confirmar)
+    if confirmar and r["total"]:
+        registrar_bitacora(db, usuario.id, "generar_programas", "programa_mantenimiento",
+                           None, f"{r['total']} programas creados para la flota")
+    return r
+
+
 @router.get("/exportar/resumen")
 def exportar_resumen(taller_id: int | None = None, usuario=Depends(solo_admin),
                      db: Session = Depends(get_db)):

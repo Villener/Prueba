@@ -209,3 +209,123 @@ def serie(db: Session, dias: int = 30,
         "cobertura": cobertura(db),
         "demanda": demanda_diaria(db),
     }
+
+
+# --------------------------------------------------------------------------- #
+# Generacion de programas para la flota
+# --------------------------------------------------------------------------- #
+# Sin esto la agenda no tiene que repartir: hoy hay 4 programas para 714
+# unidades con plan, y los cuatro son de la semilla.
+#
+# LA FECHA ES LA DECISION DIFICIL, y conviene dejarla escrita.
+#
+# Habia dos caminos y los dos estan mal solos:
+#
+#   1. Anclar en la ultima visita al taller. Suena a lo correcto --es dato
+#      real-- pero la mediana de esa ultima visita son 243 dias, muy por encima
+#      de los 90 del plan de reparto. Saldrian 361 unidades VENCIDAS el primer
+#      dia. Y seria mentira: `movimiento_taller` es el historial de
+#      REPARACIONES importado del Excel, no de preventivos. Una unidad que
+#      entro por un choque en enero no tuvo su servicio preventivo en enero.
+#
+#   2. Repartir desde hoy a ciegas. Da una curva suave, pero ignora que hay
+#      unidades que llevan cinco anos sin pisar el taller.
+#
+# Se toma el tercero: se reparte desde hoy --asi el primer ciclo no nace con
+# una deuda inventada-- pero se ORDENA por la ultima visita, de la mas olvidada
+# a la mas reciente. La que lleva 1,749 dias sin pasar agarra los primeros
+# lugares; la que paso hace 19 dias, los ultimos.
+#
+# El primer ciclo es entonces un REPARTO, no una medicion. El ciclo de verdad
+# empieza cuando cada unidad cierre su primer preventivo y quede su
+# fecha_cumplimiento: de ahi en adelante la fecha sale del dato, no de aqui.
+
+
+def _ultima_visita(db: Session) -> dict:
+    """{unidad_id: fecha de su ultimo ingreso al taller}. Para ordenar, no para fechar."""
+    ultima: dict = {}
+    for mov in db.query(m.MovimientoTaller).all():
+        uid = getattr(mov, "unidad_id", None)
+        f = getattr(mov, "fecha_ingreso", None)
+        if uid and f and (uid not in ultima or f > ultima[uid]):
+            ultima[uid] = f
+    return ultima
+
+
+def _con_programa_abierto(db: Session) -> set:
+    """Unidades que ya tienen un programa vivo. No se les crea otro."""
+    abiertos = (db.query(m.ProgramaMantenimiento)
+                .filter(m.ProgramaMantenimiento.estado.notin_(["cumplido", "cancelado"]))
+                .all())
+    return {p.unidad_id for p in abiertos}
+
+
+def generar_programas(db: Session, hoy: datetime.date | None = None,
+                      simular: bool = True) -> dict:
+    """Crea un ProgramaMantenimiento por unidad activa que tenga plan y no tenga uno abierto.
+
+    Con `simular=True` (por omision) no escribe nada: devuelve exactamente lo
+    que haria. Es a proposito -- son ~700 filas sobre la base de produccion y
+    eso se mira antes de hacerse.
+    """
+    hoy = hoy or datetime.date.today()
+    ultima = _ultima_visita(db)
+    ya_tienen = _con_programa_abierto(db)
+
+    resumen = []
+    por_dia: dict = {}
+    total = 0
+
+    planes = (db.query(m.PlanMantenimiento)
+              .filter(m.PlanMantenimiento.activo.is_(True)).all())
+    for plan in planes:
+        if not plan.periodicidad_dias or not plan.tipo_unidad_id:
+            continue
+        unidades = (db.query(m.Unidad)
+                    .filter(m.Unidad.tipo_unidad_id == plan.tipo_unidad_id,
+                            m.Unidad.activo.is_(True)).all())
+        pendientes = [u for u in unidades if u.id not in ya_tienen]
+        if not pendientes:
+            resumen.append({"plan": plan.nombre, "candidatas": 0, "creados": 0,
+                            "ya_tenian": len(unidades)})
+            continue
+
+        # La mas olvidada primero. Sin visita registrada cuenta como la mas
+        # antigua de todas: nadie sabe cuando fue, y esa es justo la que urge.
+        pendientes.sort(key=lambda u: ultima.get(u.id) or datetime.date(1900, 1, 1))
+
+        n = len(pendientes)
+        periodo = plan.periodicidad_dias
+        creados = 0
+        for i, u in enumerate(pendientes):
+            # Reparto uniforme sobre la ventana del plan: el primer dia util es
+            # manana, nunca hoy -- una unidad no puede vencer el dia que nace.
+            offset = 1 + (i * periodo) // n
+            limite = hoy + datetime.timedelta(days=offset)
+            por_dia[limite] = por_dia.get(limite, 0) + 1
+            if not simular:
+                km = None
+                if plan.periodicidad_km:
+                    km = (u.km_actual or 0) + plan.periodicidad_km
+                db.add(m.ProgramaMantenimiento(
+                    unidad_id=u.id, plan_id=plan.id,
+                    fecha_limite=limite, km_programado=km,
+                    estado="pendiente"))
+            creados += 1
+            total += 1
+        resumen.append({"plan": plan.nombre, "candidatas": n, "creados": creados,
+                        "ya_tenian": len(unidades) - n})
+
+    if not simular and total:
+        db.commit()
+
+    picos = sorted(por_dia.values(), reverse=True) if por_dia else [0]
+    return {
+        "simulado": simular,
+        "total": total,
+        "por_plan": resumen,
+        "primer_limite": min(por_dia).isoformat() if por_dia else None,
+        "ultimo_limite": max(por_dia).isoformat() if por_dia else None,
+        "maximo_en_un_dia": picos[0],
+        "promedio_por_dia": round(total / len(por_dia), 1) if por_dia else 0,
+    }
