@@ -26,12 +26,10 @@ function MiUnidad({ usuario }) {
   const unidad = useApi(() => api.get('/chofer/mi-unidad'))
   const mtto = useApi(() => api.get('/chofer/mantenimientos'))
   const jornada = useApi(() => api.get('/chofer/jornada/actual'))
-  const penas = useApi(() => api.get('/chofer/penalizaciones'))
   const [checklist, setChecklist] = useState(false)
-  const [disputa, setDisputa] = useState(null)
 
   const accion = async (fn, ok) => {
-    try { await fn(); toast(ok); jornada.recargar(); unidad.recargar(); penas.recargar() }
+    try { await fn(); toast(ok); jornada.recargar(); unidad.recargar() }
     catch (e) { toast(e.message, 'err') }
   }
 
@@ -57,7 +55,8 @@ function MiUnidad({ usuario }) {
       {vencidos.length > 0 && (
         <Aviso tipo="err">
           Tienes {vencidos.length} mantenimiento(s) vencido(s). Si no ingresas la unidad al
-          taller, el sistema genera una penalización a tu nombre (RN-05).
+          taller, el sistema genera un aviso de incumplimiento a tu nombre (RN-05), y tu
+          supervisor puede convertirlo en una amonestación.
         </Aviso>
       )}
 
@@ -128,60 +127,19 @@ function MiUnidad({ usuario }) {
         )}
       </Card>
 
-      <Card title="Mis penalizaciones">
-        {(penas.data || []).length === 0 ? (
-          <Empty icono={IcoListo}>Sin penalizaciones. Vas al corriente.</Empty>
-        ) : (
-          (penas.data || []).map((p) => (
-            <div className="list-item" key={p.id}>
-              <div className="grow">
-                <div className="t">{p.unidad} · {p.dias_atraso} días de atraso</div>
-                <div className="s">{p.motivo}</div>
-                <div className="s">{fmtFecha(p.fecha_generacion)}</div>
-              </div>
-              <div style={{ display: 'grid', gap: 6, justifyItems: 'end' }}>
-                <EstadoBadge estado={p.estado} />
-                {p.estado === 'aplicada' && (
-                  <button className="btn sm" onClick={() => setDisputa(p)}>No estoy de acuerdo</button>
-                )}
-              </div>
-            </div>
-          ))
-        )}
-      </Card>
-
-      {disputa && (
-        <ModalInconformidad penalizacion={disputa} onCerrar={() => setDisputa(null)}
-                            onListo={() => { setDisputa(null); penas.recargar() }} />
-      )}
     </>
   )
 }
 
-function ModalInconformidad({ penalizacion, onCerrar, onListo }) {
-  const toast = useToast()
-  const [motivo, setMotivo] = useState('')
-  const enviar = async () => {
-    try {
-      await api.post(`/chofer/penalizaciones/${penalizacion.id}/inconformidad`, undefined, { motivo })
-      toast('Inconformidad enviada a gerencia')
-      onListo()
-    } catch (e) { toast(e.message, 'err') }
-  }
-  return (
-    <Modal titulo="Levantar inconformidad" onClose={onCerrar}>
-      <p className="sub">{penalizacion.motivo}</p>
-      <div className="field">
-        <label>¿Por qué no procede?</label>
-        <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)}
-                  placeholder="Ej. la unidad estaba prestada a otro chofer en esas fechas" />
-      </div>
-      <button className="btn primary block" disabled={!motivo.trim()} onClick={enviar}>
-        Enviar a gerencia
-      </button>
-    </Modal>
-  )
-}
+/* La tarjeta «Mis penalizaciones» y su modal vivían aquí. Se quitaron el
+ * 2026-09-17: leían de `Penalizacion`, la tabla de la v1.1 que la v2.0
+ * reemplazó y que hoy tiene CERO filas en producción — así que la tarjeta
+ * siempre decía «sin penalizaciones» y no probaba nada.
+ *
+ * Lo que sí existe está en la pestaña Taller: «Mis amonestaciones», que sale de
+ * RN-14 y sí tiene su propio camino de inconformidad. Dejar las dos era tener
+ * dos palabras y dos pantallas para lo mismo, con una de ellas siempre vacía.
+ */
 
 /* -------------------------------------------------- CU-CHO-07/08/09 -------- */
 function Prestamos() {

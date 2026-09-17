@@ -525,7 +525,8 @@ class KpiOut(BaseModel):
     espacios_ocupados: int
     espacios_totales: int
     choferes_incumpliendo: int
-    penalizaciones_mes: int
+    # Antes "penalizaciones_mes". La palabra la elimino la v2.0 y seguia aqui.
+    avisos_mes: int
     presupuestos_pendientes: int
     piezas_en_camino: int
     alertas_abiertas: int

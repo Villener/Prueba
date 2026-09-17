@@ -251,7 +251,7 @@ function Cumplimiento() {
               r: (f) => f.dias_atraso_max > 0
                 ? <Badge tono="danger">{f.dias_atraso_max} d</Badge>
                 : <Badge tono="ok">Al día</Badge> },
-            { k: 'penalizaciones', t: 'Penaliz.', num: true },
+            { k: 'avisos', t: 'Avisos', num: true },
           ]}
           filas={data || []} />
       </Card>

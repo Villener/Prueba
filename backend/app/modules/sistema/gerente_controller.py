@@ -53,7 +53,7 @@ def kpis(dias: int = 30, usuario=Depends(solo_ger), db: Session = Depends(get_db
         # el indicador daba 0 siempre aunque hubiera avisos abiertos. Y es el
         # numero que motiva el proyecto (RF-GER-02), asi que mentia justo donde
         # mas importa. Se conserva la clave vieja para no romper la pantalla.
-        "penalizaciones_mes": db.query(func.count(m.AvisoIncumplimiento.id)).filter(
+        "avisos_mes": db.query(func.count(m.AvisoIncumplimiento.id)).filter(
             m.AvisoIncumplimiento.fecha_generacion >= desde.date()).scalar() or 0,
         "avisos_incumplimiento_mes": db.query(func.count(m.AvisoIncumplimiento.id)).filter(
             m.AvisoIncumplimiento.fecha_generacion >= desde.date()).scalar() or 0,
@@ -246,16 +246,23 @@ def unidades_atendidas(dias: int = 30, usuario=Depends(solo_ger), db: Session = 
     }
 
 
-@router.get("/penalizaciones")
-def ranking_avisos(usuario=Depends(solo_ger), db: Session = Depends(get_db)):
-    """Cuantos avisos acumula cada chofer y cuantos siguen sin atender.
+@router.get("/incumplimientos-acumulados")
+def incumplimientos_acumulados(usuario=Depends(solo_ger), db: Session = Depends(get_db)):
+    """El HISTORICO por chofer: avisos acumulados, sin atender y amonestaciones.
 
-    NO es un ranking de castigos: el sistema solo avisa y la conversacion la
-    tienen el gerente y Erick en persona. Por eso `abiertos` va aparte del
-    total -- lo accionable es lo que nadie ha cerrado.
+    Son tres numeros distintos y conviene no confundirlos, porque la pantalla los
+    ponia juntos bajo la palabra "penalizaciones" y se leian como uno:
 
-    Leia `Penalizacion`, tabla de la v1.1 que ya nadie escribe: la lista salia
-    vacia siempre.
+      acumulados   -> todas las veces que el chofer ha faltado a una cita
+                      confirmada. Es historia; no baja nunca.
+      sin_atender  -> de esas, las que nadie ha cerrado todavia. Es lo accionable.
+      amonestadas  -> de esas, las que una persona convirtio en acto formal
+                      (RN-14). Puede ser menos que los avisos: no toda falta se
+                      amonesta, y eso es a proposito.
+
+    "Penalizacion" era la palabra de la v1.1, y su tabla ya nadie la escribe --
+    hoy tiene cero filas en produccion. Se deja de usar en la interfaz para que
+    no conviva con "aviso" y "amonestacion" significando lo mismo.
     """
     filas = (db.query(m.AvisoIncumplimiento.chofer_id,
                       func.count(m.AvisoIncumplimiento.id))
@@ -265,7 +272,11 @@ def ranking_avisos(usuario=Depends(solo_ger), db: Session = Depends(get_db)):
         abiertos = (db.query(func.count(m.AvisoIncumplimiento.id))
                     .filter(m.AvisoIncumplimiento.chofer_id == cid,
                             m.AvisoIncumplimiento.estado == "abierto").scalar() or 0)
+        amonestadas = (db.query(func.count(m.Amonestacion.id))
+                       .filter(m.Amonestacion.chofer_id == cid,
+                               m.Amonestacion.estado != "anulada").scalar() or 0)
         out.append({"chofer_id": cid, "chofer": svc.nombre_chofer(db, cid),
+                    "amonestadas": amonestadas,
                     "total": n, "abiertos": abiertos})
     return sorted(out, key=lambda x: (-x["abiertos"], -x["total"]))
 

@@ -172,7 +172,7 @@ def cumplimiento(usuario=Depends(solo_sup), db: Session = Depends(get_db)):
             "mantenimientos_vencidos": len(vencidos),
             "dias_atraso_max": max([(date.today() - v.fecha_limite).days for v in vencidos],
                                    default=0),
-            "penalizaciones": pen,
+            "avisos": pen,
         })
     return sorted(out, key=lambda x: -x["dias_atraso_max"])
 

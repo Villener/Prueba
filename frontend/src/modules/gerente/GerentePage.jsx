@@ -30,7 +30,7 @@ function Tablero() {
   const correrJobs = async () => {
     try {
       const r = await api.post('/jobs/correr')
-      toast(`Penalizaciones: ${r.penalizaciones_generadas} · Alertas: ${r.alertas_nuevas} · ` +
+      toast(`Avisos: ${r.penalizaciones_generadas} · Alertas: ${r.alertas_nuevas} · ` +
             `Préstamos cerrados: ${r.prestamos_cerrados}`)
       kpis.recargar()
     } catch (e) { toast(e.message, 'err') }
@@ -120,10 +120,29 @@ function Tablero() {
 }
 
 /* ---------------------------------------------------------- CU-GER-02 ------ */
+/** Dos preguntas distintas, separadas a propósito.
+ *
+ *  Antes iban una encima de otra y se leían como contradicción: arriba decía
+ *  «toda la flota al corriente» y justo debajo listaba dos «penalizaciones».
+ *  No era un error de datos — son dos cosas:
+ *
+ *    VENCIDO HOY  → qué está fuera de plazo en este momento. Puede ser cero y
+ *                   estar bien: significa que nadie trae un servicio atrasado.
+ *    ACUMULADO    → cuántas veces ha faltado cada chofer desde siempre. Es
+ *                   historia, y no baja nunca aunque hoy todo esté al día.
+ *
+ *  Y el vocabulario: «penalización» era la palabra de la v1.1. Su tabla ya no
+ *  se escribe —cero filas en producción— pero el nombre seguía en pantalla
+ *  conviviendo con «aviso» y «amonestación» como si fueran lo mismo. Aquí se
+ *  usan solo los dos que existen de verdad.
+ */
 function Incumplimiento() {
   const { data, cargando } = useApi(() => api.get('/gerente/incumplimiento'))
-  const ranking = useApi(() => api.get('/gerente/penalizaciones'))
+  const historico = useApi(() => api.get('/gerente/incumplimientos-acumulados'))
   if (cargando) return <Spinner />
+  const vencidos = data || []
+  const hist = historico.data || []
+
   return (
     <>
       <h1 style={{ marginBottom: 14 }}>Incumplimiento de mantenimiento</h1>
@@ -133,9 +152,12 @@ function Incumplimiento() {
         equivocado (RN-01).
       </Aviso>
 
-      <Card>
+      <Card title="Vencido hoy"
+            sub={vencidos.length
+              ? `${vencidos.length} servicio(s) fuera de plazo en este momento`
+              : 'Nada fuera de plazo en este momento'}>
         <Tabla
-          vacio="Toda la flota al corriente"
+          vacio="Ninguna unidad con servicio vencido hoy"
           columnas={[
             { k: 'chofer', t: 'Responsable' },
             { k: 'unidad', t: 'Unidad' },
@@ -147,14 +169,30 @@ function Incumplimiento() {
               r: (f) => f.es_poseedor_por_prestamo
                 ? <Badge tono="warn">Sí</Badge> : <Badge>No</Badge> },
           ]}
-          filas={data || []} />
+          filas={vencidos} />
       </Card>
 
-      <Card title="Penalizaciones acumuladas por chofer">
+      <Card title="Historial acumulado por chofer"
+            sub="Desde siempre. No baja aunque hoy todo esté al corriente">
         <Tabla
-          vacio="Sin penalizaciones"
-          columnas={[{ k: 'chofer', t: 'Chofer' }, { k: 'total', t: 'Total', num: true }]}
-          filas={ranking.data || []} />
+          vacio="Ningún chofer ha faltado a una cita confirmada"
+          columnas={[
+            { k: 'chofer', t: 'Chofer' },
+            { k: 'total', t: 'Faltas acumuladas', num: true },
+            { k: 'abiertos', t: 'Sin atender', num: true,
+              r: (f) => f.abiertos
+                ? <Badge tono="warn">{f.abiertos}</Badge> : <Badge tono="ok">0</Badge> },
+            { k: 'amonestadas', t: 'Amonestadas', num: true,
+              r: (f) => f.amonestadas
+                ? <Badge tono="danger">{f.amonestadas}</Badge> : '0' },
+          ]}
+          filas={hist} />
+        <Regla>
+          Tres números distintos. <strong>Faltas acumuladas</strong> es historia y no baja nunca.
+          <strong> Sin atender</strong> es lo accionable: avisos que nadie ha cerrado todavía.
+          <strong> Amonestadas</strong> son las que una persona convirtió en acto formal — pueden
+          ser menos que las faltas, y eso es a propósito: no toda falta se amonesta.
+        </Regla>
       </Card>
     </>
   )
