@@ -33,15 +33,28 @@ const PRECISION_DUDOSA = 500
 
 export function BotonEmergencia({ unidad, onListo }) {
   const [confirmando, setConfirmando] = useState(false)
+  const [choque, setChoque] = useState(false)
   const seguro = window.isSecureContext
 
   return (
     <>
+      {/* RN-16: dos botones, no uno con opciones. Chocar y quedarse tirado son
+          procedimientos distintos —cambia quién tiene que llegar, qué se
+          levanta, cuándo se puede mover la unidad y a dónde va después— y
+          meterlos en el mismo formulario obligaba al chofer a describir un
+          impacto en un campo de «falla». */}
       <button className="boton-panico" disabled={!unidad}
               onClick={() => setConfirmando(true)}>
         <IcoAverias size={30} strokeWidth={2.2} aria-hidden="true" />
-        <span>Reportar emergencia</span>
-        <small>{unidad ? `Unidad ${unidad.num_economico}` : 'Sin unidad asignada'}</small>
+        <span>Me quedé tirado</span>
+        <small>{unidad ? `La unidad falló · ${unidad.num_economico}` : 'Sin unidad asignada'}</small>
+      </button>
+
+      <button className="boton-panico choque" disabled={!unidad}
+              onClick={() => setChoque(true)}>
+        <IcoAverias size={30} strokeWidth={2.2} aria-hidden="true" />
+        <span>Choqué</span>
+        <small>{unidad ? 'Hubo un impacto' : 'Sin unidad asignada'}</small>
       </button>
 
       {!seguro && (
@@ -55,6 +68,11 @@ export function BotonEmergencia({ unidad, onListo }) {
       {confirmando && (
         <ModalConfirmar unidad={unidad} onCerrar={() => setConfirmando(false)}
                         onListo={(averia) => { setConfirmando(false); onListo(averia) }} />
+      )}
+
+      {choque && (
+        <ModalChoque unidad={unidad} onCerrar={() => setChoque(false)}
+                     onListo={(r) => { setChoque(false); onListo(r) }} />
       )}
     </>
   )
@@ -188,6 +206,111 @@ function ModalConfirmar({ unidad, onCerrar, onListo }) {
           ? 'Puedes mandarla ya sin esperar: si el GPS llega después, el punto se agrega solo.'
           : 'La alerta le llega al administrador de taller y a tu supervisor al mismo tiempo.'}
       </Regla>
+    </Modal>
+  )
+}
+
+
+/* --------------------------------------------------------------- CU-CHO-18 -- */
+/** RN-16: el formulario del choque. No reusa el de avería a propósito.
+ *
+ *  Un choque no tiene «descripción de falla»: tiene daños, terceros y
+ *  lesionados. Y la unidad queda bloqueada hasta que haya peritaje, haya sido
+ *  donde haya sido — en una avería eso solo pasa en vialidad pública.
+ */
+function ModalChoque({ unidad, onCerrar, onListo }) {
+  const [danos, setDanos] = useState('')
+  const [terceros, setTerceros] = useState(0)
+  const [datosTerceros, setDatosTerceros] = useState('')
+  const [lesionados, setLesionados] = useState(false)
+  const [circula, setCircula] = useState(false)
+  const [viaPublica, setViaPublica] = useState(true)
+  const [enviando, setEnviando] = useState(false)
+  const [error, setError] = useState(null)
+
+  async function mandar() {
+    if (!danos.trim()) { setError('Describe los daños: es la base del parte de accidente.'); return }
+    setEnviando(true); setError(null)
+    try {
+      const cuerpo = {
+        unidad_id: unidad.id,
+        descripcion_danos: danos,
+        hay_lesionados: lesionados,
+        cuantos_terceros: Number(terceros) || 0,
+        datos_terceros: datosTerceros || null,
+        unidad_puede_circular: circula,
+        en_vialidad_publica: viaPublica,
+      }
+      if (navigator.geolocation && window.isSecureContext) {
+        await new Promise((res) => {
+          navigator.geolocation.getCurrentPosition(
+            (p) => { cuerpo.latitud = p.coords.latitude; cuerpo.longitud = p.coords.longitude; res() },
+            () => res(), { timeout: 8000 })
+        })
+      }
+      const r = await api.post('/chofer/choques', cuerpo)
+      onListo(r)
+    } catch (e) { setError(String(e.message || e)); setEnviando(false) }
+  }
+
+  return (
+    <Modal titulo="Reportar un choque" onClose={onCerrar}>
+      {error && <Aviso tipo="err">{error}</Aviso>}
+      <Aviso tipo="warn">
+        La unidad <strong>no se mueve</strong> hasta que llegue el perito y quede el peritaje.
+        No importa dónde haya sido. Moverla antes es lo que deja a la empresa sin cómo defenderse.
+      </Aviso>
+
+      <label className="campo">
+        <span>¿Qué se dañó?</span>
+        <textarea rows={3} value={danos} onChange={(e) => setDanos(e.target.value)}
+                  placeholder="Salpicadera derecha, faro, defensa…" />
+      </label>
+
+      <label className="campo">
+        <span>¿Cuántos terceros involucrados?</span>
+        <input type="number" min={0} value={terceros}
+               onChange={(e) => setTerceros(e.target.value)} />
+      </label>
+
+      {Number(terceros) > 0 && (
+        <label className="campo">
+          <span>Datos de los terceros</span>
+          <textarea rows={2} value={datosTerceros}
+                    onChange={(e) => setDatosTerceros(e.target.value)}
+                    placeholder="Nombre, placas, aseguradora" />
+        </label>
+      )}
+
+      <label className="radio-fila">
+        <input type="checkbox" checked={lesionados}
+               onChange={(e) => setLesionados(e.target.checked)} />
+        <span>Hay lesionados</span>
+      </label>
+
+      <label className="radio-fila">
+        <input type="checkbox" checked={viaPublica}
+               onChange={(e) => setViaPublica(e.target.checked)} />
+        <span>Fue en vialidad pública</span>
+      </label>
+
+      <label className="radio-fila">
+        <input type="checkbox" checked={circula}
+               onChange={(e) => setCircula(e.target.checked)} />
+        <span>La unidad puede circular por su cuenta</span>
+      </label>
+
+      <Regla>
+        Se avisa al <strong>perito</strong>, a tu supervisor y al gerente al mismo tiempo. Que la
+        unidad pueda circular no la desbloquea: solo dice si al final hará falta grúa.
+      </Regla>
+
+      <div className="acciones">
+        <button className="btn" onClick={onCerrar} disabled={enviando}>Cancelar</button>
+        <button className="btn danger" onClick={mandar} disabled={enviando}>
+          {enviando ? 'Enviando…' : 'Reportar choque'}
+        </button>
+      </div>
     </Modal>
   )
 }

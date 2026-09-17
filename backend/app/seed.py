@@ -128,8 +128,13 @@ USUARIOS_REALES = [
 
 # Un rol por modulo de la aplicacion. El servidor los revalida en cada
 # endpoint (RNF-04); esta lista es solo el catalogo que se siembra.
+# "perito" entra con RN-16: un choque le avisa al perito desde el sistema, y
+# sin el rol ese aviso no le llegaba a nadie. Edgar es del sindicato pero
+# trabaja para Baja Gas -- actor INTERNO, con cuenta propia (nota 9 de la junta
+# del 2026-09-14). Falta darle de alta su usuario; el rol ya existe para que el
+# dia que se cree, el aviso funcione solo.
 ROLES_DEL_SISTEMA = ["chofer", "supervisor", "administrador", "chofer_grua",
-                     "gerente", "capturista"]
+                     "gerente", "capturista", "perito"]
 
 # La misma que usa el importador para la gente que saca del Excel.
 PASSWORD_REAL = "bajagas2026"

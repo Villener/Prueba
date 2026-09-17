@@ -53,7 +53,8 @@ from .modules.piezas import (  # noqa: F401
 
 # Paquete G - Averias, auxilio en carretera y arrastre
 from .modules.emergencias import (  # noqa: F401
-    ReporteAveria, ReportePeritaje, OrdenAuxilio, ESTADOS_AUXILIO,
+    ReporteAveria, ReportePeritaje, DetalleChoque,
+    TIPOS_REPORTE, DESTINOS_CHOQUE, OrdenAuxilio, ESTADOS_AUXILIO,
     DifusionAuxilio, RespuestaAuxilio, Arrastre, UbicacionArrastre,
     Evidencia,
 )

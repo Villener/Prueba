@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from ... import models as m
 from ... import services as svc
 from ...core.database import get_db
-from ...schemas import (AveriaIn, AveriaOut, CitaOut, MensajeOut, PeritajeIn, PrestamoIn,
+from ...schemas import (ChoqueIn, AveriaIn, AveriaOut, CitaOut, MensajeOut, PeritajeIn, PrestamoIn,
                        PrestamoOut, PenalizacionOut, SolicitudIn, SolicitudOut, UbicacionIn,
                        UnidadOut, MantenimientoOut)
 from ..mantenimiento import agenda_service as agenda
@@ -580,3 +580,75 @@ def inconformarme(amonestacion_id: int, texto: str,
     """RF-CHO-16: si va al expediente, tiene que haber a donde reclamar."""
     a = amon.inconformarse(db, amonestacion_id, usuario.id, texto)
     return amon.salida(db, a)
+
+
+# --------------------------------------------------------------- CU-CHO-18 -- #
+@router.post("/choques", response_model=AveriaOut, status_code=201)
+def reportar_choque(datos: ChoqueIn, usuario=Depends(solo_chofer),
+                    db: Session = Depends(get_db)):
+    """RN-16: chocar NO es quedarse tirado, y no comparten formulario.
+
+    Diferencias que este endpoint hace cumplir:
+
+      - Se captura DANOS, terceros y lesionados; no "descripcion de falla".
+      - La unidad queda BLOQUEADA hasta que haya peritaje, sin importar donde
+        haya sido. En una averia eso solo pasa en vialidad publica.
+      - Se avisa al perito INTERNO (Edgar) ademas del supervisor: es de la casa
+        y el aviso sale del sistema, no de una llamada.
+    """
+    unidad = db.query(m.Unidad).filter(m.Unidad.id == datos.unidad_id).first()
+    if not unidad:
+        raise HTTPException(404, "Unidad no encontrada")
+    if svc.poseedor_actual(db, unidad) != usuario.id:
+        raise HTTPException(403, "Solo el poseedor actual puede reportar el choque (RN-01)")
+    if not (datos.descripcion_danos or "").strip():
+        raise HTTPException(400, "Describe los danos. Es la base del parte de accidente.")
+
+    ch = db.query(m.Chofer).filter(m.Chofer.usuario_id == usuario.id).first()
+    sup_id = ch.plantilla.supervisor_id if ch and ch.plantilla else None
+
+    r = m.ReporteAveria(folio=svc.siguiente_folio(db, m.ReporteAveria, "CHO"),
+                        tipo="choque",
+                        unidad_id=unidad.id, chofer_id=usuario.id,
+                        latitud=datos.latitud, longitud=datos.longitud,
+                        direccion_referencia=datos.direccion_referencia,
+                        descripcion_falla=datos.descripcion_danos,
+                        en_vialidad_publica=datos.en_vialidad_publica,
+                        hay_terceros_involucrados=datos.cuantos_terceros > 0,
+                        requiere_arrastre=not datos.unidad_puede_circular,
+                        supervisor_notificado_id=sup_id,
+                        estado="esperando_peritos")
+    db.add(r)
+    db.flush()
+    db.add(m.DetalleChoque(
+        reporte_averia_id=r.id,
+        descripcion_danos=datos.descripcion_danos,
+        cuantos_terceros=datos.cuantos_terceros,
+        datos_terceros=datos.datos_terceros,
+        unidad_puede_circular=datos.unidad_puede_circular,
+        hay_lesionados=datos.hay_lesionados,
+        # Un choque termina en carroceria; una averia en mecanica. Se deja
+        # propuesto y el taller lo confirma.
+        destino="carroceria"))
+
+    detalle = (f"Unidad {unidad.num_economico}: CHOQUE"
+               + (f" con {datos.cuantos_terceros} tercero(s)" if datos.cuantos_terceros else "")
+               + (". HAY LESIONADOS." if datos.hay_lesionados else ".")
+               + " La unidad no se mueve hasta que haya peritaje.")
+
+    # Al perito interno (Edgar) -- RN-04 desde la correccion del 2026-09-14 --,
+    # al supervisor y al gerente. Los tres, porque un choque con lesionados no
+    # puede depender de que una sola persona vea su telefono.
+    destinatarios = set()
+    for u in (db.query(m.Usuario).join(m.UsuarioRol).join(m.Rol)
+              .filter(m.Rol.nombre.in_(["perito", "gerente"])).all()):
+        destinatarios.add(u.id)
+    if sup_id:
+        destinatarios.add(sup_id)
+    for uid in destinatarios:
+        notificar(db, uid, "Choque reportado", detalle, "choque", "unidad", unidad.id)
+
+    registrar_bitacora(db, usuario.id, "reportar_choque", "reporte_averia", r.id, detalle)
+    db.commit()
+    db.refresh(r)
+    return svc.averia_out(db, r)

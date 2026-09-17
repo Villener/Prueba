@@ -1152,3 +1152,9 @@ tbody tr:hover { background: var(--surface-2); }
               border: 1px solid var(--border); }
 .segmentado .btn { border: 0; border-radius: 0; box-shadow: none; }
 .segmentado .btn + .btn { border-left: 1px solid var(--border); }
+
+/* El segundo boton de emergencia: CHOQUE (RN-16). Va en otro color a proposito
+   -- si los dos se vieran iguales, separarlos no habria servido de nada. El
+   choque es el que bloquea la unidad siempre, y se nota antes de apretarlo. */
+.boton-panico.choque { background: #8A3A12; }
+.boton-panico.choque:hover:not(:disabled) { background: #A04617; }

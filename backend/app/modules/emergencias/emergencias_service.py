@@ -13,17 +13,58 @@ from sqlalchemy.orm import Session
 
 from ... import models as m
 from ...core.tiempo import ahora_utc
+from .averia_model import DESTINOS_CHOQUE
 from ..sistema.comun_service import nombre_chofer, nombre_usuario, siguiente_folio  # noqa: F401
 
 
-def puede_solicitar_arrastre(reporte: m.ReporteAveria) -> bool:
-    """RN-04: en vialidad publica, primero peritos."""
-    if not reporte.en_vialidad_publica:
-        return True
+def _hay_peritaje(reporte: m.ReporteAveria) -> bool:
     return reporte.peritaje is not None and bool(reporte.peritaje.folio_peritos)
 
 
+def puede_solicitar_arrastre(reporte: m.ReporteAveria) -> bool:
+    """Cuando se puede mover la unidad del lugar.
+
+    Son DOS reglas distintas, y esa es justo la diferencia entre chocar y
+    quedarse tirado (RN-16):
+
+      CHOQUE  -> peritaje SIEMPRE, haya sido donde haya sido. Hay un impacto y
+                 casi siempre un tercero: mover la unidad antes del peritaje es
+                 lo que deja a la empresa sin como defenderse, y eso no depende
+                 de si fue en vialidad publica o en el patio de un cliente.
+
+      AVERIA  -> peritaje solo en vialidad publica (RN-04). La unidad fallo
+                 sola; no hay nada que peritar salvo que estorbe la via.
+
+    Es el unico lugar donde se decide, y lo consultan los cinco sitios que
+    pueden mover una unidad. Si la regla cambia, cambia aqui.
+    """
+    if reporte.tipo == "choque":
+        return _hay_peritaje(reporte)
+    if not reporte.en_vialidad_publica:
+        return True
+    return _hay_peritaje(reporte)
+
+
 # ---------------------------------------------------------- serializadores -- #
+
+def choque_out(r: m.ReporteAveria) -> dict | None:
+    """El detalle que solo tiene un choque. None si todavia no se captura."""
+    d = r.detalle_choque
+    if not d:
+        return None
+    return {
+        "descripcion_danos": d.descripcion_danos,
+        "cuantos_terceros": d.cuantos_terceros,
+        "datos_terceros": d.datos_terceros,
+        "parte_accidente_folio": d.parte_accidente_folio,
+        "aseguradora_tercero": d.aseguradora_tercero,
+        "unidad_puede_circular": d.unidad_puede_circular,
+        "destino": d.destino,
+        "destino_texto": DESTINOS_CHOQUE.get(d.destino) if d.destino else None,
+        "deducible_estimado": float(d.deducible_estimado) if d.deducible_estimado else None,
+        "hay_lesionados": d.hay_lesionados,
+    }
+
 
 def averia_out(db: Session, r: m.ReporteAveria) -> dict:
     return {
@@ -32,7 +73,16 @@ def averia_out(db: Session, r: m.ReporteAveria) -> dict:
         "chofer": nombre_chofer(db, r.chofer_id) or "-",
         "fecha_hora": r.fecha_hora, "latitud": r.latitud, "longitud": r.longitud,
         "descripcion_falla": r.descripcion_falla,
+        "tipo": r.tipo,
         "en_vialidad_publica": r.en_vialidad_publica, "estado": r.estado,
+        # Por que no se puede mover, en palabras. Un boton deshabilitado sin
+        # explicacion es lo que hace que alguien lo intente por otro lado.
+        "motivo_bloqueo": (
+            None if puede_solicitar_arrastre(r)
+            else ("Es un choque: la unidad no se mueve hasta que haya peritaje."
+                  if r.tipo == "choque"
+                  else "En vialidad publica primero van los peritos (RN-04).")),
+        "choque": (choque_out(r) if r.tipo == "choque" else None),
         "tiene_peritaje": r.peritaje is not None,
         "folio_peritos": r.peritaje.folio_peritos if r.peritaje else None,
         "puede_solicitar_arrastre": puede_solicitar_arrastre(r),

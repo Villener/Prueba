@@ -758,3 +758,23 @@ class ApoyoOut(BaseModel):
     tecnicos: list[ApoyoTecnicoOut] = []
     gruas: list[ApoyoGruaOut] = []
     talleres: list[TallerCercaOut] = []
+
+
+class ChoqueIn(BaseModel):
+    """RN-16: lo que se captura al reportar un CHOQUE.
+
+    No reusa AveriaIn a proposito. Un choque no tiene "descripcion de falla":
+    tiene danos, terceros y un parte de accidente. Meterlos en el mismo
+    formulario obligaba al chofer a describir un impacto en un campo de falla,
+    y dejaba al gerente sin poder contar cuantos choques hubo en el ano.
+    """
+    unidad_id: int
+    latitud: Optional[float] = None
+    longitud: Optional[float] = None
+    direccion_referencia: Optional[str] = None
+    descripcion_danos: str
+    hay_lesionados: bool = False
+    cuantos_terceros: int = 0
+    datos_terceros: Optional[str] = None
+    unidad_puede_circular: bool = False
+    en_vialidad_publica: bool = True
