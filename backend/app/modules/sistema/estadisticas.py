@@ -106,8 +106,24 @@ def serie(db: Session, gran: str = "mes", cuantos: int = 12,
         {"clave": "averias", "nombre": "Averias reportadas",
          "datos": _contar(averias, gran, "fecha_hora", etiquetas)},
     ]
-    return {"granularidad": gran, "hasta": hasta.isoformat(),
-            "etiquetas": etiquetas, "series": series}
+    return {
+        "granularidad": gran, "hasta": hasta.isoformat(),
+        "etiquetas": etiquetas, "series": series,
+        # El periodo que TODAVIA NO TERMINA. La pantalla lo pinta apagado para
+        # que no se lea como una caida: un mes a medias contra meses completos
+        # siempre sale abajo, y con granularidad de dia es peor todavia --a las
+        # 9 de la manana el dia de hoy va a la mitad de cualquier otro.
+        #
+        # Es el mismo criterio que ya seguian la meta de preventivos (el dia en
+        # curso no cuenta como incumplido) y el cumplimiento por chofer (una
+        # cita que no ha llegado no baja el porcentaje). Un periodo que no ha
+        # terminado no se juzga.
+        #
+        # Se calcula por el periodo que contiene HOY, no por "el ultimo de la
+        # lista": si alguien pide una serie que termina en el pasado, ahi no hay
+        # nada en curso.
+        "en_curso": _clave(datetime.date.today(), gran),
+    }
 
 
 def _nombre(db: Session, usuario_id) -> str | None:

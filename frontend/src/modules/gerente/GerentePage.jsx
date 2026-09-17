@@ -412,19 +412,25 @@ const SERIES_COLOR = {
 /** Columnas sobre el tiempo. Los periodos vacíos SÍ se dibujan: un mes sin un
  *  solo preventivo es información, y omitirlo lo escondería juntando los que sí
  *  tuvieron. */
-function ColumnasTiempo({ etiquetas, datos, color, gran }) {
+function ColumnasTiempo({ etiquetas, datos, color, gran, enCurso }) {
   const tope = Math.max(...datos, 1)
   const corto = (e) => gran === 'dia' ? e.slice(8) : (gran === 'mes' ? e.slice(5) : e)
+  const nombre = gran === 'dia' ? 'día' : gran === 'mes' ? 'mes' : 'año'
   return (
     <div className="gcolumnas" style={{ height: 150 }}>
-      {etiquetas.map((e, i) => (
-        <div className="gcol" key={e} title={e + ': ' + datos[i]}>
-          <span className="gcifra">{datos[i]}</span>
-          <div className="gtorre"
-               style={{ height: (datos[i] / tope) * 100 + '%', background: color }} />
-          <span className="gpie">{corto(e)}</span>
-        </div>
-      ))}
+      {etiquetas.map((e, i) => {
+        const abierto = e === enCurso
+        return (
+          <div className={'gcol' + (abierto ? ' en-curso' : '')} key={e}
+               title={e + ': ' + datos[i]
+                      + (abierto ? ` · ${nombre} en curso, todavía no termina` : '')}>
+            <span className="gcifra">{datos[i]}</span>
+            <div className="gtorre"
+                 style={{ height: (datos[i] / tope) * 100 + '%', background: color }} />
+            <span className="gpie">{corto(e)}</span>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -464,7 +470,8 @@ function Estadisticas() {
             <Card key={sr.clave} title={sr.nombre}
                   sub={'Últimos ' + etiquetas.length + ' ' + nombrePeriodo}>
               <ColumnasTiempo etiquetas={etiquetas} datos={sr.datos}
-                              color={SERIES_COLOR[sr.clave]} gran={gran} />
+                              color={SERIES_COLOR[sr.clave]} gran={gran}
+                              enCurso={d.en_curso} />
             </Card>
           ))}
         </div>
@@ -502,6 +509,14 @@ function Estadisticas() {
           quien no ha fallado a nada.
         </Regla>
       </Card>
+
+      <Regla>
+        La última columna de cada gráfica va <strong>apagada</strong>: es el
+        {gran === 'dia' ? ' día' : gran === 'mes' ? ' mes' : ' año'} en curso y todavía no
+        termina. Comparar un periodo a medias contra periodos completos siempre lo hace ver
+        caído — y con granularidad de día es peor: a las nueve de la mañana hoy va a la mitad de
+        cualquier otro día.
+      </Regla>
 
       <Regla>
         La ocupación del patio día por día hacia atrás no se puede reconstruir: el 98% del

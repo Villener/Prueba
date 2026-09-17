@@ -1158,3 +1158,10 @@ tbody tr:hover { background: var(--surface-2); }
    choque es el que bloquea la unidad siempre, y se nota antes de apretarlo. */
 .boton-panico.choque { background: #8A3A12; }
 .boton-panico.choque:hover:not(:disabled) { background: #A04617; }
+
+/* El periodo que todavia no termina, en las graficas del gerente. Apagado y
+   con el pie en cursiva: un mes a medias contra meses completos siempre sale
+   abajo, y sin marcarlo se lee como una caida del taller. */
+.gcolumnas .gcol.en-curso .gtorre { opacity: .4; }
+.gcolumnas .gcol.en-curso .gcifra { opacity: .6; }
+.gcolumnas .gcol.en-curso .gpie { font-style: italic; opacity: .75; }
