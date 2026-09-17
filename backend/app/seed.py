@@ -345,13 +345,22 @@ def reconciliar_cuentas(db: Session) -> dict:
             hecho["desactivadas"] += 1
             continue
         nombre, apellidos, _num, _rol = datos
-        if u.email != nuevo or u.nombre != nombre or u.apellidos != apellidos:
+        cambio_correo = u.email != nuevo
+        if cambio_correo or u.nombre != nombre or u.apellidos != apellidos:
             u.email, u.nombre, u.apellidos = nuevo, nombre, apellidos
             u.activo = True
-            # La cuenta vieja se creo con la clave de demo. Si solo se cambia el
-            # correo, el usuario tiene el correo nuevo y la clave vieja, y no
-            # entra -- que es exactamente lo que paso.
-            u.password_hash = hash_password(PASSWORD_REAL)
+            if cambio_correo:
+                # SOLO cuando cambia el CORREO. La cuenta vieja se creo con la
+                # clave de demo; si se le mueve el correo sin reponerla, queda
+                # con correo nuevo y clave vieja y no entra.
+                #
+                # Corregir la ortografia de un apellido NO es razon para esto, y
+                # que lo fuera costo caro: el 2026-09-15 se corrigio Siscareno
+                # por Tiscareno en USUARIOS_REALES, y el siguiente arranque le
+                # devolvio al GERENTE la clave publicada en este archivo. Nadie
+                # se entero hasta que el gerente no pudo entrar con la suya.
+                u.password_hash = hash_password(PASSWORD_REAL)
+                hecho["claves_repuestas"] = hecho.get("claves_repuestas", 0) + 1
             hecho["renombradas"] += 1
     db.commit()
     return hecho

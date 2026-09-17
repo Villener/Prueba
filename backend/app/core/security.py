@@ -110,3 +110,5 @@ def notificar(db: Session, usuario_id: int, titulo: str, mensaje: str = "",
         return
     db.add(Notificacion(usuario_id=usuario_id, titulo=titulo, mensaje=mensaje, tipo=tipo,
                         entidad_tipo=entidad_tipo, entidad_id=entidad_id))
+"""Eston son comentaarios en python 
+es una prueba para ver el limite del trabajo  No se cual es el """
