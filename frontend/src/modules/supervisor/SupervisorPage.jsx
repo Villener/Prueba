@@ -255,6 +255,162 @@ function Cumplimiento() {
           ]}
           filas={data || []} />
       </Card>
+
+      <Amonestaciones />
+    </>
+  )
+}
+
+/* ------------------------------------------------------------ CU-SUP-10 ---- */
+/** RN-14. El sistema PROPONE, aqui una persona FIRMA.
+ *
+ *  A esta lista solo llega lo que ya paso el filtro del aviso: hubo cita
+ *  CONFIRMADA y la unidad no se presento. Una unidad a la que el taller nunca
+ *  le dio cita no aparece, y por eso no se puede amonestar a ese chofer.
+ */
+function Amonestaciones() {
+  const cand = useApi(() => api.get('/supervisor/amonestaciones/candidatas'))
+  const emitidas = useApi(() => api.get('/supervisor/amonestaciones'))
+  const [firmar, setFirmar] = useState(null)
+  const toast = useToast()
+
+  const recargar = () => { cand.recargar(); emitidas.recargar() }
+
+  return (
+    <>
+      <Card title="Faltas por amonestar"
+            sub="Citas confirmadas a las que el chofer no se presentó">
+        <Tabla
+          vacio="Ninguna falta pendiente de resolver"
+          columnas={[
+            { k: 'chofer', t: 'Chofer' },
+            { k: 'unidad', t: 'Unidad' },
+            { k: 'fecha_falta', t: 'Faltó el', r: (f) => fmtFecha(f.fecha_falta) },
+            { k: 'dias_atraso', t: 'Atraso', num: true,
+              r: (f) => <Badge tono="danger">{f.dias_atraso} d</Badge> },
+            { k: 'seria_la', t: 'Sería la', num: true,
+              r: (f) => f.amonestaciones_previas > 0
+                ? <Badge tono="danger">{f.seria_la}ª</Badge>
+                : <Badge>1ª</Badge> },
+            { k: 'acciones', t: '',
+              r: (f) => <button className="btn sm" onClick={() => setFirmar(f)}>Amonestar</button> },
+          ]}
+          filas={cand.data || []} />
+        <Regla>
+          El sistema arma el expediente, pero <strong>no firma</strong>. Una sanción que sale
+          sola de un proceso automático es la que nadie puede explicar cuando el chofer
+          reclama. Y antes de firmar se ve si es la primera o la cuarta.
+        </Regla>
+      </Card>
+
+      <Card title="Amonestaciones emitidas" sub="De mi plantilla, con su estado">
+        <Tabla
+          vacio="Sin amonestaciones emitidas"
+          columnas={[
+            { k: 'chofer', t: 'Chofer' },
+            { k: 'consecutivo', t: '#', num: true, r: (f) => f.consecutivo + 'ª' },
+            { k: 'unidad', t: 'Unidad' },
+            { k: 'fecha_emision', t: 'Emitida', r: (f) => fmtFecha(f.fecha_emision) },
+            { k: 'emitida_por', t: 'Firmó' },
+            { k: 'estado', t: 'Estado', r: (f) => <EstadoBadge estado={f.estado} /> },
+            { k: 'acciones', t: '',
+              r: (f) => f.estado === 'inconforme'
+                ? <ResolverInconformidad a={f} onListo={recargar} />
+                : null },
+          ]}
+          filas={emitidas.data || []} />
+      </Card>
+
+      {firmar && (
+        <ModalFirmar falta={firmar} onCerrar={() => setFirmar(null)}
+                     onListo={() => { setFirmar(null); recargar(); toast('Amonestación emitida') }} />
+      )}
+    </>
+  )
+}
+
+function ModalFirmar({ falta, onCerrar, onListo }) {
+  const [nota, setNota] = useState('')
+  const [enviando, setEnviando] = useState(false)
+  const [error, setError] = useState(null)
+
+  async function enviar() {
+    setEnviando(true); setError(null)
+    try {
+      const q = '/supervisor/amonestaciones?aviso_id=' + falta.aviso_id
+        + (nota ? '&nota=' + encodeURIComponent(nota) : '')
+      await api.post(q)
+      onListo()
+    } catch (e) { setError(String(e.message || e)); setEnviando(false) }
+  }
+
+  return (
+    <Modal titulo={'Amonestar a ' + falta.chofer} onClose={onCerrar}>
+      {error && <Aviso tipo="err">{error}</Aviso>}
+      <p>
+        Faltó a su cita del <strong>{fmtFecha(falta.fecha_falta)}</strong> con la unidad{' '}
+        <strong>{falta.unidad}</strong>. Sería su <strong>{falta.seria_la}ª</strong> amonestación.
+      </p>
+      <Aviso tipo="info">
+        Es un acto <strong>administrativo</strong>, no económico: va al expediente del chofer y
+        no descuenta nada. Él la va a ver y se puede inconformar.
+      </Aviso>
+      <label className="campo">
+        <span>Nota (opcional)</span>
+        <textarea rows={3} value={nota} onChange={(e) => setNota(e.target.value)}
+                  placeholder="Lo que se habló con el chofer" />
+      </label>
+      <div className="acciones">
+        <button className="btn" onClick={onCerrar}>Cancelar</button>
+        <button className="btn primario" onClick={enviar} disabled={enviando}>
+          {enviando ? 'Emitiendo...' : 'Emitir amonestación'}
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
+function ResolverInconformidad({ a, onListo }) {
+  const [abierto, setAbierto] = useState(false)
+  const [texto, setTexto] = useState('')
+  const [enviando, setEnviando] = useState(false)
+
+  async function resolver(ratifica) {
+    setEnviando(true)
+    try {
+      const q = '/supervisor/amonestaciones/' + a.id + '/resolver?ratifica=' + ratifica
+        + (texto ? '&texto=' + encodeURIComponent(texto) : '')
+      await api.post(q)
+      setAbierto(false); onListo()
+    } finally { setEnviando(false) }
+  }
+
+  return (
+    <>
+      <button className="btn sm" onClick={() => setAbierto(true)}>Resolver</button>
+      {abierto && (
+        <Modal titulo={'Inconformidad de ' + a.chofer} onClose={() => setAbierto(false)}>
+          <p><strong>Su amonestación {a.consecutivo}ª:</strong> {a.motivo}</p>
+          <Aviso tipo="warn"><strong>Dice:</strong> {a.inconformidad}</Aviso>
+          <label className="campo">
+            <span>Tu resolución</span>
+            <textarea rows={3} value={texto} onChange={(e) => setTexto(e.target.value)} />
+          </label>
+          <Regla>
+            Anular no borra el renglón: el expediente tiene que poder contar que hubo una
+            amonestación y que se echó para atrás. Si desapareciera, el chofer perdería la
+            prueba de que reclamó y le dieron la razón.
+          </Regla>
+          <div className="acciones">
+            <button className="btn" onClick={() => resolver(false)} disabled={enviando}>
+              Dejar sin efecto
+            </button>
+            <button className="btn primario" onClick={() => resolver(true)} disabled={enviando}>
+              Sostener
+            </button>
+          </div>
+        </Modal>
+      )}
     </>
   )
 }

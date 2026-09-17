@@ -17,6 +17,8 @@ from ...core.tiempo import ahora_utc, dia_operativo
 router = APIRouter(prefix="/api/chofer", tags=["chofer"])
 solo_chofer = require_roles("chofer")
 
+from ..mantenimiento import amonestacion_service as amon  # noqa: E402
+
 
 def _mi_unidad(db: Session, chofer_id: int) -> m.Unidad:
     """La unidad de la que soy POSEEDOR hoy (RN-01), no necesariamente la que soy titular."""
@@ -563,3 +565,18 @@ def mis_penalizaciones(usuario=Depends(solo_chofer), db: Session = Depends(get_d
 def talleres(usuario=Depends(solo_chofer), db: Session = Depends(get_db)):
     return [{"id": t.id, "nombre": t.nombre, "direccion": t.direccion}
             for t in db.query(m.Taller).filter(m.Taller.activo.is_(True)).all()]
+
+
+# --------------------------------------------------------------- CU-CHO-17 -- #
+@router.get("/amonestaciones")
+def mis_amonestaciones(usuario=Depends(solo_chofer), db: Session = Depends(get_db)):
+    """RF-CHO-15: el chofer ve las suyas. No se entera por el pasillo."""
+    return amon.historial(db, usuario.id)
+
+
+@router.post("/amonestaciones/{amonestacion_id}/inconformidad")
+def inconformarme(amonestacion_id: int, texto: str,
+                  usuario=Depends(solo_chofer), db: Session = Depends(get_db)):
+    """RF-CHO-16: si va al expediente, tiene que haber a donde reclamar."""
+    a = amon.inconformarse(db, amonestacion_id, usuario.id, texto)
+    return amon.salida(db, a)

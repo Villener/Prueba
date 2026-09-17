@@ -31,6 +31,7 @@ from .modules.taller import (  # noqa: F401
 from .modules.mantenimiento import (  # noqa: F401
     PlanMantenimiento, ProgramaMantenimiento, TipoServicio, CitaTaller,
     ESTADOS_CITA, Reprogramacion, AvisoIncumplimiento, Penalizacion,
+    Amonestacion, ESTADOS_AMONESTACION,
 )
 
 # Paquete E - Orden de servicio, reporte de mantenimiento y traslados

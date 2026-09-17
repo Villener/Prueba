@@ -461,7 +461,101 @@ function Taller() {
           )
         )}
       </Card>
+
+      <MisAmonestaciones />
     </>
+  )
+}
+
+/* --------------------------------------------------------------- CU-CHO-17 -- */
+/** RF-CHO-15 y 16: el chofer ve sus amonestaciones y puede inconformarse.
+ *
+ *  Se entera por el sistema, no por el pasillo. Y si va a su expediente, tiene
+ *  que haber a donde reclamar.
+ */
+function MisAmonestaciones() {
+  const { data, cargando, recargar } = useApi(() => api.get('/chofer/amonestaciones'))
+  const [reclamar, setReclamar] = useState(null)
+  if (cargando) return null
+  const d = data || {}
+  const lista = d.amonestaciones || []
+  if (!lista.length) return null
+
+  return (
+    <>
+      <Card title="Mis amonestaciones"
+            sub={d.vigentes + ' vigente(s)' + (d.anuladas ? ', ' + d.anuladas + ' sin efecto' : '')}>
+        {lista.map((a) => (
+          <div className="list-item" key={a.id}>
+            <div className="grow">
+              <div className="t">{a.consecutivo}ª amonestación · unidad {a.unidad}</div>
+              <div className="s">{a.motivo}</div>
+              <div className="s">Firmó {a.emitida_por} · {fmtFecha(a.fecha_emision)}</div>
+              {a.inconformidad && (
+                <div className="s"><strong>Te inconformaste:</strong> {a.inconformidad}</div>
+              )}
+              {a.resolucion && (
+                <div className="s"><strong>Resolución:</strong> {a.resolucion}</div>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <EstadoBadge estado={a.estado} />
+              {a.estado === 'emitida' && (
+                <button className="btn sm" onClick={() => setReclamar(a)}>No estoy de acuerdo</button>
+              )}
+            </div>
+          </div>
+        ))}
+        <Regla>
+          Una amonestación es <strong>administrativa</strong>: va a tu expediente y no descuenta
+          nada de tu pago. Solo se emite si faltaste a una cita <strong>confirmada</strong>; si el
+          taller nunca te dio cita, no procede.
+        </Regla>
+      </Card>
+
+      {reclamar && (
+        <ModalInconformidadAmonestacion a={reclamar} onCerrar={() => setReclamar(null)}
+                                        onListo={() => { setReclamar(null); recargar() }} />
+      )}
+    </>
+  )
+}
+
+function ModalInconformidadAmonestacion({ a, onCerrar, onListo }) {
+  const [texto, setTexto] = useState('')
+  const [enviando, setEnviando] = useState(false)
+  const [error, setError] = useState(null)
+
+  async function enviar() {
+    if (!texto.trim()) { setError('Escribe por qué no estás de acuerdo.'); return }
+    setEnviando(true); setError(null)
+    try {
+      await api.post('/chofer/amonestaciones/' + a.id + '/inconformidad?texto='
+                     + encodeURIComponent(texto))
+      onListo()
+    } catch (e) { setError(String(e.message || e)); setEnviando(false) }
+  }
+
+  return (
+    <Modal titulo={'Inconformidad · ' + a.consecutivo + 'ª amonestación'} onClose={onCerrar}>
+      {error && <Aviso tipo="err">{error}</Aviso>}
+      <p>{a.motivo}</p>
+      <label className="campo">
+        <span>¿Por qué no estás de acuerdo?</span>
+        <textarea rows={4} value={texto} onChange={(e) => setTexto(e.target.value)}
+                  placeholder="Lo que pasó ese día" />
+      </label>
+      <Regla>
+        Lo va a leer quien la firmó. Puede sostenerla o dejarla sin efecto, y en los dos casos
+        queda por escrito en tu expediente.
+      </Regla>
+      <div className="acciones">
+        <button className="btn" onClick={onCerrar}>Cancelar</button>
+        <button className="btn primario" onClick={enviar} disabled={enviando}>
+          {enviando ? 'Enviando...' : 'Enviar inconformidad'}
+        </button>
+      </div>
+    </Modal>
   )
 }
 

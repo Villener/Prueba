@@ -160,6 +160,17 @@ def generar_avisos_incumplimiento(db: Session) -> int:
                   .filter(m.Rol.nombre.in_(["gerente", "administrador"])).all()):
             notificar(db, u.id, "Aviso de incumplimiento", detalle,
                       "aviso", "unidad", c.unidad_id)
+        # Y al SUPERVISOR de ese chofer, que es quien firma la amonestacion
+        # (CU-SUP-10). Sin esto el aviso le llegaba a todos menos a quien tiene
+        # que actuar, y la falta se quedaba en la lista sin que nadie la viera.
+        ch = db.query(m.Chofer).filter(m.Chofer.usuario_id == poseedor).first()
+        if ch and ch.plantilla_id:
+            pl = db.query(m.Plantilla).filter(m.Plantilla.id == ch.plantilla_id).first()
+            if pl and pl.supervisor_id:
+                notificar(db, pl.supervisor_id, "Falta por amonestar",
+                          detalle + " Puedes amonestarlo desde Cumplimiento.",
+                          "amonestacion", "unidad", c.unidad_id)
+
         # Y al chofer, para que sepa antes de que le hablen (CU-CHO-17).
         notificar(db, poseedor, "Faltaste a tu cita de taller",
                   f"Unidad {c.unidad.num_economico}: tenias cita el {c.fecha_cita} "

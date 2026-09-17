@@ -10,6 +10,7 @@ from ...core.database import get_db
 from ...schemas import AveriaOut, MensajeOut, PrestamoOut
 from ...core.security import notificar, registrar_bitacora, require_roles
 from ...core.tiempo import ahora_utc
+from ..mantenimiento import amonestacion_service as amon
 
 router = APIRouter(prefix="/api/supervisor", tags=["supervisor"])
 solo_sup = require_roles("supervisor")
@@ -181,3 +182,53 @@ def tecnicos(usuario=Depends(solo_sup), db: Session = Depends(get_db)):
     return [{"id": t.id, "nombre": t.nombre_completo, "especialidad": t.especialidad,
              "telefono": t.telefono}
             for t in db.query(m.Tecnico).filter(m.Tecnico.activo.is_(True)).all()]
+
+
+# ------------------------------------------------------------- CU-SUP-10 ---- #
+# RN-14. El sistema PROPONE (CU-AUT-08), aqui una persona FIRMA.
+@router.get("/amonestaciones/candidatas")
+def amonestaciones_candidatas(usuario=Depends(solo_sup), db: Session = Depends(get_db)):
+    """Faltas de mi plantilla que ya tienen aviso y todavia no tienen amonestacion.
+
+    Solo aparecen aqui las que YA pasaron el filtro del aviso: hubo cita
+    confirmada y la unidad no se presento. Una unidad a la que el taller nunca
+    le dio cita no llega a esta lista, y por eso no se puede amonestar -- que es
+    justo lo que RN-14 prohibe.
+    """
+    return amon.candidatas(db, supervisor_id=usuario.id)
+
+
+@router.get("/amonestaciones")
+def amonestaciones_de_mi_plantilla(usuario=Depends(solo_sup),
+                                   db: Session = Depends(get_db)):
+    mios = {c.usuario_id for c in _mis_choferes(db, usuario.id)}
+    todas = (db.query(m.Amonestacion)
+             .filter(m.Amonestacion.chofer_id.in_(mios) if mios else False)
+             .order_by(m.Amonestacion.fecha_emision.desc()).all()) if mios else []
+    return [amon.salida(db, a) for a in todas]
+
+
+@router.post("/amonestaciones", status_code=201)
+def emitir_amonestacion(aviso_id: int, nota: str | None = None,
+                        usuario=Depends(solo_sup), db: Session = Depends(get_db)):
+    a = amon.emitir(db, aviso_id, usuario.id, nota, supervisor_id=usuario.id)
+    return amon.salida(db, a)
+
+
+@router.post("/amonestaciones/{amonestacion_id}/resolver")
+def resolver_amonestacion(amonestacion_id: int, ratifica: bool,
+                          texto: str | None = None,
+                          usuario=Depends(solo_sup), db: Session = Depends(get_db)):
+    """Cierra la inconformidad del chofer: la sostiene o la deja sin efecto."""
+    a = amon.resolver(db, amonestacion_id, usuario.id, ratifica, texto)
+    return amon.salida(db, a)
+
+
+@router.get("/choferes/{chofer_id}/expediente")
+def expediente_del_chofer(chofer_id: int, usuario=Depends(solo_sup),
+                          db: Session = Depends(get_db)):
+    """El historial de amonestaciones. Sostiene una sancion Y defiende al chofer."""
+    mios = {c.usuario_id for c in _mis_choferes(db, usuario.id)}
+    if chofer_id not in mios:
+        raise HTTPException(403, "Ese chofer no es de tu plantilla.")
+    return amon.historial(db, chofer_id)
