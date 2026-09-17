@@ -61,6 +61,7 @@ const MODULOS = {
     { to: '/taller', Ico: IcoPlano, txt: 'Taller' },
     { to: '/presupuestos', Ico: IcoPresupuestos, txt: 'Presupuestos' },
     { to: '/alertas', Ico: IcoCampana, txt: 'Alertas' },
+    { to: '/estadisticas', Ico: IcoIndicadores, txt: 'Estadísticas' },
   ] },
 }
 

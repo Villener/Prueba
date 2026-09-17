@@ -15,6 +15,7 @@ export default function Gerente() {
       <Route path="/taller" element={<TallerVista />} />
       <Route path="/presupuestos" element={<Presupuestos />} />
       <Route path="/alertas" element={<Alertas />} />
+      <Route path="/estadisticas" element={<Estadisticas />} />
     </Routes>
   )
 }
@@ -350,5 +351,173 @@ function Alertas() {
         ))
       )}
     </>
+  )
+}
+
+
+/* ------------------------------------------- CU-GER-12/13/14 · RF-GER-14..18 */
+/** El eje de tiempo del tablero.
+ *
+ *  El tablero de arriba enseña el AHORA. Esto contesta «cómo vamos», que es otra
+ *  pregunta — y es la que el cliente pidió en la junta: los mismos indicadores
+ *  por día, por mes y por año, y en gráficos.
+ */
+const SERIES_COLOR = {
+  entradas: 'var(--grafica)',
+  preventivos: 'var(--ok)',
+  citas: 'var(--grafica)',
+  faltas: 'var(--grafica-alerta)',
+  amonestaciones: 'var(--danger)',
+  averias: 'var(--brand)',
+}
+
+/** Columnas sobre el tiempo. Los periodos vacíos SÍ se dibujan: un mes sin un
+ *  solo preventivo es información, y omitirlo lo escondería juntando los que sí
+ *  tuvieron. */
+function ColumnasTiempo({ etiquetas, datos, color, gran }) {
+  const tope = Math.max(...datos, 1)
+  const corto = (e) => gran === 'dia' ? e.slice(8) : (gran === 'mes' ? e.slice(5) : e)
+  return (
+    <div className="gcolumnas" style={{ height: 150 }}>
+      {etiquetas.map((e, i) => (
+        <div className="gcol" key={e} title={e + ': ' + datos[i]}>
+          <span className="gcifra">{datos[i]}</span>
+          <div className="gtorre"
+               style={{ height: (datos[i] / tope) * 100 + '%', background: color }} />
+          <span className="gpie">{corto(e)}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function Estadisticas() {
+  const [gran, setGran] = useState('mes')
+  const cuantos = gran === 'dia' ? 30 : (gran === 'mes' ? 12 : 5)
+  const serie = useApi(() => api.get('/gerente/estadisticas',
+                                     { granularidad: gran, cuantos }), [gran])
+  const cump = useApi(() => api.get('/gerente/cumplimiento-choferes',
+                                    { granularidad: gran, cuantos: gran === 'dia' ? 30 : 6 }),
+                      [gran])
+  const [verChofer, setVerChofer] = useState(null)
+
+  const d = serie.data || {}
+  const etiquetas = d.etiquetas || []
+  const nombrePeriodo = gran === 'dia' ? 'días' : gran === 'mes' ? 'meses' : 'años'
+
+  return (
+    <>
+      <div className="card-head">
+        <h1>Estadísticas</h1>
+        <div className="spacer" />
+        <div className="segmentado">
+          {[['dia', 'Día'], ['mes', 'Mes'], ['anio', 'Año']].map(([v, t]) => (
+            <button key={v} className={'btn sm' + (gran === v ? ' primario' : '')}
+                    onClick={() => setGran(v)}>{t}</button>
+          ))}
+        </div>
+      </div>
+
+      {serie.cargando ? <Spinner /> : serie.error ? (
+        <Aviso tipo="err">{serie.error}</Aviso>
+      ) : (
+        <div className="grid g2">
+          {(d.series || []).map((sr) => (
+            <Card key={sr.clave} title={sr.nombre}
+                  sub={'Últimos ' + etiquetas.length + ' ' + nombrePeriodo}>
+              <ColumnasTiempo etiquetas={etiquetas} datos={sr.datos}
+                              color={SERIES_COLOR[sr.clave]} gran={gran} />
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Card title="Cumplimiento por chofer"
+            sub={cump.data ? 'Del ' + cump.data.desde + ' al ' + cump.data.hasta : '…'}>
+        <Tabla
+          vacio="Sin citas confirmadas en el periodo"
+          columnas={[
+            { k: 'chofer', t: 'Chofer' },
+            { k: 'confirmadas', t: 'Citas', num: true },
+            { k: 'cumplidas', t: 'Cumplidas', num: true },
+            { k: 'faltas', t: 'Faltas', num: true,
+              r: (f) => f.faltas ? <Badge tono="danger">{f.faltas}</Badge> : '0' },
+            { k: 'amonestaciones', t: 'Amonest.', num: true },
+            { k: 'cumplimiento', t: '%', num: true,
+              r: (f) => f.cumplimiento == null ? '—'
+                : <Badge tono={f.cumplimiento >= 90 ? 'ok' : f.cumplimiento >= 70 ? 'warn' : 'danger'}>
+                    {f.cumplimiento}%
+                  </Badge> },
+            { k: 'acciones', t: '',
+              r: (f) => <button className="btn sm"
+                                onClick={() => setVerChofer(f.chofer_id)}>Expediente</button> },
+          ]}
+          filas={(cump.data && cump.data.choferes) || []} />
+        <Regla>
+          Se mide sobre <strong>citas confirmadas</strong>. Una unidad a la que el taller nunca
+          le dio cita no entra en este cálculo: eso mediría al taller, no al chofer. Y se mide
+          contra el <strong>poseedor</strong> de la unidad ese día, no contra el titular.
+        </Regla>
+      </Card>
+
+      <Regla>
+        La ocupación del patio día por día hacia atrás no se puede reconstruir: el 98% del
+        historial importado no trae fecha de salida. Se puede desde hoy, guardando una foto
+        diaria; hacia atrás no se recupera.
+      </Regla>
+
+      {verChofer && (
+        <ModalExpediente choferId={verChofer} onCerrar={() => setVerChofer(null)} />
+      )}
+    </>
+  )
+}
+
+/** CU-GER-13: sostiene una amonestación con historial Y defiende al chofer al
+ *  que el taller nunca le dio cita. Las dos cosas importan. */
+function ModalExpediente({ choferId, onCerrar }) {
+  const { data, cargando } = useApi(
+    () => api.get('/gerente/choferes/' + choferId + '/expediente'), [choferId])
+  const e = data || {}
+  const am = e.amonestaciones || {}
+  return (
+    <Modal titulo={'Expediente de ' + (e.chofer || '…')} onClose={onCerrar}>
+      {cargando ? <Spinner /> : (
+        <>
+          <div className="grid g4">
+            <Kpi valor={e.citas_confirmadas ?? '—'} etiqueta="Citas confirmadas" />
+            <Kpi valor={e.citas_cumplidas ?? '—'} etiqueta="Cumplidas" />
+            <Kpi valor={e.faltas ?? '—'} etiqueta="Faltas" tono={e.faltas ? 'alert' : ''} />
+            <Kpi valor={e.cumplimiento == null ? '—' : e.cumplimiento + '%'}
+                 etiqueta="Cumplimiento"
+                 tono={e.cumplimiento != null && e.cumplimiento < 70 ? 'alert' : ''} />
+          </div>
+          <p>
+            Unidades: <strong>{(e.unidades || []).join(', ') || 'ninguna'}</strong>{' · '}
+            préstamos recibidos: <strong>{e.prestamos_recibidos}</strong>{' · '}
+            averías reportadas: <strong>{e.averias_reportadas}</strong>
+          </p>
+          <Card title="Amonestaciones"
+                sub={(am.vigentes || 0) + ' vigente(s)'
+                     + (am.anuladas ? ', ' + am.anuladas + ' sin efecto' : '')}>
+            {!(am.amonestaciones || []).length ? (
+              <Empty icono={IcoListo}>Ninguna amonestación</Empty>
+            ) : (am.amonestaciones || []).map((a) => (
+              <div className="list-item" key={a.id}>
+                <div className="grow">
+                  <div className="t">{a.consecutivo}ª · unidad {a.unidad}</div>
+                  <div className="s">{a.motivo}</div>
+                  <div className="s">Firmó {a.emitida_por} · {fmtFecha(a.fecha_emision)}</div>
+                </div>
+                <EstadoBadge estado={a.estado} />
+              </div>
+            ))}
+          </Card>
+        </>
+      )}
+      <div className="acciones">
+        <button className="btn" onClick={onCerrar}>Cerrar</button>
+      </div>
+    </Modal>
   )
 }

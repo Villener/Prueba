@@ -13,6 +13,8 @@ from ...schemas import (AlertaOut, IncumplimientoOut, KpiOut, MensajeOut, OrdenS
 from ...core.security import notificar, registrar_bitacora, require_roles
 from ...core.tiempo import ahora_utc
 
+from . import estadisticas
+
 router = APIRouter(prefix="/api/gerente", tags=["gerente"])
 solo_ger = require_roles("gerente")
 
@@ -266,3 +268,37 @@ def ranking_avisos(usuario=Depends(solo_ger), db: Session = Depends(get_db)):
         out.append({"chofer_id": cid, "chofer": svc.nombre_chofer(db, cid),
                     "total": n, "abiertos": abiertos})
     return sorted(out, key=lambda x: (-x["abiertos"], -x["total"]))
+
+
+# ------------------------------------------------------ RF-GER-14/15/17/18 -- #
+@router.get("/estadisticas")
+def estadisticas_en_el_tiempo(granularidad: str = "mes", cuantos: int = 12,
+                              usuario=Depends(solo_ger), db: Session = Depends(get_db)):
+    """CU-GER-12: los mismos indicadores por dia, por mes o por ano.
+
+    El tablero de arriba ensena el AHORA. Esto contesta "como vamos", que es
+    otra pregunta y la que el cliente pidio en la junta.
+    """
+    return estadisticas.serie(db, granularidad, cuantos)
+
+
+@router.get("/cumplimiento-choferes")
+def cumplimiento_por_chofer(granularidad: str = "mes", cuantos: int = 6,
+                            usuario=Depends(solo_ger), db: Session = Depends(get_db)):
+    """CU-GER-14: quien cumple y quien no, cortado por mes o por ano.
+
+    Se mide sobre CITAS CONFIRMADAS. Una unidad a la que el taller nunca le dio
+    cita no entra en este calculo: eso mide al taller, no al chofer.
+    """
+    return estadisticas.cumplimiento_choferes(db, granularidad, cuantos)
+
+
+@router.get("/choferes/{chofer_id}/expediente")
+def expediente_chofer(chofer_id: int, usuario=Depends(solo_ger),
+                      db: Session = Depends(get_db)):
+    """CU-GER-13: el historial acumulado de un chofer.
+
+    Sirve para sostener una amonestacion con historial Y para defender al chofer
+    al que el taller nunca le dio cita. Las dos cosas importan.
+    """
+    return estadisticas.expediente(db, chofer_id)

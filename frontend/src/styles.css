@@ -1145,3 +1145,10 @@ tbody tr:hover { background: var(--surface-2); }
 .gcolumnas.meta .gcol.hoy .gtorre { opacity: .45; }
 .gcolumnas.meta .gcol.hoy .gpie { font-weight: 700; color: var(--texto); }
 .gcolumnas.meta .gpie { font-size: .58rem; }
+
+/* Selector de granularidad del tablero del gerente: dia / mes / anio. Van
+   pegados a proposito -- son una sola decision, no tres botones sueltos. */
+.segmentado { display: inline-flex; gap: 0; border-radius: 8px; overflow: hidden;
+              border: 1px solid var(--border); }
+.segmentado .btn { border: 0; border-radius: 0; box-shadow: none; }
+.segmentado .btn + .btn { border-left: 1px solid var(--border); }
