@@ -123,6 +123,17 @@ USUARIOS_REALES = [
     ("Ruben",  "Espejo Hernandez",       4932,   "chofer_grua",    "bajagas2026"),
     ("Jose",   "Espinoza Herrera",       13624,  "chofer_grua",    "bajagas2026"),
     ("Ricardo", "Muniz Estrada",         13924,  "chofer_grua",    "bajagas2026"),
+    # PERITO. Nota 9 de la junta del 2026-09-14: Edgar es del SINDICATO pero
+    # trabaja para Baja Gas. Eso lo hace actor INTERNO, no externo, y es lo que
+    # cambia el flujo: se le avisa desde el sistema y el levanta el peritaje
+    # dentro, en vez de esperar a que llegue un tercero y teclear su folio
+    # despues. Que sea del sindicato importa para el organigrama, no para los
+    # permisos: entra con su cuenta y lo que registra queda a su nombre.
+    #
+    # PENDIENTE: no tenemos su apellido ni su numero de empleado -- no aparece
+    # en ningun archivo entregado, igual que el gerente. Mientras tanto entra
+    # por perito@bajagas.mx.
+    ("Edgar",  "Perito",                 None,   "perito",         "bajagas2026"),
 ]
 
 

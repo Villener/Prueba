@@ -9,6 +9,7 @@ import Administrador from './modules/administrador/AdministradorPage.jsx'
 import Capturista from './modules/capturista/CapturistaPage.jsx'
 import ChoferGrua from './modules/chofer-grua/ChoferGruaPage.jsx'
 import Gerente from './modules/gerente/GerentePage.jsx'
+import Perito from './modules/perito/PeritoPage.jsx'
 import Notificaciones from './modules/sistema/NotificacionesPage.jsx'
 import { Logo } from './ui/Logo.jsx'
 import {
@@ -49,6 +50,12 @@ const MODULOS = {
     { to: '/', Ico: IcoOrdenes, txt: 'Requisiciones' },
     { to: '/capturar', Ico: IcoCapturar, txt: 'Capturar' },
     { to: '/pendientes', Ico: IcoPendientes, txt: 'Pendientes' },
+  ] },
+  // Nota 9: Edgar es del sindicato pero trabaja para Baja Gas. Actor interno,
+  // con su propio modulo -- por eso el peritaje se levanta dentro del sistema.
+  perito: { titulo: 'Perito', Componente: Perito, tabs: [
+    { to: '/', Ico: IcoAverias, txt: 'Pendientes' },
+    { to: '/historial', Ico: IcoHistorial, txt: 'Mis peritajes' },
   ] },
   chofer_grua: { titulo: 'Chofer de grúa', Componente: ChoferGrua, tabs: [
     { to: '/', Ico: IcoAlertas, txt: 'Alertas' },
