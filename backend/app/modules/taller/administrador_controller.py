@@ -8,7 +8,7 @@ llena en la pluma de Alamos. Ver modules/ordenes/reporte_model.py.
 """
 from datetime import date, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
@@ -26,6 +26,8 @@ from ...core.security import notificar, registrar_bitacora, require_roles
 from ...core.tiempo import TZ_OPERACION, a_utc, ahora_utc
 from .exportar_resumen import construir as construir_resumen
 from .indicadores import calcular as calcular_indicadores
+from ..emergencias.evidencia_controller import guardar as guardar_evidencia
+from ..emergencias.emergencias_service import fotos_de
 from ..mantenimiento import meta_preventivo
 
 router = APIRouter(prefix="/api/admin", tags=["administrador"])
@@ -949,6 +951,26 @@ def cerrar_reporte(reporte_id: int, datos: CierreReporteIn,
             "firmas_faltantes": faltantes,
         })
 
+    # RN-15: un PREVENTIVO no se cierra sin foto.
+    #
+    # La firma prueba que alguien cerro el formato; la foto prueba que el
+    # trabajo se hizo. Son dos cosas distintas y hasta hoy solo se exigia la
+    # primera, asi que un preventivo se podia dar por hecho sin que nadie
+    # hubiera tocado la unidad.
+    #
+    # Solo aplica al preventivo. Un correctivo entra porque algo se rompio y su
+    # prueba es que la unidad volvio a andar; exigirle foto seria trabar la
+    # operacion por una regla que el cliente no pidio.
+    if r.tipo_servicio == "preventivo":
+        fotos = fotos_de(db, "reporte_mantenimiento", r.id)
+        if not fotos:
+            raise HTTPException(409, {
+                "mensaje": "Es un servicio preventivo y no tiene evidencia fotografica. "
+                           "La firma prueba que alguien cerro el formato; la foto prueba "
+                           "que el trabajo se hizo.",
+                "falta_evidencia": True,
+            })
+
     salida = datos.fecha_salida or ahora_utc()
     if r.fecha_entrada and salida < r.fecha_entrada:
         raise HTTPException(422, "La salida no puede ser anterior a la entrada.")
@@ -1419,3 +1441,43 @@ def registro_arrastres(usuario=Depends(solo_admin), db: Session = Depends(get_db
         d["descripcion_falla"] = a.reporte.descripcion_falla if a.reporte else None
         out.append(d)
     return out
+
+
+# --------------------------------------------------------------- CU-ADM-31 -- #
+@router.post("/reportes/{reporte_id}/evidencia")
+def subir_evidencia_reporte(reporte_id: int, archivo: UploadFile = File(...),
+                            descripcion: str | None = None,
+                            usuario=Depends(solo_admin), db: Session = Depends(get_db)):
+    """RN-15: la foto que prueba que el servicio se hizo.
+
+    La compresion ocurre en el TELEFONO, antes de subir (RF-GEN-15). Aqui solo
+    se recibe: lo que llega ya viene redimensionado, y el tope de 8 MB de
+    `guardar()` es el ultimo freno, no el mecanismo. Con 5 a 7 preventivos al
+    dia y varias fotos cada uno, subir el original de camara serian cientos de
+    MB al mes en un servidor que ya esta pagado.
+    """
+    r = _reporte_o_404(db, reporte_id)
+    _exigir_abierto(r)
+    ev = guardar_evidencia(db, usuario.id, "reporte_mantenimiento", r.id,
+                           archivo, descripcion, momento="servicio")
+    registrar_bitacora(db, usuario.id, "subir_evidencia_reporte",
+                       "reporte_mantenimiento", r.id,
+                       f"evidencia {ev.id} del folio {r.folio}")
+    db.commit()
+    return {"evidencia_id": ev.id, "fotos": fotos_de(db, "reporte_mantenimiento", r.id)}
+
+
+@router.get("/reportes/{reporte_id}/evidencia")
+def evidencia_del_reporte(reporte_id: int, usuario=Depends(solo_admin),
+                          db: Session = Depends(get_db)):
+    """Las fotos del formato, y si ya cumple lo que RN-15 exige para cerrar."""
+    r = _reporte_o_404(db, reporte_id)
+    fotos = fotos_de(db, "reporte_mantenimiento", r.id)
+    return {
+        "reporte_id": r.id, "folio": r.folio,
+        "tipo_servicio": r.tipo_servicio,
+        "fotos": fotos,
+        # La pantalla necesita saberlo ANTES de que el admin apriete Cerrar.
+        "exige_evidencia": r.tipo_servicio == "preventivo",
+        "cumple": r.tipo_servicio != "preventivo" or bool(fotos),
+    }

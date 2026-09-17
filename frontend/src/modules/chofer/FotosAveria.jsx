@@ -11,6 +11,7 @@
  */
 import { useState } from 'react'
 import { api } from '../../core/api.js'
+import { comprimir, kb } from '../../core/imagen.js'
 import { Aviso, IcoNota, Regla, TiraFotos, useToast } from '../../ui/index.js'
 
 const MAX_MB = 8
@@ -27,16 +28,28 @@ export function FotosAveria({ averia, onCambio }) {
     e.target.value = ''
     if (!archivo) return
 
-    if (archivo.size > MAX_MB * 1024 * 1024) {
-      toast(`La foto pesa ${(archivo.size / 1048576).toFixed(1)} MB y el tope son ${MAX_MB}.`,
-            'err')
-      return
-    }
     setSubiendo(true)
     try {
-      const actualizada = await api.subir(`/chofer/averias/${averia.id}/foto`, archivo)
-      toast('Foto subida')
+      // RF-GEN-15: se comprime AQUÍ, en el teléfono. El original de cámara
+      // nunca sube. Va antes del tope de tamaño a propósito: una foto de 4 MB
+      // pasaba a 180 KB, así que rechazarla antes de comprimirla era rechazar
+      // evidencia por un peso que la app misma puede arreglar.
+      const original = archivo.size
+      const listo = await comprimir(archivo)
+      if (listo.size > MAX_MB * 1024 * 1024) {
+        toast(`La foto sigue pesando ${kb(listo.size)} y el tope son ${MAX_MB} MB.`, 'err')
+        setSubiendo(false)
+        return
+      }
+      const actualizada = await api.subir(`/chofer/averias/${averia.id}/foto`, listo)
+      if (listo.size < original) {
+        toast(`Foto subida · ${kb(original)} → ${kb(listo.size)}`)
+      } else {
+        toast('Foto subida')
+      }
       onCambio(actualizada)
+      setSubiendo(false)
+      return
     } catch (err) {
       toast(err.message, 'err')
     } finally {

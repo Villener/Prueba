@@ -14,9 +14,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api, fmtFecha, fmtFechaHora, hoyTijuana } from '../../core/api.js'
+import { comprimir, kb } from '../../core/imagen.js'
 import {
   Aviso, Badge, BuscadorUnidad, Card, Empty, IcoImprimir, IcoReportes, IcoTecnico,
-  IcoUbicacion, IcoVolver, Modal, Regla, Spinner, useApi, useToast,
+  IcoUbicacion, IcoVolver, Modal, Regla, Spinner, TiraFotos, useApi, useToast,
 } from '../../ui/index.js'
 import { Logo } from '../../ui/Logo.jsx'
 import { SelectorTaller } from './PlanoTaller.jsx'
@@ -401,6 +402,7 @@ function Hoja({ id, catalogo, tecnicos, onVolver }) {
         <TablaActividades r={r} tecnicos={tecnicos} editable={abierto}
                           onGuardado={recargar} />
         <Comentarios r={r} />
+        <EvidenciaPreventivo reporteId={r.id} editable={abierto} />
         <Firmas r={r} catalogo={catalogo} editable={abierto}
                 onFirmar={(rol) => setFirmando(rol)} />
       </div>
@@ -913,5 +915,77 @@ function ModalCierre({ reporte, onCerrar, onListo }) {
         </Regla>
       </form>
     </Modal>
+  )
+}
+
+
+/* --------------------------------------------------------------- CU-ADM-31 -- */
+/** RN-15 — la evidencia fotográfica del preventivo.
+ *
+ *  La firma prueba que alguien cerró el formato; la foto prueba que el trabajo
+ *  se hizo. Hasta hoy solo se exigía la primera, así que un preventivo se podía
+ *  dar por hecho sin que nadie hubiera tocado la unidad.
+ *
+ *  Solo se exige en el PREVENTIVO. Un correctivo entra porque algo se rompió y
+ *  su prueba es que la unidad volvió a andar.
+ *
+ *  Y se comprime en el dispositivo antes de subir (RF-GEN-15): el original de
+ *  cámara nunca sale del teléfono.
+ */
+function EvidenciaPreventivo({ reporteId, editable }) {
+  const { data, cargando, recargar } = useApi(
+    () => api.get(`/admin/reportes/${reporteId}/evidencia`), [reporteId])
+  const [subiendo, setSubiendo] = useState(false)
+  const toast = useToast()
+
+  if (cargando) return null
+  const d = data || {}
+  if (!d.exige_evidencia && !(d.fotos || []).length) return null
+
+  async function elegir(e) {
+    const archivo = e.target.files && e.target.files[0]
+    e.target.value = ''
+    if (!archivo) return
+    setSubiendo(true)
+    try {
+      const original = archivo.size
+      const listo = await comprimir(archivo)
+      await api.subir(`/admin/reportes/${reporteId}/evidencia`, listo)
+      toast(listo.size < original
+        ? `Evidencia subida · ${kb(original)} → ${kb(listo.size)}`
+        : 'Evidencia subida')
+      recargar()
+    } catch (err) {
+      toast(err.message, 'err')
+    } finally {
+      setSubiendo(false)
+    }
+  }
+
+  return (
+    <section className="fmt-bloque">
+      <h2>Evidencia del servicio</h2>
+      {!d.cumple && (
+        <Aviso tipo="warn">
+          Es un servicio <strong>preventivo</strong> y todavía no tiene foto.
+          El formato no se puede cerrar sin ella.
+        </Aviso>
+      )}
+      <TiraFotos fotos={d.fotos || []} />
+      {editable && (
+        <div className="no-print" style={{ marginTop: 8 }}>
+          <label className="btn">
+            {subiendo ? 'Subiendo…' : 'Agregar foto'}
+            <input type="file" accept="image/*" capture="environment" hidden
+                   onChange={elegir} disabled={subiendo} />
+          </label>
+          <Regla>
+            La foto se reduce en este dispositivo antes de subirse: se guarda una
+            imagen de unos 200 KB, no el original de cámara de 4 MB. Con 5 a 7
+            preventivos al día, la diferencia es medio giga al mes contra veinte megas.
+          </Regla>
+        </div>
+      )}
+    </section>
   )
 }
