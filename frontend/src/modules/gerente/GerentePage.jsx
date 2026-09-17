@@ -442,6 +442,8 @@ function Estadisticas() {
             { k: 'cumplidas', t: 'Cumplidas', num: true },
             { k: 'faltas', t: 'Faltas', num: true,
               r: (f) => f.faltas ? <Badge tono="danger">{f.faltas}</Badge> : '0' },
+            { k: 'pendientes', t: 'Pend.', num: true,
+              r: (f) => f.pendientes ? <Badge>{f.pendientes}</Badge> : '0' },
             { k: 'amonestaciones', t: 'Amonest.', num: true },
             { k: 'cumplimiento', t: '%', num: true,
               r: (f) => f.cumplimiento == null ? '—'
@@ -457,6 +459,9 @@ function Estadisticas() {
           Se mide sobre <strong>citas confirmadas</strong>. Una unidad a la que el taller nunca
           le dio cita no entra en este cálculo: eso mediría al taller, no al chofer. Y se mide
           contra el <strong>poseedor</strong> de la unidad ese día, no contra el titular.
+          El porcentaje sale solo de las citas <strong>con desenlace</strong>: una cita confirmada
+          que todavía no llega no es un incumplimiento, y meterla en la cuenta pintaría de 0% a
+          quien no ha fallado a nada.
         </Regla>
       </Card>
 

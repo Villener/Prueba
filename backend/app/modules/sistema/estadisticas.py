@@ -153,12 +153,17 @@ def cumplimiento_choferes(db: Session, gran: str = "mes", cuantos: int = 6,
             ch = uni.poseedor_chofer_id or uni.titular_chofer_id if uni else None
         if ch is None:
             continue
-        d = por_chofer.setdefault(ch, {"confirmadas": 0, "cumplidas": 0, "faltas": 0})
+        d = por_chofer.setdefault(ch, {"confirmadas": 0, "cumplidas": 0,
+                                       "faltas": 0, "pendientes": 0})
         d["confirmadas"] += 1
         if c.estado == "cumplida":
             d["cumplidas"] += 1
         elif c.estado == "no_asistio":
             d["faltas"] += 1
+        else:
+            # Confirmada y sin desenlace todavia: la cita no ha llegado o no se
+            # ha cerrado. NO cuenta para el porcentaje.
+            d["pendientes"] += 1
 
     amon_por_chofer: dict = {}
     for a in db.query(m.Amonestacion).all():
@@ -169,12 +174,18 @@ def cumplimiento_choferes(db: Session, gran: str = "mes", cuantos: int = 6,
 
     filas = []
     for ch, d in por_chofer.items():
-        conf = d["confirmadas"]
+        # El porcentaje se calcula SOLO sobre citas con desenlace: cumplidas mas
+        # faltas. Una cita confirmada que todavia no llega no es un
+        # incumplimiento, y meterla en el denominador pintaba de 0% a un chofer
+        # que no ha fallado a nada -- que fue justo lo que aparecio con los datos
+        # reales de produccion.
+        resueltas = d["cumplidas"] + d["faltas"]
         filas.append({
             "chofer_id": ch, "chofer": _nombre(db, ch),
-            "confirmadas": conf, "cumplidas": d["cumplidas"], "faltas": d["faltas"],
+            "confirmadas": d["confirmadas"], "cumplidas": d["cumplidas"],
+            "faltas": d["faltas"], "pendientes": d["pendientes"],
             "amonestaciones": amon_por_chofer.get(ch, 0),
-            "cumplimiento": round(100 * d["cumplidas"] / conf, 1) if conf else None,
+            "cumplimiento": round(100 * d["cumplidas"] / resueltas, 1) if resueltas else None,
         })
     # Primero los que peor van: es la lista que el gerente necesita ver.
     filas.sort(key=lambda x: (-x["faltas"], x["cumplimiento"] if x["cumplimiento"] is not None else 101))
@@ -198,7 +209,7 @@ def expediente(db: Session, chofer_id: int) -> dict:
                         | (m.Unidad.titular_chofer_id == chofer_id)).all())
     ids_unidad = [u.id for u in unidades]
 
-    confirmadas = cumplidas = 0
+    confirmadas = cumplidas = faltadas = 0
     if ids_unidad:
         for c in (db.query(m.CitaTaller)
                   .filter(m.CitaTaller.unidad_id.in_(ids_unidad)).all()):
@@ -206,6 +217,8 @@ def expediente(db: Session, chofer_id: int) -> dict:
                 confirmadas += 1
             if c.estado == "cumplida":
                 cumplidas += 1
+            elif c.estado == "no_asistio":
+                faltadas += 1
 
     # Sin guardas `hasattr`: si un nombre de columna cambia, que reviente aqui y
     # no que devuelva 0 calladamente. Un cero falso en un expediente es peor que
@@ -223,7 +236,10 @@ def expediente(db: Session, chofer_id: int) -> dict:
         "citas_confirmadas": confirmadas,
         "citas_cumplidas": cumplidas,
         "faltas": len(citas_faltadas),
-        "cumplimiento": round(100 * cumplidas / confirmadas, 1) if confirmadas else None,
+        # Mismo criterio que cumplimiento_choferes(): solo las citas con
+        # desenlace. Una confirmada que no ha llegado no es un incumplimiento.
+        "cumplimiento": (round(100 * cumplidas / (cumplidas + faltadas), 1)
+                         if (cumplidas + faltadas) else None),
         "prestamos_recibidos": prestamos,
         "averias_reportadas": averias,
         "amonestaciones": h,
