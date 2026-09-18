@@ -532,7 +532,32 @@ tbody tr:hover { background: var(--surface-2); }
   /* El renglon donde el mecanico anota a mano lo que hizo. */
   .renglon { display: block; min-width: 190px; border-bottom: 1px solid #000; height: 1.5em; }
   .table-wrap { overflow: visible; margin: 0; padding: 0; }
+
+  /* El FORMATO DE SALIDA del mecánico autónomo se imprime desde su ventana
+     modal: es el papel que entrega con la unidad. Sin estas reglas salía la
+     pantalla de atrás encima y el formato recortado a la altura de la ventana,
+     porque `.modal-bg` es `position: fixed` y `.modal` tiene `max-height: 92vh`
+     con su propio scroll — lo que no cabía simplemente no se imprimía. */
+  .modal-bg {
+    position: static; inset: auto; z-index: auto;
+    background: none; padding: 0; display: block;
+  }
+  .modal {
+    max-width: none; max-height: none; overflow: visible;
+    border: 0; border-radius: 0; padding: 0;
+  }
+  /* Los botones no son parte del papel. */
+  .modal .btn { display: none !important; }
+  /* Y con la ventana abierta, lo que está detrás no se imprime. */
+  body:has(.modal-bg) .content > *:not(.modal-bg) { display: none !important; }
 }
+
+/* Pie de dato dentro de una tarjeta o una ventana. Existía `.list-item .s` y
+   `.card .sub`, pero un `.s` suelto dentro de una `.card` no tenía ninguna
+   regla: los renglones de datos salían del tamaño del texto normal y la
+   jerarquía se perdía. */
+.card .s, .modal .s { font-size: .8rem; color: var(--muted); }
+.card .s strong, .modal .s strong { color: var(--text); font-weight: 600; }
 
 /* La unidad sobre la que se trabaja, al frente del formato. */
 .unidad-trabajo {

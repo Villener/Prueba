@@ -145,7 +145,7 @@ USUARIOS_REALES = [
 # del 2026-09-14). Falta darle de alta su usuario; el rol ya existe para que el
 # dia que se cree, el aviso funcione solo.
 ROLES_DEL_SISTEMA = ["chofer", "supervisor", "administrador", "chofer_grua",
-                     "gerente", "capturista", "perito"]
+                     "gerente", "capturista", "perito", "mecanico"]
 
 # La misma que usa el importador para la gente que saca del Excel.
 PASSWORD_REAL = "bajagas2026"
@@ -908,5 +908,59 @@ def asegurar_parametros(db: Session) -> dict:
         db.add(m.Configuracion(clave=clave, valor=valor, descripcion=desc))
         hecho["creados"] += 1
     if hecho["creados"]:
+        db.commit()
+    return hecho
+
+
+# --------------------------------------------------------------------------- #
+# El rol del mecanico autonomo
+# --------------------------------------------------------------------------- #
+def asegurar_rol_mecanicos(db: Session) -> dict:
+    """Le da el rol `mecanico` a los tecnicos AUTONOMO que tienen cuenta.
+
+    ESTE ES EL ARREGLO DE LAS CUENTAS SIN ROL. El importador creo las seis
+    cuentas de los mecanicos de las plantas satelite con su contrasena buena y
+    sin un solo rol, porque el rol todavia no existia. El resultado es la peor
+    version de un error: la cuenta autentica --el usuario teclea bien, el
+    sistema lo deja pasar-- y despues no le toca ningun modulo, asi que ve la
+    aplicacion vacia y concluye que esta descompuesta.
+
+    Se hace por MODALIDAD y no por una lista de correos a mano porque el dia que
+    abra otra planta satelite y su mecanico entre al catalogo como AUTONOMO con
+    cuenta, el rol le va a tocar solo. Los 34 de Alamos son ASISTIDO y siguen
+    sin cuenta a proposito (RI-A-18): quien captura lo suyo es Erick.
+    """
+    hecho = {"asignados": 0, "ya_tenian": 0, "sin_cuenta": 0}
+    # `apagadas` solo aparece si hay alguna: es un aviso, no una estadistica.
+    rol = db.query(m.Rol).filter(m.Rol.nombre == "mecanico").first()
+    if not rol:
+        return hecho
+
+    for t in (db.query(m.Tecnico)
+              .filter(m.Tecnico.modalidad == "AUTONOMO",
+                      m.Tecnico.activo.is_(True)).all()):
+        if not t.usuario_id:
+            hecho["sin_cuenta"] += 1
+            continue
+        if db.query(m.UsuarioRol).filter_by(usuario_id=t.usuario_id,
+                                            rol_id=rol.id).first():
+            hecho["ya_tenian"] += 1
+            continue
+        db.add(m.UsuarioRol(usuario_id=t.usuario_id, rol_id=rol.id))
+        # NO SE REACTIVA LA CUENTA. Aqui habia un `u.activo = True` justificado
+        # con que la reconciliacion habria apagado algunas de estas cuentas --y
+        # eso no era cierto: `reconciliar_cuentas` solo toca las cuentas de demo
+        # que estan en RECONCILIAR, y estas seis las creo el importador--. Una
+        # cuenta apagada lo esta por una razon que este codigo no conoce, y
+        # encenderla como efecto colateral de sembrar un rol es exactamente el
+        # tipo de sorpresa que costo caro con la clave del gerente.
+        #
+        # Lo que si se hace es DECIRLO: queda en el registro del arranque, con
+        # el correo, para que se resuelva a mano sabiendo lo que se hace.
+        u = db.query(m.Usuario).filter(m.Usuario.id == t.usuario_id).first()
+        if u and not u.activo:
+            hecho.setdefault("apagadas", []).append(u.email)
+        hecho["asignados"] += 1
+    if hecho["asignados"]:
         db.commit()
     return hecho

@@ -4,7 +4,7 @@ Corresponde a OrdenAuxilio, ESTADOS_AUXILIO, DifusionAuxilio, RespuestaAuxilio d
 """
 from sqlalchemy import (Boolean, Column, Date, DateTime, Float, ForeignKey, Integer,
                         Numeric, String, Text, UniqueConstraint)
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import backref, relationship
 
 from ...core.base_model import Base, TimestampMixin, _now
 from ...core.tiempo import UTCDateTime
@@ -30,7 +30,21 @@ class OrdenAuxilio(Base, TimestampMixin):
     resuelto_en_sitio = Column(Boolean)
     arrastre_id = Column(Integer, ForeignKey("arrastre.id"))
 
+    # Donde viene el mecanico AHORA (CU-MEC-09). Es la ultima posicion, no el
+    # recorrido: al chofer parado en la carretera le sirve saber por donde viene
+    # quien lo va a auxiliar, no por donde paso. El historial completo solo se
+    # guarda del arrastre --UbicacionArrastre-- porque ahi si es prueba de que
+    # la grua hizo el viaje que cobra.
+    latitud = Column(Float)
+    longitud = Column(Float)
+    ubicacion_en = Column(UTCDateTime)
+
     tecnico = relationship("Tecnico")
+    # Misma forma que `reporte.arrastre`: uno a uno, navegable desde el reporte.
+    # Sin esto no hay manera barata de preguntar "esta averia ya tiene auxilio"
+    # y se difundiria dos veces la misma.
+    reporte = relationship("ReporteAveria",
+                           backref=backref("orden_auxilio", uselist=False))
 
 ESTADOS_AUXILIO = ["difundida", "aceptada", "en_ruta", "en_sitio", "resuelta",
                    "escalada_a_arrastre", "cancelada"]

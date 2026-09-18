@@ -13,6 +13,7 @@ from . import jobs
 from .core.database import Base, engine, get_db
 from .modules.emergencias.chofer_grua_controller import router as router_chofer_grua
 from .modules.emergencias.evidencia_controller import router as router_evidencias
+from .modules.emergencias.mecanico_controller import router as router_mecanico
 from .modules.emergencias.perito_controller import router as router_perito
 from .modules.flota.chofer_controller import router as router_chofer
 from .modules.flota.supervisor_controller import router as router_supervisor
@@ -26,15 +27,17 @@ from .core.migraciones import (asegurar_columnas, asegurar_indices,
                                asegurar_renombres)
 from .seed import (asegurar_parametros, asegurar_plano,
                    asegurar_reportes_de_ordenes_abiertas,
-                   asegurar_roles, asegurar_tipos_servicio,
+                   asegurar_rol_mecanicos, asegurar_roles, asegurar_tipos_servicio,
                    asegurar_usuarios_demo, reconciliar_cuentas, sembrar)
 
 app = FastAPI(
     title="Baja Gas - Gestion de Flota y Taller",
     version="1.2.0",
-    description="7 modulos: Chofer, Supervisor, Administrador, Capturista, Chofer de grua, "
-                "Perito y Gerente. Los mecanicos no usan la aplicacion: el administrador captura "
-                "su trabajo de taller y el capturista teclea las requisiciones.",
+    description="8 modulos: Chofer, Supervisor, Administrador, Capturista, Chofer de grua, "
+                "Perito, Mecanico autonomo y Gerente. La distincion de los mecanicos es por "
+                "MODALIDAD: los 34 ASISTIDO de Alamos no usan la aplicacion --Erick captura su "
+                "trabajo y el capturista teclea las requisiciones-- y los 6 AUTONOMO de las "
+                "plantas satelite si, porque no tienen quien capture por ellos.",
 )
 
 app.add_middleware(
@@ -50,7 +53,7 @@ app.add_middleware(
 # en app/modules/<dominio>/, igual que en el diagrama de clases.
 for r in [router_auth, router_chofer, router_supervisor, router_administrador,
           router_agenda, router_chofer_grua, router_gerente, router_capturista,
-          router_evidencias, router_perito]:
+          router_evidencias, router_perito, router_mecanico]:
     app.include_router(r)
 
 
@@ -112,6 +115,8 @@ def startup():
         # las que falten. Al reves, quedarian dos cuentas para la misma persona.
         log.info("reconciliacion: %s", reconciliar_cuentas(db))
         log.info("cuentas reales: %s", asegurar_usuarios_demo(db))
+        # Despues de los roles Y de las cuentas: necesita las dos cosas.
+        log.info("rol mecanico: %s", asegurar_rol_mecanicos(db))
         # Al final: necesita las ordenes ya sembradas para saber a que unidades
         # les falta formato (v1.3, el reporte nace con el ingreso).
         log.info("reportes: %s", asegurar_reportes_de_ordenes_abiertas(db))

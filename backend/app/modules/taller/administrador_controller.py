@@ -1084,7 +1084,7 @@ def _patron_busqueda(termino: str) -> tuple[str, bool]:
 
 @router.get("/piezas")
 def piezas(q: str = "", taller_id: int | None = None, limite: int = 30,
-           usuario=Depends(require_roles("administrador", "capturista")),
+           usuario=Depends(require_roles("administrador", "capturista", "mecanico")),
            db: Session = Depends(get_db)):
     """CU-ADM-11: buscador del almacen con respuesta inmediata.
 
@@ -1106,6 +1106,13 @@ def piezas(q: str = "", taller_id: int | None = None, limite: int = 30,
     El CAPTURISTA lee este mismo buscador --teclea del papel el codigo de cada
     material-- y por eso el rol esta permitido aqui. Es el unico endpoint de
     /admin que comparte: solo consulta el catalogo, no mueve nada.
+
+    El MECANICO AUTONOMO tambien, por CU-MEC-03, y hacerlo asi evito un error
+    caro: se habia escrito un buscador propio en /mecanico/piezas que leia
+    `Pieza.stock_actual`. Ese campo lo llena NADIE -- el importador deja la
+    existencia real en `Existencia`, que es de donde lee esta funcion. El
+    buscador paralelo le habria dicho "no hay" de las 18,233 piezas y lo habria
+    hecho pedir cosas que si estan en el almacen.
     """
     termino = (q or "").strip()
     # Los asteriscos no son letras: un "*" suelto pediria el catalogo entero.
@@ -1351,23 +1358,53 @@ def despachar(averia_id: int, datos: DespachoIn, usuario=Depends(solo_admin),
         mensaje = f"Averia de la unidad {unidad} resuelta por telefono"
 
     elif datos.tipo in ("mecanico", "llantero"):
-        if not datos.tecnico_id:
-            raise HTTPException(400, "Indica que tecnico va a sitio")
-        t = db.query(m.Tecnico).filter(m.Tecnico.id == datos.tecnico_id).first()
-        if not t:
-            raise HTTPException(404, "Tecnico no encontrado")
-        if t.modalidad != "AUTONOMO":
-            # No es capricho: los 34 tecnicos de Alamos son ASISTIDO, no usan la
-            # aplicacion y no salen a carretera. Dejar elegirlos seria despachar
-            # a alguien que no va a ir, y la unidad se quedaria esperando.
-            raise HTTPException(409,
-                                f"{t.nombre} {t.apellidos} es ASISTIDO: trabaja dentro del "
-                                "taller y no sale a carretera. Elige un tecnico autonomo.")
+        # Ahora se levanta la ORDEN DE AUXILIO, no solo un aviso.
+        #
+        # Antes esto notificaba al chofer que "va Fulano" y ahi se acababa: al
+        # tecnico no le llegaba absolutamente nada. La orden y su difusion
+        # estaban modeladas desde la v2.0 y nadie las escribia, asi que el
+        # mecanico no tenia forma de enterarse mas que por telefono -- que es
+        # justo lo que este sistema viene a dejar por escrito.
+        #
+        # Y `tecnico_id` deja de ser obligatorio, igual que en la grua de abajo:
+        # cuando el administrador no sabe quien esta mas cerca, se difunde a los
+        # seis autonomos y la toma el primero que pueda (CU-MEC-08).
+        if datos.tecnico_id:
+            t = db.query(m.Tecnico).filter(m.Tecnico.id == datos.tecnico_id).first()
+            if not t:
+                raise HTTPException(404, "Tecnico no encontrado")
+            if t.modalidad != "AUTONOMO":
+                # No es capricho: los 34 tecnicos de Alamos son ASISTIDO, no usan
+                # la aplicacion y no salen a carretera. Dejar elegirlos seria
+                # despachar a alguien que no va a ir, y la unidad esperaria.
+                raise HTTPException(409,
+                                    f"{t.nombre} {t.apellidos} es ASISTIDO: trabaja dentro del "
+                                    "taller y no sale a carretera. Elige un tecnico autonomo.")
+            if not t.usuario_id:
+                raise HTTPException(409,
+                                    f"{t.nombre} {t.apellidos} no tiene cuenta en la "
+                                    "aplicacion, asi que la orden no le llegaria. Pide que "
+                                    "se le cree, o difundela sin nombrar tecnico.")
+
+        orden, destinos = svc.difundir_auxilio(db, r, datos.tecnico_id)
         r.estado = "en_atencion"
-        notificar(db, r.chofer_id, "Apoyo en camino",
-                  f"Va {t.nombre} {t.apellidos} ({t.telefono or 'sin telefono'}) a tu ubicacion",
-                  "averia", "reporte_averia", r.id)
-        mensaje = f"{t.nombre} {t.apellidos} enviado a la unidad {unidad}"
+        if datos.tecnico_id:
+            t = destinos[0]
+            # "Se le aviso", no "va en camino": todavia no acepta. Prometerle al
+            # chofer que ya salio alguien cuando nadie ha confirmado es como se
+            # pierden las dos horas que nadie explica despues.
+            notificar(db, r.chofer_id, "Se aviso a un mecanico",
+                      f"Se le mando el auxilio a {t.nombre} {t.apellidos} "
+                      f"({t.telefono or 'sin telefono'}). Te avisamos cuando confirme.",
+                      "averia", "reporte_averia", r.id)
+            mensaje = f"Auxilio {orden.folio} enviado a {t.nombre} {t.apellidos}"
+        else:
+            notificar(db, r.chofer_id, "Buscando mecanico",
+                      f"El auxilio se mando a {len(destinos)} mecanicos. "
+                      "Te avisamos en cuanto uno confirme.",
+                      "averia", "reporte_averia", r.id)
+            mensaje = (f"Auxilio {orden.folio} difundido a {len(destinos)} "
+                       "mecanicos autonomos")
 
     else:  # grua
         if not svc.puede_solicitar_arrastre(r):

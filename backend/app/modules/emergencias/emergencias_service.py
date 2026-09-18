@@ -12,6 +12,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ... import models as m
+from ...core.security import notificar
 from ...core.tiempo import ahora_utc
 from .averia_model import DESTINOS_CHOQUE
 from ..sistema.comun_service import nombre_chofer, nombre_usuario, siguiente_folio  # noqa: F401
@@ -152,6 +153,73 @@ def km_entre(lat1, lon1, lat2, lon2) -> float | None:
          + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2))
          * math.sin(dlon / 2) ** 2)
     return round(2 * r * math.asin(math.sqrt(a)), 1)
+
+
+def autonomos_disponibles(db: Session):
+    """Los que pueden salir a auxiliar: AUTONOMO, activos, libres y CON CUENTA.
+
+    La cuenta no es un detalle administrativo: la orden se entrega DENTRO de la
+    aplicacion, asi que difundirsela a un tecnico sin usuario seria mandarla a
+    un buzon que nadie abre. Los 34 de Alamos son ASISTIDO y quedan fuera por la
+    misma razon que en el despacho -- no salen a carretera.
+
+    No se filtra por especialidad. Son seis en seis plantas distintas y lo que
+    decide quien va es la DISTANCIA, no el oficio; filtrar por especialidad
+    dejaria al unico carrocero sin recibir nunca una sola orden.
+    """
+    return (db.query(m.Tecnico)
+            .filter(m.Tecnico.modalidad == "AUTONOMO",
+                    m.Tecnico.activo.is_(True),
+                    m.Tecnico.disponible.is_(True),
+                    m.Tecnico.usuario_id.isnot(None))
+            .all())
+
+
+def difundir_auxilio(db: Session, reporte, tecnico_id=None):
+    """Crea la orden de auxilio y se la manda a los mecanicos. Devuelve (orden, a_quienes).
+
+    ESTO ES LO QUE FALTABA. El despacho a mecanico ya existia, pero solo le
+    avisaba al CHOFER que "va Fulano": al tecnico no le llegaba nada, ni a la
+    aplicacion ni a ningun lado. La orden de auxilio y su difusion estaban
+    modeladas desde la v2.0 y ninguna linea de codigo las escribia, asi que la
+    bandeja del mecanico habria nacido vacia para siempre.
+
+    Dos modos, los mismos que ya usa el arrastre justo abajo:
+      con `tecnico_id`  -> se le manda a ese y a nadie mas.
+      sin `tecnico_id`  -> se difunde a todos y la gana el primero que acepte.
+    """
+    if reporte.orden_auxilio:
+        return reporte.orden_auxilio, []
+
+    if tecnico_id:
+        destinos = [db.query(m.Tecnico).filter(m.Tecnico.id == tecnico_id).first()]
+    else:
+        destinos = autonomos_disponibles(db)
+    destinos = [t for t in destinos if t]
+    if not destinos:
+        raise HTTPException(409, "No hay ningun tecnico autonomo disponible con cuenta "
+                                 "en la aplicacion. Nombra a uno o despacha grua.")
+
+    o = m.OrdenAuxilio(folio=siguiente_folio(db, m.OrdenAuxilio, "AUX"),
+                       reporte_averia_id=reporte.id, estado="difundida")
+    db.add(o)
+    db.flush()
+
+    unidad = reporte.unidad.num_economico if reporte.unidad else "-"
+    for t in destinos:
+        taller = t.taller
+        db.add(m.DifusionAuxilio(
+            orden_auxilio_id=o.id, tecnico_id=t.id,
+            distancia_km_estimada=km_entre(
+                taller.latitud if taller else None,
+                taller.longitud if taller else None,
+                reporte.latitud, reporte.longitud)))
+        notificar(db, t.usuario_id,
+                  "Auxilio en carretera" if len(destinos) > 1 else "Te asignaron un auxilio",
+                  f"Unidad {unidad}. {reporte.descripcion_falla or 'Sin descripcion'}",
+                  "auxilio", "orden_auxilio", o.id)
+    db.flush()
+    return o, destinos
 
 
 def _unidades_en_patio(db: Session) -> set:

@@ -307,9 +307,28 @@ frente al vehículo, no buscando un folio.
 trabajador que aparezca en ellos. Los tres criterios se combinan: «los formatos de Ramón en
 agosto» es una pregunta, no tres búsquedas que alguien tenga que cruzar de memoria.
 
-### 3.6 Mecánico autónomo — CU-MEC (12) · **módulo nuevo**
+### 3.6 Mecánico autónomo — CU-MEC (12) · **implementado el 2026-09-17**
 
 Solo los seis de las plantas satélite: Tecate, Rosarito, Guaycura (2), Carranza y Valle Redondo.
+
+**Los doce están en la aplicación.** El módulo vive en `/api/mecanico` y su pantalla en
+`frontend/src/modules/mecanico/`. Los seis ya tenían cuenta en producción —creada por el
+importador, con contraseña válida y **sin un solo rol**—, así que autenticaban y no les tocaba
+ningún módulo: entraban y veían la aplicación vacía. El rol `mecanico` se les asigna al arrancar
+por **modalidad**, no por una lista de correos, para que el día que abra otra planta satélite su
+mecánico lo reciba solo.
+
+**Dónde nace la orden de auxilio.** El documento describía `CU-CHO-14` como el disparador: el
+chofer pide auxilio y la orden se difunde. En el sistema construido, `CU-CHO-14` **nunca se
+implementó como camino aparte** —el chofer reporta la avería (`CU-CHO-11`) y es el administrador
+quien decide qué apoyo sale, entre las cuatro salidas de `CU-ADM-31`: teléfono, llantero, mecánico
+o grúa. La difusión se enganchó ahí, que es el único punto donde alguien decide *que el apoyo sea
+un mecánico*. Difundir automáticamente en cada avería mandaría a los seis mecánicos a fallas que se
+resuelven por teléfono, que son la mayoría.
+
+Hasta este cambio, despachar «mecánico» **no le avisaba al mecánico**: notificaba al chofer que
+«va Fulano» y ahí se acababa. `ORDEN_AUXILIO` y `DIFUSION_AUXILIO` estaban modeladas desde la v2.0
+y ninguna línea de código las escribía.
 
 | ID | Caso de uso | Actores | Prioridad |
 |---|---|---|---|
@@ -511,11 +530,16 @@ El chofer marca su ubicación y **la orden va a todos los mecánicos autónomos 
 ordenados por distancia a su planta. Cada uno decide según su zona y su carga; **el primero que
 acepta la gana** y los demás dejan de verla.
 
-Dos detalles que hay que resolver al programarlo:
+Dos detalles que hubo que resolver al programarlo:
 
-1. **Condición de carrera.** Dos aceptan a la vez. Se resuelve con `UPDATE ... WHERE estado =
-   'difundida'`, no comprobando antes y escribiendo después.
-2. **Que nadie acepte.** Pasados N minutos entra `CU-AUT-07` y luego `CU-SUP-07`.
+1. **Condición de carrera.** Dos aceptan a la vez. Resuelto con un `UPDATE ... WHERE
+   tecnico_acepta_id IS NULL`: la base decide, no Python. El que pierde recibe un 409 que le
+   explica que otro lo tomó primero, y **su respuesta queda registrada igual**. Está probado con
+   dos mecánicos aceptando la misma orden.
+2. **Que nadie acepte.** Pasados N minutos entra `CU-AUT-07` y luego `CU-SUP-07`. **Todavía no
+   está**: hoy la orden difundida se queda esperando indefinidamente si los seis la ignoran. Lo
+   que sí quedó es la materia prima para escalarla —quién dijo que no y por qué—, que es lo que
+   `CU-SUP-07` necesita leer.
 
 Y se guarda **quién dijo que no y por qué** (`RESPUESTA_AUXILIO`). Sin eso, un silencio de 20
 minutos no se puede distinguir de "todos ocupados", "la unidad está lejos de todos" o "nadie abrió
@@ -532,6 +556,17 @@ Mecánico → consulta existencia en el almacén de Álamos
 ```
 
 `CU-MEC-05` responde justo lo que pediste: **si ya llegó, si está en proceso, o cuándo llega.**
+
+**Un detalle de la implementación que vale la pena saber.** `CU-MEC-03` no tiene endpoint propio:
+el mecánico consulta el **mismo** buscador que el administrador (`GET /api/admin/piezas`), con su
+rol agregado a los permitidos. Se intentó primero un buscador aparte y leía `PIEZA.stock_actual`,
+que **no lo llena nadie** —el importador deja la existencia real en `EXISTENCIA`, por almacén—.
+Habría contestado «no hay» de las 18,233 piezas del catálogo y el mecánico habría pedido a compras
+cosas que están en el estante de Álamos.
+
+Y `CU-MEC-04` acepta pedir algo **fuera de catálogo**, con texto libre: en una planta satélite
+muchas piezas no tienen SKU, y obligar a escoger de la lista acaba en una llamada por teléfono que
+no deja rastro —justo lo que el sistema viene a evitar.
 
 ### CU-ADM-13/14/15 + CU-CHO-07 — la agenda invierte quién empieza
 

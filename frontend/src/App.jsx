@@ -10,6 +10,7 @@ import Capturista from './modules/capturista/CapturistaPage.jsx'
 import ChoferGrua from './modules/chofer-grua/ChoferGruaPage.jsx'
 import Gerente from './modules/gerente/GerentePage.jsx'
 import Perito from './modules/perito/PeritoPage.jsx'
+import Mecanico from './modules/mecanico/MecanicoPage.jsx'
 import Notificaciones from './modules/sistema/NotificacionesPage.jsx'
 import { Logo } from './ui/Logo.jsx'
 import {
@@ -17,7 +18,7 @@ import {
   IcoPlantilla, IcoCumplimiento, IcoHistorial, IcoHoja, IcoIncumplimiento, IcoIndicadores,
   IcoOrdenes,
   IcoPendientes, IcoPlano, IcoPrestamos, IcoPresupuestos, IcoReportes, IcoSolicitudes,
-  IcoTablero, IcoTaller, IcoTemaClaro, IcoTemaOscuro, IcoUnidad,
+  IcoTablero, IcoTaller, IcoTecnico, IcoTemaClaro, IcoTemaOscuro, IcoUnidad,
 } from './ui/iconos.jsx'
 
 /** Cada rol ve solo su modulo. El servidor lo vuelve a validar (RNF-04). */
@@ -56,6 +57,16 @@ const MODULOS = {
   perito: { titulo: 'Perito', Componente: Perito, tabs: [
     { to: '/', Ico: IcoAverias, txt: 'Pendientes' },
     { to: '/historial', Ico: IcoHistorial, txt: 'Mis peritajes' },
+  ] },
+  // Los seis de las plantas satélite. Sus cuentas ya existían en producción —con
+  // contraseña buena y sin un solo rol— así que autenticaban y no les tocaba
+  // ningún módulo: entraban a una aplicación vacía. Este es el módulo que les
+  // faltaba. Los 34 de Álamos son ASISTIDO, no tienen cuenta y no la necesitan.
+  mecanico: { titulo: 'Mecánico', Componente: Mecanico, tabs: [
+    { to: '/', Ico: IcoTecnico, txt: 'Mi trabajo' },
+    { to: '/auxilios', Ico: IcoAverias, txt: 'Carretera' },
+    { to: '/piezas', Ico: IcoAlmacen, txt: 'Piezas' },
+    { to: '/traslados', Ico: IcoArrastres, txt: 'Traslados' },
   ] },
   chofer_grua: { titulo: 'Chofer de grúa', Componente: ChoferGrua, tabs: [
     { to: '/', Ico: IcoAlertas, txt: 'Alertas' },

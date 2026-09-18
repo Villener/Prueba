@@ -28,6 +28,7 @@ from ...core.database import get_db
 from ...core.security import registrar_bitacora, require_roles
 from ...core.tiempo import ahora_utc
 from ...schemas import RequisicionIn, RequisicionOut
+from ..sistema import comun_service as svc
 
 router = APIRouter(prefix="/api/capturista", tags=["capturista"])
 solo_cap = require_roles("capturista")
@@ -225,33 +226,13 @@ def capturar(datos: RequisicionIn, usuario=Depends(solo_cap),
 @router.get("/unidades")
 def unidades(q: str = "", limite: int = 10, usuario=Depends(solo_cap),
              db: Session = Depends(get_db)):
-    """Buscador de unidad por numero economico.
+    """Buscador de unidad por numero economico. La logica es compartida.
 
-    Busca sin guiones ni espacios porque el papel escribe "BG-354P" y el
-    catalogo "BG354P". Sin esto, la mitad de las unidades del libro no casan.
+    Se movio a `comun_service.buscar_unidades` cuando el mecanico autonomo
+    necesito el mismo buscador: tres copias del mismo algoritmo se arreglan dos
+    veces de cada tres.
     """
-    termino = (q or "").strip()
-    if len(termino) < 1:
-        return []
-    plano = "".join(c for c in termino.upper() if c.isalnum())
-    patron = f"%{plano}%"
-    # SQLite no tiene una funcion para quitar caracteres arbitrarios, asi que
-    # se filtra amplio por LIKE y se afina en Python. Son ~700 unidades: cabe.
-    candidatas = (db.query(m.Unidad)
-                  .filter(m.Unidad.num_economico.isnot(None))
-                  .order_by(m.Unidad.num_economico).all())
-    out = []
-    for u in candidatas:
-        clave = "".join(c for c in u.num_economico.upper() if c.isalnum())
-        if plano in clave:
-            out.append({"id": u.id, "num_economico": u.num_economico,
-                        "marca": u.marca, "modelo": u.modelo, "anio": u.anio,
-                        "vin": u.vin, "estado": u.estado, "activo": u.activo,
-                        "exacto": clave == plano})
-        if len(out) >= max(1, min(limite, 50)) and any(x["exacto"] for x in out):
-            break
-    out.sort(key=lambda x: (not x["exacto"], len(x["num_economico"])))
-    return out[: max(1, min(limite, 50))]
+    return svc.buscar_unidades(db, q, limite)
 
 
 @router.get("/mecanicos")
