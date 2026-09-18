@@ -30,8 +30,16 @@ function Tablero() {
   const correrJobs = async () => {
     try {
       const r = await api.post('/jobs/correr')
-      toast(`Avisos: ${r.penalizaciones_generadas} · Alertas: ${r.alertas_nuevas} · ` +
-            `Préstamos cerrados: ${r.prestamos_cerrados}`)
+      // Los nombres tienen que ser los que DEVUELVE el servidor (jobs.py,
+      // correr_todos). Aquí decía `penalizaciones_generadas`, que no existe:
+      // la clave es `avisos_incumplimiento` desde que la v2.0 quitó la palabra
+      // «penalización», así que el mensaje salía «Avisos: undefined» cada vez
+      // que alguien apretaba el botón.
+      const ag = r.agenda || {}
+      toast(`Avisos de incumplimiento: ${r.avisos_incumplimiento ?? 0} · ` +
+            `Alertas: ${r.alertas_nuevas ?? 0} · ` +
+            `Citas avisadas: ${r.avisos_cita ?? 0} · ` +
+            `Agenda: ${ag.propuestas ?? 0} propuestas, ${ag.sin_cupo ?? 0} sin cupo`)
       kpis.recargar()
     } catch (e) { toast(e.message, 'err') }
   }
