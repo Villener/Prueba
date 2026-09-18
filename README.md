@@ -9,7 +9,7 @@ chofer de grúa trabajan desde el teléfono, el administrador y el gerente desde
 > quién lo tecleó.
 >
 > **v1.2** — Se agrega el módulo del **capturista de datos**, que es un puesto real del taller de
-> Álamos (empleado 13905). Son 6 módulos. Su trabajo diario —el libro `REQUIS`— entra al sistema
+> Álamos (empleado 13905). Son 8 módulos. Su trabajo diario —el libro `REQUIS`— entra al sistema
 > como entidad propia: **99 requisiciones reales con 383 renglones**, importadas del Excel.
 >
 > **v1.3** — Entra el **REPORTE DE MANTENIMIENTO**: el formato de papel que se llena en la
@@ -99,16 +99,37 @@ correo es la misma para todos:
 - con número de empleado → `e<num>@bajagas.mx`
 - sin número (los supervisores no lo traen en el Excel) → `<nombre+sucursal, 12 letras>@bajagas.mx`
 
-**Una cuenta por módulo**, para recorrer los seis de punta a punta:
+**Una cuenta por módulo**, para recorrer los ocho de punta a punta:
 
 | Correo | Módulo | Persona | Qué ver ahí |
 |---|---|---|---|
-| `gerente@bajagas.mx` | Gerente | Luis Tiscareño | Tablero, autorizar presupuestos, alertas |
+| `gerente@bajagas.mx` | Gerente | Luis Tiscareño | Tablero, autorizar presupuestos, alertas, estadísticas |
 | `e925@bajagas.mx` | Administrador | Erick Ávalos | Solicitudes, plano, presupuestos, hoja del día |
 | `e13905@bajagas.mx` | Capturista | Jaime Yair Domínguez | Las 99 requisiciones del libro `REQUIS` |
-| `ricardoandre@bajagas.mx` | Supervisor | Ricardo Andrés Flores | Carranza: la cuadrilla más grande, **55 choferes** |
+| `ricardoandre@bajagas.mx` | Supervisor | Ricardo Andrés Flores | Carranza: la plantilla más grande, **55 choferes** |
 | `e4932@bajagas.mx` | Chofer de grúa | Rubén Espejo | Alertas, arrastres, historial |
 | `e3145@bajagas.mx` | Chofer | Blas Mauricio Cota | Titular de la **1009**, Tecate. Pantalla de teléfono |
+| `perito@bajagas.mx` | Perito | Edgar (falta apellido) | Unidades detenidas por su firma, sus peritajes |
+| `e3205@bajagas.mx` | Mecánico | Efrén José Martínez | Tecate: su cola de trabajo, carretera, piezas, traslados |
+
+**Los seis mecánicos autónomos.** Son los únicos técnicos con cuenta, y el motivo es de operación,
+no de permisos: en su planta están solos y no hay quien capture por ellos. Los **34 de Álamos** son
+`ASISTIDO`, **no tienen cuenta y no deben tenerla** (RI-A-18) — Erick captura su trabajo y Jaime
+teclea las requisiciones.
+
+| Correo | Persona | Planta | Especialidad |
+|---|---|---|---|
+| `e6550@bajagas.mx` | Juan Carlos López Domínguez | Carranza | Mecánico |
+| `e67@bajagas.mx` | Heriberto Hernández Valentín | Guaycura | Mecánico |
+| `e6736@bajagas.mx` | Juan Javier Leyva Inzunza | Rosarito | Mecánico |
+| `e3205@bajagas.mx` | Efrén José Martínez García | Tecate | Mecánico |
+| `e4709@bajagas.mx` | Roberto Bernardino Melo | Valle Redondo | **Carrocero** (el único) |
+| `e9901@bajagas.mx` | Moisés Banda Reyes | Valle Redondo | Mecánico |
+
+Estas seis cuentas **existían desde el importador con su contraseña válida y sin un solo rol**:
+autenticaban y no les tocaba ningún módulo, así que entraban a una aplicación vacía y parecía que
+estaba descompuesta. El rol `mecanico` se les asigna al arrancar **por modalidad**, no por una
+lista de correos, para que el día que abra otra planta satélite su mecánico lo reciba solo.
 
 **Cuentas de repuesto**, por si necesitas dos sesiones del mismo módulo a la vez —un préstamo
 entre choferes, por ejemplo, necesita dos— o quieres ver el mismo módulo con otros datos:
@@ -119,8 +140,10 @@ entre choferes, por ejemplo, necesita dos— o quieres ver el mismo módulo con 
 | Supervisor | 13 | `franciscofau@bajagas.mx` (Tecate) · `carlosantoni@bajagas.mx` · `gerardoemman@bajagas.mx` |
 | Chofer de grúa | 3 | `e13624@bajagas.mx` (José Espinoza) · `e13924@bajagas.mx` (Ricardo Muñiz) |
 | Chofer | 297 | `e13425@bajagas.mx` · `e6099@bajagas.mx` · y los 294 restantes, por su número de empleado |
+| Mecánico | 6 | Los otros cinco de la tabla de arriba |
 | Gerente | 1 | — |
 | Capturista | 1 | — |
+| Perito | 1 | — |
 
 **Los 297 choferes y los 13 supervisores tienen cuenta**, no solo los de arriba: los crea el
 importador desde `INFO CHOFERES 2026 ACTUAL.xlsx`. Para entrar con cualquier otro, arma su correo

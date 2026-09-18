@@ -309,7 +309,10 @@ agosto» es una pregunta, no tres búsquedas que alguien tenga que cruzar de mem
 
 ### 3.6 Mecánico autónomo — CU-MEC (12) · **implementado el 2026-09-17**
 
-Solo los seis de las plantas satélite: Tecate, Rosarito, Guaycura (2), Carranza y Valle Redondo.
+Solo los seis de las plantas satélite. Contados de la hoja `TALLER` de
+`INFO CHOFERES 2026 ACTUAL.xlsx`, que es la fuente del importador, son: Carranza 1, Guaycura 1,
+Rosarito 1, Tecate 1 y **Valle Redondo 2**. (Antes este renglón decía «Guaycura (2)»; el dato
+estaba invertido — el que tiene dos es Valle Redondo, y uno de ellos es el único carrocero.)
 
 **Los doce están en la aplicación.** El módulo vive en `/api/mecanico` y su pantalla en
 `frontend/src/modules/mecanico/`. Los seis ya tenían cuenta en producción —creada por el
