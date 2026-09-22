@@ -1,10 +1,29 @@
 /** Modulo Gerente - CU-GER-* de docs/casos-de-uso.md */
 import { useState } from 'react'
-import { Route, Routes } from 'react-router-dom'
-import { api, fmtFecha, fmtFechaHora, fmtMoneda } from '../../core/api.js'
+import { Navigate, Route, Routes } from 'react-router-dom'
+import { api, fmtFecha, fmtFechaHora, fmtMoneda, hoyTijuana } from '../../core/api.js'
+/* La pantalla de Indicadores del taller se IMPORTA del modulo del administrador
+   en vez de copiarse aquí. La queja del gerente era literalmente esa: para ver
+   estas gráficas tenía que salirse de su módulo y entrar con el correo y la
+   contraseña del administrador. Copiar el componente habría quitado la segunda
+   contraseña dejando dos pantallas iguales que se separan el día que alguien
+   toca una sola — y entonces los dos verían números distintos y cada uno creería
+   el suyo. Las cuatro rutas /admin/… que usa (indicadores, meta-preventivo,
+   meta-preventivo/serie y talleres) ya aceptan el rol gerente en el servidor
+   (`admin_o_gerente` en administrador_controller.py) y las cuatro son de solo
+   lectura, así que montarla aquí era lo único que faltaba. */
+import { Indicadores } from '../administrador/IndicadoresPage.jsx'
+/* Los cuatro historiales —por mecánico, por unidad, por chofer y por taller—
+   viven en su propio archivo y no aquí: este ya pasaba de las novecientas líneas
+   con cinco pantallas adentro, y la de historiales trae cuatro vistas, cuatro
+   detalles y su propio Excel. La pantalla nació de una pregunta concreta del
+   gerente: el administrador de taller ya asigna unidades a mecánicos dentro del
+   Reporte de Mantenimiento, pero ese dato se quedaba adentro del formato y para
+   saber qué le tocó a cada quien había que abrir reporte por reporte. */
+import Historiales from './HistorialesPage.jsx'
 import {
-  Aviso, Badge, Card, Empty, EstadoBadge, IcoCampana, IcoListo, Kpi, Modal, Regla, Spinner,
-  Tabla, useApi, useToast,
+  Aviso, Badge, Card, Empty, EstadoBadge, IcoCampana, IcoDescargar, IcoListo, Kpi, Modal,
+  Regla, Spinner, Tabla, useApi, useToast,
 } from '../../ui/index.js'
 
 export default function Gerente() {
@@ -15,17 +34,206 @@ export default function Gerente() {
       <Route path="/taller" element={<TallerVista />} />
       <Route path="/presupuestos" element={<Presupuestos />} />
       <Route path="/alertas" element={<Alertas />} />
-      <Route path="/estadisticas" element={<Estadisticas />} />
+      <Route path="/historiales" element={<Historiales />} />
+      <Route path="/indicadores" element={<Indicadores />} />
+      {/* «Estadísticas» dejó de ser una pantalla: su contenido vive ahora dentro
+          del Tablero, que es lo que el gerente pidió en la junta — todo en una.
+          La ruta se queda viva como redirección en vez de borrarse porque este
+          enlace está guardado en los favoritos de quien la abría a diario, y un
+          enlace guardado que de pronto no lleva a ningún lado no se reporta como
+          «cambió la pantalla», se reporta como «se cayó el sistema». */}
+      <Route path="/estadisticas" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }
 
-/* ---------------------------------------------------------- CU-GER-01 ------ */
+/* -------------------------------------------- CU-GER-01/12 · RF-GER-14..18 - */
+/** La fecha de calendario que resulta de moverse por días o meses desde otra.
+ *
+ *  Se arma con el constructor local `new Date(a, m - 1, d)` y se vuelve a
+ *  escribir a mano con padStart. NO con toISOString(): eso entrega la fecha en
+ *  UTC, y desde las 17:00 de Tijuana en adelante UTC ya va en el día siguiente,
+ *  así que el rango que se propone al abrir la pantalla arrancaría un día
+ *  corrido cada tarde. Es el mismo error que core/api.js ya documenta en
+ *  hoyTijuana(), y aquí reaparecería por la puerta de atrás.
+ *
+ *  El constructor local además resuelve solo los desbordes, que es justo lo que
+ *  se necesita para «once meses hacia atrás»: mes 0 es diciembre del año
+ *  anterior y día −8 es el 23 del mes pasado, sin una sola resta a mano.
+ */
+function fechaYMD(anio, mes, dia) {
+  const f = new Date(anio, mes - 1, dia)
+  return f.getFullYear() + '-' + String(f.getMonth() + 1).padStart(2, '0')
+         + '-' + String(f.getDate()).padStart(2, '0')
+}
+
+/** El rango que se propone para cada corte. Es el espejo de `_rango_por_defecto()`
+ *  del servidor (gerente_controller.py) y los tres valores son los mismos a
+ *  propósito: si dejaran de coincidir, esta pantalla y un enlace que alguien
+ *  pegue a mano sin fechas mostrarían periodos distintos y nadie sabría cuál de
+ *  los dos números citar.
+ *
+ *  La ventana depende de la granularidad en vez de ser «doce meses» siempre,
+ *  porque doce meses significan cosas distintas en cada corte: por mes son doce
+ *  barras que caben en la pantalla, por día son 365 y el tablero se abriría en
+ *  un amasijo de rayas verticales del que no se saca ninguna conclusión.
+ */
+function rangoPorDefecto(gran) {
+  const hasta = hoyTijuana()
+  const [a, m, d] = hasta.split('-').map(Number)
+  if (gran === 'dia') return [fechaYMD(a, m, d - 29), hasta]     // el mes corrido
+  if (gran === 'anio') return [fechaYMD(a - 4, 1, 1), hasta]     // el histórico útil
+  // Once meses hacia atrás y no doce: el mes que contiene a `hasta` ya cuenta
+  // como uno, y restar doce devolvería trece barras.
+  return [fechaYMD(a, m - 11, 1), hasta]
+}
+
+/** Todo lo que cambia entre las cuatro gráficas del rango, en un solo lugar.
+ *
+ *  `resumen` es la llave del número grande dentro de `resumen` que devuelve
+ *  /gerente/tablero-rango — y no se deduce del `clave` de la serie porque no
+ *  coinciden: la serie se llama `dias_reparacion` y el total del rango
+ *  `dias_reparacion_prom`. Deducirlo con una concatenación funcionaría hoy y
+ *  pintaría «—» para siempre el día que el servidor renombre uno.
+ *
+ *  `hueco` es lo que el tooltip dice cuando un periodo no tiene dato. No es
+ *  adorno: es la diferencia entre «aquí no hubo nada que medir» y «aquí midió
+ *  cero», que en una gráfica de barras se ven casi igual y significan lo
+ *  contrario.
+ */
+const SERIES_RANGO = {
+  dias_reparacion: {
+    color: 'var(--brand)', resumen: 'dias_reparacion_prom', kpi: 'Promedio del rango',
+    hueco: 'el taller no cerró ninguna orden en ese periodo, así que no hay reparación '
+           + 'que promediar',
+  },
+  tasa_concretadas: {
+    color: 'var(--ok)', resumen: 'tasa_concretadas', kpi: 'Promedio del rango',
+    hueco: 'ninguna cita de ese periodo llegó a tener desenlace: ni se cumplió ni se '
+           + 'faltó a ella todavía',
+  },
+  citas_totales: {
+    color: 'var(--grafica)', resumen: 'citas_totales', kpi: 'Total del rango',
+    hueco: 'no hay citas registradas en ese periodo',
+  },
+  // Verde y no el rojo de --grafica-alerta, aunque fuera el cuarto color libre:
+  // con los datos de hoy esta serie son nueve ceros, y nueve barras rojas a ras
+  // de suelo se leen como una alarma cuando lo que dicen es «todavía no hay
+  // citas cumplidas». El rojo de gráfica está reservado para lo que de verdad va
+  // mal. Comparte el verde con «citas concretadas» a propósito: las dos miden lo
+  // mismo desde dos ángulos --las citas que sí se atendieron-- y cada tarjeta
+  // lleva su título y su cifra encima de cada barra, así que la identidad de la
+  // serie nunca depende solo del color.
+  atenciones: {
+    color: 'var(--ok)', resumen: 'atenciones', kpi: 'Total del rango',
+    hueco: 'no hay citas registradas en ese periodo',
+  },
+}
+
+/** El valor de una barra, escrito según lo que mide su serie.
+ *
+ *  Las cuatro series del rango no son cuatro conteos: una trae días con decimal
+ *  y otra es un porcentaje. Pintar «87.5» a secas debajo de una barra deja al
+ *  gerente adivinando si son citas o por ciento, y el día que lo lea como 87
+ *  citas en una junta el número va a estar mal sin que nadie tocara el código.
+ *
+ *  El `null` se escribe «—» y no «0». Es la regla del repositorio y aquí es
+ *  donde más importa: cero días de reparación promedio es una afirmación —se
+ *  reparó en el acto—, no un hueco.
+ */
+function fmtValor(v, unidad) {
+  if (v == null) return '—'
+  const n = Math.round(v * 10) / 10
+  if (unidad === 'pct') return n + '%'
+  if (unidad === 'dias') return n + ' d'
+  return String(n)
+}
+
+/** El tablero unificado: el AHORA y el CÓMO VAMOS en una sola pantalla.
+ *
+ *  Hasta la junta eran tres lugares para una misma pregunta: «Tablero» traía los
+ *  números de hoy, «Estadísticas» las series en el tiempo, y la mitad de los
+ *  indicadores de las unidades solo se veían entrando al módulo del
+ *  administrador con otro correo y otra contraseña. El gerente lo dijo con todas
+ *  sus letras y tiene razón — una segunda cuenta para mirar tus propios números
+ *  es una cuenta que se acaba prestando.
+ *
+ *  El filtro de arriba (los dos calendarios y el corte por día, mes o año) manda
+ *  sobre TODO lo que se calcula por periodo: las cuatro gráficas nuevas, las
+ *  series de operación, el cumplimiento por chofer y el Excel. Que el Excel
+ *  salga del mismo filtro no es un detalle de comodidad: si el botón exportara
+ *  un rango fijo, el archivo que el gerente lleva a dirección diría otra cosa
+ *  que la pantalla desde la que lo bajó, y esa discrepancia solo se descubre
+ *  enfrente de dirección.
+ *
+ *  Lo que el filtro NO toca son los KPIs de estado —ocupación, varadas,
+ *  presupuestos por autorizar, piezas en camino—: son una foto de este momento y
+ *  no tienen periodo que recortar. Van juntos y bajo su propio título justo por
+ *  eso; intercalados entre las gráficas se leerían como si también respondieran
+ *  a las fechas de arriba, que es el malentendido más fácil de provocar en una
+ *  pantalla que tiene un calendario hasta arriba.
+ */
 function Tablero() {
   const toast = useToast()
+  // El filtro va en UN solo estado y no en tres. `tocado` recuerda si el gerente
+  // ya movió un calendario, y de eso depende qué hace el selector de día/mes/año:
+  //
+  //   sin tocar  -> cambiar el corte también propone la ventana de ese corte.
+  //                 Es lo que evita que un clic en «Día» sobre el rango anual de
+  //                 arranque pinte 365 barras de un pixel.
+  //   ya tocado  -> las fechas del gerente se respetan y el corte solo cambia el
+  //                 agrupamiento. Tirar un rango que alguien acaba de teclear
+  //                 para «ayudarlo» es peor que cualquier gráfica apretada, y
+  //                 esa la resuelve el scroll horizontal de la propia gráfica.
+  const [filtro, setFiltro] = useState(() => {
+    const [d, h] = rangoPorDefecto('mes')
+    return { gran: 'mes', desde: d, hasta: h, tocado: false }
+  })
+  const { gran, desde, hasta } = filtro
+  const [bajando, setBajando] = useState(false)
+
+  const cambiarGran = (g) => setFiltro((f) => {
+    if (f.tocado) return { ...f, gran: g }
+    const [d, h] = rangoPorDefecto(g)
+    return { gran: g, desde: d, hasta: h, tocado: false }
+  })
+  const cambiarFecha = (cual, valor) =>
+    setFiltro((f) => ({ ...f, [cual]: valor, tocado: true }))
+
+  // `|| undefined` y no el valor pelado: si el gerente vacía un calendario, el
+  // input entrega cadena vacía, y una cadena vacía SÍ viaja en la URL
+  // (`?desde=`) porque api.js solo descarta null y undefined. El servidor anota
+  // el parámetro como `date | None` y responde 422 ante una cadena vacía, así
+  // que la pantalla se llenaría de un error rojo mientras alguien está a media
+  // edición. Mandándolo como undefined el servidor completa su rango por
+  // omisión y se sigue viendo algo.
+  const paramsRango = {
+    desde: desde || undefined, hasta: hasta || undefined, granularidad: gran,
+  }
+  const rango = useApi(() => api.get('/gerente/tablero-rango', paramsRango),
+                       [desde, hasta, gran])
+
   const kpis = useApi(() => api.get('/gerente/kpis'))
   const atendidas = useApi(() => api.get('/gerente/atendidas', { dias: 30 }))
   const piezas = useApi(() => api.get('/gerente/piezas-en-camino'))
+
+  const exportar = async () => {
+    setBajando(true)
+    try {
+      // Los MISMOS parámetros que tiene puestos la pantalla. El nombre del
+      // archivo lo decide el servidor y trae dentro el rango realmente
+      // exportado, así que se muestra tal cual en el aviso: si el rango se
+      // recortó o venía al revés, el gerente ve en el toast el periodo que de
+      // verdad se llevó.
+      const nombre = await api.descargar('/gerente/exportar/tablero',
+                                         { params: paramsRango })
+      toast(`Se descargó ${nombre}`)
+    } catch (e) {
+      toast(e.message, 'err')
+    } finally {
+      setBajando(false)
+    }
+  }
 
   const correrJobs = async () => {
     try {
@@ -44,87 +252,237 @@ function Tablero() {
     } catch (e) { toast(e.message, 'err') }
   }
 
-  if (kpis.cargando) return <Spinner />
   const k = kpis.data
+  const r = rango.data
+  // El servidor devuelve el rango que REALMENTE usó, que no siempre es el que se
+  // pidió: si los dos calendarios vienen al revés los intercambia en vez de
+  // devolver una pantalla en blanco (una pantalla en blanco no dice «te
+  // equivocaste de calendario», deja pensando que no hubo movimiento, que es la
+  // conclusión contraria). Cuando eso pasa hay que DECIRLO, porque si no el
+  // gerente está leyendo un periodo distinto del que marcó.
+  const invertido = r && desde && hasta && !r.aviso
+                      && (r.desde !== desde || r.hasta !== hasta)
 
   return (
     <>
+      {/* a) Encabezado ------------------------------------------------------ */}
       <div className="card-head">
         <h1>Tablero</h1>
-        <button className="btn sm" onClick={correrJobs} title="Dispara CU-AUT-01..03">
-          ▶ Correr procesos del día
-        </button>
+        <div className="btn-row" style={{ marginLeft: 'auto' }}>
+          <button className="btn sm" onClick={correrJobs} title="Dispara CU-AUT-01..03">
+            ▶ Correr procesos del día
+          </button>
+          <button className="btn sm primary" onClick={exportar} disabled={bajando}>
+            <IcoDescargar size={13} className="ico-inline" aria-hidden="true" />
+            {bajando ? 'Generando…' : 'Exportar a Excel'}
+          </button>
+        </div>
       </div>
 
-      <div className="grid g4">
-        <Kpi valor={k.choferes_incumpliendo} etiqueta="Choferes incumpliendo"
-             tono={k.choferes_incumpliendo ? 'alert' : 'ok'}
-             hint="Mantenimiento preventivo vencido" />
-        <Kpi valor={`${k.ocupacion_pct}%`} etiqueta="Ocupación del taller"
-             hint={`${k.espacios_ocupados} de ${k.espacios_totales} espacios operativos`} />
-        <Kpi valor={k.unidades_varadas} etiqueta="Unidades varadas"
-             tono={k.unidades_varadas ? 'warn' : 'ok'} />
-        <Kpi valor={k.presupuestos_pendientes} etiqueta="Presupuestos por autorizar"
-             tono={k.presupuestos_pendientes ? 'warn' : ''} />
+      {/* b) Barra de filtro -------------------------------------------------
+          Se dibuja SIEMPRE, también mientras las gráficas cargan. Si se ocultara
+          detrás del spinner, cada cambio de fecha desmontaría el <input> que el
+          gerente acaba de tocar: se pierde el foco y el calendario se cierra
+          solo a media elección. */}
+      <div className="card filtro-rango">
+        <div className="field">
+          <label htmlFor="rango-desde">Desde</label>
+          <input id="rango-desde" type="date" value={desde}
+                 onChange={(e) => cambiarFecha('desde', e.target.value)} />
+        </div>
+        <div className="field">
+          <label htmlFor="rango-hasta">Hasta</label>
+          <input id="rango-hasta" type="date" value={hasta}
+                 onChange={(e) => cambiarFecha('hasta', e.target.value)} />
+        </div>
+        <div className="field">
+          {/* <span> y no <label>: un <label> sin `for` y sin control adentro no
+              es válido y el lector de pantalla lo lee suelto, sin decir a qué
+              pertenece. Aquí lo que se nombra es el GRUPO de tres botones, y eso
+              se hace con role="group" + aria-label; el texto de arriba queda
+              solo como rótulo visible. */}
+          <span className="lbl-campo">Agrupar por</span>
+          <div className="segmentado" role="group" aria-label="Agrupar por">
+            {[['dia', 'Día'], ['mes', 'Mes'], ['anio', 'Año']].map(([v, t]) => (
+              <button key={v} className={'btn sm' + (gran === v ? ' primario' : '')}
+                      aria-pressed={gran === v} onClick={() => cambiarGran(v)}>{t}</button>
+            ))}
+          </div>
+        </div>
       </div>
 
-      <div className="grid g4">
-        <Kpi valor={k.unidades_total} etiqueta="Unidades" />
-        <Kpi valor={k.unidades_en_taller} etiqueta="En taller" />
-        <Kpi valor={k.unidades_en_ruta} etiqueta="En ruta" />
-        <Kpi valor={k.piezas_en_camino} etiqueta="Piezas en camino" />
-      </div>
+      {/* c) Las cuatro gráficas del rango ----------------------------------- */}
+      {rango.cargando ? <Spinner /> : rango.error ? (
+        <Aviso tipo="err">{rango.error}</Aviso>
+      ) : r && (
+        <>
+          {r.aviso && <Aviso tipo="warn">{r.aviso}</Aviso>}
+          {invertido && (
+            <Aviso tipo="info">
+              Los calendarios venían al revés. Se está mostrando del{' '}
+              <strong>{fmtFecha(r.desde)}</strong> al <strong>{fmtFecha(r.hasta)}</strong>.
+            </Aviso>
+          )}
 
-      <div className="grid g2">
-        <Kpi valor={k.alertas_abiertas} etiqueta="Alertas sin atender"
-             tono={k.alertas_abiertas ? 'alert' : 'ok'} hint="Unidades paradas > 3 meses" />
-        <Kpi valor={k.retraso_captura_promedio ?? '—'} etiqueta="Retraso de captura (días)"
-             tono={k.retraso_captura_promedio > 1 ? 'warn' : 'ok'}
-             hint="Entre que el mecánico entrega el papel y el admin lo teclea" />
-      </div>
+          <div className="grid g2 graficas">
+            {(r.series || []).map((sr) => {
+              const cfg = SERIES_RANGO[sr.clave] || {}
+              const total = r.resumen ? r.resumen[cfg.resumen] : null
+              return (
+                <Card key={sr.clave} title={sr.nombre}
+                      sub={r.etiquetas.length + ' ' + nombrePeriodos(gran, r.etiquetas.length)
+                           + ' · del ' + fmtFecha(r.desde) + ' al ' + fmtFecha(r.hasta)}>
+                  <Kpi valor={fmtValor(total, sr.unidad)} etiqueta={cfg.kpi}
+                       hint={pistaResumen(sr.clave, total, r.resumen)} />
+                  <ColumnasTiempo etiquetas={r.etiquetas} datos={sr.datos}
+                                  color={cfg.color} gran={gran} enCurso={r.en_curso}
+                                  unidad={sr.unidad} hueco={cfg.hueco} />
+                </Card>
+              )
+            })}
+          </div>
 
-      {k.retraso_captura_promedio > 1 && (
-        <Aviso tipo="warn">
-          Los datos del taller llegan con {k.retraso_captura_promedio} días de retraso en promedio.
-          Este tablero no es “tiempo real” mientras el administrador capture tarde el trabajo de
-          los mecánicos.
-        </Aviso>
+          <Regla>
+            Un periodo marcado <strong>«sin dato»</strong> no es un cero: es que ahí no había
+            nada que medir —ninguna orden cerrada, ninguna cita con desenlace—. Se dibuja con
+            el recuadro punteado y su etiqueta en su lugar, nunca como una barra de altura
+            cero, porque cero días de reparación promedio es una afirmación (<em>se reparó en
+            el acto</em>) y no un hueco. En <strong>citas totales</strong> y{' '}
+            <strong>atenciones</strong>, en cambio, el cero sí es un dato legítimo: hubo
+            periodo y no hubo citas. Las citas <strong>canceladas</strong> no cuentan en
+            ningún lado — nunca llegaron a ser un compromiso vivo.
+          </Regla>
+        </>
       )}
 
-      <Card title="Unidades atendidas (últimos 30 días)">
-        {atendidas.data && (
-          <>
-            <div className="grid g3">
-              <Kpi valor={atendidas.data.total} etiqueta="Órdenes cerradas" />
-              <Kpi valor={atendidas.data.dias_promedio} etiqueta="Días promedio en taller" />
-              <Kpi valor={Object.keys(atendidas.data.por_taller).length} etiqueta="Talleres" />
-            </div>
-            <Tabla
-              vacio="Sin órdenes cerradas en el periodo"
-              columnas={[{ k: 'tipo', t: 'Tipo' }, { k: 'n', t: 'Cantidad', num: true }]}
-              filas={Object.entries(atendidas.data.por_tipo).map(([tipo, n]) => ({ tipo, n }))} />
-          </>
-        )}
-      </Card>
+      {/* d) El estado de hoy ------------------------------------------------ */}
+      <h2 style={{ margin: '20px 0 8px' }}>Estado de hoy</h2>
+      <Regla>
+        Estos números son una foto de <strong>este momento</strong> y no dependen de las fechas
+        de arriba: una ocupación o un presupuesto por autorizar no tienen periodo que recortar.
+        El filtro manda sobre las gráficas y sobre el Excel.
+      </Regla>
 
-      <Card title="Piezas en camino">
-        <Tabla
-          vacio="Ninguna pieza en tránsito"
-          columnas={[
-            { k: 'folio', t: 'Orden compra' },
-            { k: 'unidad', t: 'Unidad' },
-            { k: 'estado', t: 'Estado', r: (f) => <EstadoBadge estado={f.estado} /> },
-            { k: 'fecha_estimada_llegada', t: 'Llega', r: (f) => fmtFecha(f.fecha_estimada_llegada) },
-            { k: 'dias_para_llegar', t: 'Días', num: true,
-              r: (f) => <Badge tono={f.retrasada ? 'danger' : 'ok'}>
-                {f.retrasada ? `${-f.dias_para_llegar} tarde` : f.dias_para_llegar}
-              </Badge> },
-            { k: 'total', t: 'Total', num: true, r: (f) => fmtMoneda(f.total) },
-          ]}
-          filas={piezas.data || []} />
-      </Card>
+      {kpis.cargando ? <Spinner /> : kpis.error ? (
+        <Aviso tipo="err">{kpis.error}</Aviso>
+      ) : k && (
+        <>
+        <div className="grid g4">
+          <Kpi valor={k.choferes_incumpliendo} etiqueta="Choferes incumpliendo"
+               tono={k.choferes_incumpliendo ? 'alert' : 'ok'}
+               hint="Mantenimiento preventivo vencido" />
+          <Kpi valor={`${k.ocupacion_pct}%`} etiqueta="Ocupación del taller"
+               hint={`${k.espacios_ocupados} de ${k.espacios_totales} espacios operativos`} />
+          <Kpi valor={k.unidades_varadas} etiqueta="Unidades varadas"
+               tono={k.unidades_varadas ? 'warn' : 'ok'} />
+          <Kpi valor={k.presupuestos_pendientes} etiqueta="Presupuestos por autorizar"
+               tono={k.presupuestos_pendientes ? 'warn' : ''} />
+        </div>
+
+        <div className="grid g4">
+          <Kpi valor={k.unidades_total} etiqueta="Unidades" />
+          <Kpi valor={k.unidades_en_taller} etiqueta="En taller" />
+          <Kpi valor={k.unidades_en_ruta} etiqueta="En ruta" />
+          <Kpi valor={k.piezas_en_camino} etiqueta="Piezas en camino" />
+        </div>
+
+        <div className="grid g2">
+          <Kpi valor={k.alertas_abiertas} etiqueta="Alertas sin atender"
+               tono={k.alertas_abiertas ? 'alert' : 'ok'} hint="Unidades paradas > 3 meses" />
+          <Kpi valor={k.retraso_captura_promedio ?? '—'} etiqueta="Retraso de captura (días)"
+               tono={k.retraso_captura_promedio > 1 ? 'warn' : 'ok'}
+               hint="Entre que el mecánico entrega el papel y el admin lo teclea" />
+        </div>
+
+        {k.retraso_captura_promedio > 1 && (
+          <Aviso tipo="warn">
+            Los datos del taller llegan con {k.retraso_captura_promedio} días de retraso en promedio.
+            Este tablero no es “tiempo real” mientras el administrador capture tarde el trabajo de
+            los mecánicos.
+          </Aviso>
+        )}
+
+        <Card title="Unidades atendidas (últimos 30 días)">
+          {atendidas.data && (
+            <>
+              <div className="grid g3">
+                <Kpi valor={atendidas.data.total} etiqueta="Órdenes cerradas" />
+                <Kpi valor={atendidas.data.dias_promedio} etiqueta="Días promedio en taller" />
+                <Kpi valor={Object.keys(atendidas.data.por_taller).length} etiqueta="Talleres" />
+              </div>
+              <Tabla
+                vacio="Sin órdenes cerradas en el periodo"
+                columnas={[{ k: 'tipo', t: 'Tipo' }, { k: 'n', t: 'Cantidad', num: true }]}
+                filas={Object.entries(atendidas.data.por_tipo).map(([tipo, n]) => ({ tipo, n }))} />
+            </>
+          )}
+        </Card>
+
+        <Card title="Piezas en camino">
+          <Tabla
+            vacio="Ninguna pieza en tránsito"
+            columnas={[
+              { k: 'folio', t: 'Orden compra' },
+              { k: 'unidad', t: 'Unidad' },
+              { k: 'estado', t: 'Estado', r: (f) => <EstadoBadge estado={f.estado} /> },
+              { k: 'fecha_estimada_llegada', t: 'Llega', r: (f) => fmtFecha(f.fecha_estimada_llegada) },
+              { k: 'dias_para_llegar', t: 'Días', num: true,
+                r: (f) => <Badge tono={f.retrasada ? 'danger' : 'ok'}>
+                  {f.retrasada ? `${-f.dias_para_llegar} tarde` : f.dias_para_llegar}
+                </Badge> },
+              { k: 'total', t: 'Total', num: true, r: (f) => fmtMoneda(f.total) },
+            ]}
+            filas={piezas.data || []} />
+        </Card>
+        </>
+      )}
+
+      {/* e) La operación en el tiempo --------------------------------------
+          Lo que hasta ayer era la pestaña «Estadísticas». Recibe el filtro de
+          arriba por props y no trae control propio: dos selectores de
+          granularidad en la misma pantalla es la forma más rápida de que lo de
+          arriba y lo de abajo hablen de periodos distintos y el gerente los
+          compare de todos modos. */}
+      <h2 style={{ margin: '20px 0 8px' }}>Operación en el tiempo</h2>
+      <Estadisticas desde={desde} hasta={hasta} gran={gran} />
     </>
   )
+}
+
+/** «Días», «meses» o «años», en singular cuando toca.
+ *
+ *  Un rango de un solo periodo no es un caso raro: el gerente marca el mismo día
+ *  en los dos calendarios para ver una fecha suelta, y el subtítulo decía «1
+ *  días». Es una errata minúscula que hace ver descuidada toda la pantalla justo
+ *  cuando se está proyectando en una junta.
+ */
+function nombrePeriodos(gran, cuantos) {
+  if (gran === 'dia') return cuantos === 1 ? 'día' : 'días'
+  if (gran === 'mes') return cuantos === 1 ? 'mes' : 'meses'
+  return cuantos === 1 ? 'año' : 'años'
+}
+
+/** La línea chica debajo del número grande de cada gráfica del rango.
+ *
+ *  Cuando el indicador no se pudo calcular, esta línea es lo único que explica
+ *  por qué se ve un «—». Un guion sin explicación se lee como que la pantalla
+ *  está rota, y el siguiente paso de quien lo ve es dejar de creerle al resto de
+ *  los números.
+ */
+function pistaResumen(clave, valor, resumen) {
+  const res = resumen || {}
+  if (clave === 'dias_reparacion') {
+    return valor == null
+      ? 'Ninguna orden cerrada en el rango: no hay reparación que promediar'
+      : `Sobre ${res.ordenes_cerradas} orden(es) cerrada(s) en el rango`
+  }
+  if (clave === 'tasa_concretadas') {
+    return valor == null
+      ? 'Ninguna cita del rango llegó a tener desenlace todavía'
+      : 'Solo cuenta las citas con desenlace: cumplidas contra faltas'
+  }
+  if (clave === 'citas_totales') return 'Todos los estados menos las canceladas'
+  return 'Citas que el taller marcó como cumplidas'
 }
 
 /* ---------------------------------------------------------- CU-GER-02 ------ */
@@ -417,24 +775,57 @@ const SERIES_COLOR = {
   averias: 'var(--brand)',
 }
 
-/** Columnas sobre el tiempo. Los periodos vacíos SÍ se dibujan: un mes sin un
- *  solo preventivo es información, y omitirlo lo escondería juntando los que sí
- *  tuvieron. */
-function ColumnasTiempo({ etiquetas, datos, color, gran, enCurso }) {
-  const tope = Math.max(...datos, 1)
+/** Columnas sobre el tiempo.
+ *
+ *  Los periodos vacíos SÍ se dibujan: un mes sin un solo preventivo es
+ *  información, y omitirlo lo escondería pegando el mes de antes con el de
+ *  después — el bajón desaparece de la vista en vez de saltar a los ojos.
+ *
+ *  «Vacío» son DOS COSAS DISTINTAS y esta función es donde se separan, porque
+ *  en una gráfica de barras se ven casi igual y significan lo contrario:
+ *
+ *    dato 0     -> se midió y dio cero. Hubo periodo y no hubo citas. Se pinta
+ *                  la barra a ras del suelo (los 2px de min-height de .gtorre)
+ *                  con su «0» encima: es una medición y se lee como tal.
+ *    dato null  -> no había nada que medir. Se pinta el recuadro punteado de
+ *                  .ghueco, la cifra va en «—» y el tooltip dice POR QUÉ. Una
+ *                  barra de altura cero aquí sería una mentira con forma de
+ *                  dato: cero días de reparación promedio afirma que se reparó
+ *                  en el acto, que es lo contrario de «no se cerró nada».
+ *
+ *  La escala también depende de lo que se mide. Los conteos y los días se
+ *  escalan al máximo de la serie, que es lo que deja ver la forma. Los
+ *  PORCENTAJES no: van fijos a 100, porque autoescalarlos haría que el mejor mes
+ *  llenara la tarjeta de arriba abajo aunque fuera un 41% — la gráfica diría
+ *  «excelente» y el número diría «reprobado», y la que se recuerda es la
+ *  gráfica.
+ */
+function ColumnasTiempo({ etiquetas, datos, color, gran, enCurso,
+                          unidad = 'conteo', hueco }) {
+  // Los null se sacan ANTES del máximo. Math.max(null, …) los convierte en 0 en
+  // silencio, que aquí daría igual, pero una serie entera de null devolvería
+  // -Infinity sin el 1 de piso y todas las alturas saldrían NaN.
+  const conDato = datos.filter((v) => v != null)
+  const tope = unidad === 'pct' ? 100 : Math.max(...conDato, 1)
   const corto = (e) => gran === 'dia' ? e.slice(8) : (gran === 'mes' ? e.slice(5) : e)
   const nombre = gran === 'dia' ? 'día' : gran === 'mes' ? 'mes' : 'año'
   return (
-    <div className="gcolumnas" style={{ height: 150 }}>
+    <div className="gcolumnas rango">
       {etiquetas.map((e, i) => {
+        const v = datos[i]
+        const vacio = v == null
         const abierto = e === enCurso
+        const titulo = e + ': '
+          + (vacio ? 'sin dato' + (hueco ? ' — ' + hueco : '') : fmtValor(v, unidad))
+          + (abierto ? ` · ${nombre} en curso, todavía no termina` : '')
         return (
-          <div className={'gcol' + (abierto ? ' en-curso' : '')} key={e}
-               title={e + ': ' + datos[i]
-                      + (abierto ? ` · ${nombre} en curso, todavía no termina` : '')}>
-            <span className="gcifra">{datos[i]}</span>
-            <div className="gtorre"
-                 style={{ height: (datos[i] / tope) * 100 + '%', background: color }} />
+          <div key={e} title={titulo}
+               className={'gcol' + (abierto ? ' en-curso' : '') + (vacio ? ' sin-dato' : '')}>
+            <span className="gcifra">{fmtValor(v, unidad)}</span>
+            {vacio
+              ? <div className="ghueco" />
+              : <div className="gtorre"
+                     style={{ height: (v / tope) * 100 + '%', background: color }} />}
             <span className="gpie">{corto(e)}</span>
           </div>
         )
@@ -443,40 +834,43 @@ function ColumnasTiempo({ etiquetas, datos, color, gran, enCurso }) {
   )
 }
 
-function Estadisticas() {
-  const [gran, setGran] = useState('mes')
-  const cuantos = gran === 'dia' ? 30 : (gran === 'mes' ? 12 : 5)
-  const serie = useApi(() => api.get('/gerente/estadisticas',
-                                     { granularidad: gran, cuantos }), [gran])
-  const cump = useApi(() => api.get('/gerente/cumplimiento-choferes',
-                                    { granularidad: gran, cuantos: gran === 'dia' ? 30 : 6 }),
-                      [gran])
+/** Las series de operación y el cumplimiento por chofer.
+ *
+ *  Era la pantalla «Estadísticas», con su propio título y su propio selector de
+ *  día/mes/año. Ahora vive dentro del Tablero y recibe el filtro por props: el
+ *  selector propio se quitó a propósito, porque dos controles de granularidad en
+ *  la misma pantalla es la forma más rápida de que las gráficas de arriba y las
+ *  de abajo queden en periodos distintos — y el gerente las va a comparar igual,
+ *  porque están una debajo de la otra.
+ *
+ *  `desde` y `hasta` se mandan a los dos endpoints. Los dos los aceptan como
+ *  opcionales (ver gerente_controller.py) y sin ellos responden lo de siempre —
+ *  los últimos N periodos hacia atrás—, que es justo lo que aquí no sirve: si
+ *  estas gráficas siguieran su propia ventana mientras las de arriba siguen la
+ *  del calendario, la misma pantalla se contradiría sola.
+ */
+function Estadisticas({ desde, hasta, gran }) {
+  // Sin `cuantos`: con desde/hasta puestos el servidor lo ignora, y mandarlo
+  // igual sugeriría que todavía manda en algo.
+  const params = { granularidad: gran, desde: desde || undefined, hasta: hasta || undefined }
+  const serie = useApi(() => api.get('/gerente/estadisticas', params), [gran, desde, hasta])
+  const cump = useApi(() => api.get('/gerente/cumplimiento-choferes', params),
+                      [gran, desde, hasta])
   const [verChofer, setVerChofer] = useState(null)
 
   const d = serie.data || {}
   const etiquetas = d.etiquetas || []
-  const nombrePeriodo = gran === 'dia' ? 'días' : gran === 'mes' ? 'meses' : 'años'
 
   return (
     <>
-      <div className="card-head">
-        <h1>Estadísticas</h1>
-        <div className="spacer" />
-        <div className="segmentado">
-          {[['dia', 'Día'], ['mes', 'Mes'], ['anio', 'Año']].map(([v, t]) => (
-            <button key={v} className={'btn sm' + (gran === v ? ' primario' : '')}
-                    onClick={() => setGran(v)}>{t}</button>
-          ))}
-        </div>
-      </div>
-
       {serie.cargando ? <Spinner /> : serie.error ? (
         <Aviso tipo="err">{serie.error}</Aviso>
       ) : (
-        <div className="grid g2">
+        <div className="grid g2 graficas">
           {(d.series || []).map((sr) => (
             <Card key={sr.clave} title={sr.nombre}
-                  sub={'Últimos ' + etiquetas.length + ' ' + nombrePeriodo}>
+                  sub={etiquetas.length + ' ' + nombrePeriodos(gran, etiquetas.length)
+                       + ' del rango'}>
               <ColumnasTiempo etiquetas={etiquetas} datos={sr.datos}
                               color={SERIES_COLOR[sr.clave]} gran={gran}
                               enCurso={d.en_curso} />
@@ -487,6 +881,10 @@ function Estadisticas() {
 
       <Card title="Cumplimiento por chofer"
             sub={cump.data ? 'Del ' + cump.data.desde + ' al ' + cump.data.hasta : '…'}>
+        {/* El error se muestra en vez de tragárselo. Sin esto, una tabla vacía
+            por una consulta que reventó se lee exactamente igual que una tabla
+            vacía porque ningún chofer faltó a nada — y son noticias opuestas. */}
+        {cump.error && <Aviso tipo="err">{cump.error}</Aviso>}
         <Tabla
           vacio="Sin citas confirmadas en el periodo"
           columnas={[

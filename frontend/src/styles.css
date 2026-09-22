@@ -1177,6 +1177,44 @@ tbody tr:hover { background: var(--surface-2); }
               border: 1px solid var(--border); }
 .segmentado .btn { border: 0; border-radius: 0; box-shadow: none; }
 .segmentado .btn + .btn { border-left: 1px solid var(--border); }
+/* La opcion elegida. La clase `primario` se escribia en el JSX desde que existe
+   el selector pero NUNCA se definio en esta hoja --la regla de la casa es
+   `.btn.primary`, con y griega-- asi que los tres botones se veian identicos y
+   no habia forma de saber si se estaba mirando el corte por dia o por ano. Se
+   define acotada a `.segmentado` y no como `.btn.primario` suelto porque hay
+   cuatro pantallas mas (chofer, perito, supervisor) que escriben esa misma clase
+   mal, y darles un color nuevo de golpe seria cambiarles el aspecto sin que
+   nadie lo haya pedido. */
+.segmentado .btn.primario {
+  background: var(--brand); border-color: var(--brand); color: var(--brand-ink);
+}
+.segmentado .btn.primario:hover:not(:disabled) {
+  background: var(--brand-2); color: var(--brand-ink);
+}
+
+/* Barra de filtro del tablero del gerente: los dos calendarios y el corte.
+   Es `flex-wrap` y no una rejilla de tres columnas: en 375px tres columnas
+   dejarian cada <input type="date"> en unos 100px, y el control nativo de fecha
+   de Android no se encoge -- empuja al contenedor y reaparece el scroll
+   horizontal en TODA la pagina, que es el problema que ya esta documentado
+   arriba en el menu de navegacion. Envolviendo, el corte se baja solo a su
+   propio renglon y la pagina nunca crece.
+
+   El `min-width: 0` de los campos es la otra mitad del mismo candado: sin el,
+   el ancho minimo intrinseco del control de fecha gana sobre el `flex-shrink` y
+   el desborde vuelve aunque haya wrap. */
+.filtro-rango { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; }
+.filtro-rango .field { flex: 1 1 150px; min-width: 0; margin-bottom: 0; }
+.filtro-rango .field input[type="date"] { min-width: 0; }
+.filtro-rango .segmentado { flex: 0 0 auto; }
+/* El rotulo del selector de corte. Copia el aspecto de `label` porque tiene que
+   verse igual que los de «Desde» y «Hasta» --son el mismo renglon de filtro--
+   pero NO es un <label>: no nombra un campo sino un grupo de tres botones, y un
+   <label> sin control asociado el lector de pantalla lo anuncia suelto. */
+.filtro-rango .lbl-campo {
+  font-family: var(--font-disp); font-size: .68rem; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--muted); font-weight: 700;
+}
 
 /* El segundo boton de emergencia: CHOQUE (RN-16). Va en otro color a proposito
    -- si los dos se vieran iguales, separarlos no habria servido de nada. El
@@ -1190,3 +1228,108 @@ tbody tr:hover { background: var(--surface-2); }
 .gcolumnas .gcol.en-curso .gtorre { opacity: .4; }
 .gcolumnas .gcol.en-curso .gcifra { opacity: .6; }
 .gcolumnas .gcol.en-curso .gpie { font-style: italic; opacity: .75; }
+
+/* Las graficas que dependen del rango que el gerente marca en los calendarios.
+   A diferencia de las otras, aqui el numero de columnas lo decide el, y puede
+   pedir 264 dias: con el `flex: 1` normal cada barra quedaria en un pixel y el
+   resultado seria una mancha. Que RUEDE LA GRAFICA, no la pagina -- es el mismo
+   trato que ya se hizo con el menu de navegacion cuando llego a ocho pestañas.
+   Los 17px de ancho minimo son lo que necesita el pie «21» para no partirse. */
+.gcolumnas.rango { height: 150px; overflow-x: auto; overflow-y: hidden;
+                   padding-bottom: 6px; scrollbar-width: thin; }
+.gcolumnas.rango .gcol { flex: 1 0 17px; }
+
+/* Y en telefono, una grafica por renglon. `.grid.g2` normal se queda en dos
+   columnas a cualquier ancho --asi esta usado en media docena de pantallas y no
+   se toca-- pero dos columnas en 375px dejan cada grafica en unos 150px: nueve
+   meses ahi dentro obligan a rodar de lado para ver el tercero. Los KPIs en dos
+   columnas si funcionan (son una cifra corta); una serie de tiempo no. La regla
+   va acotada a `.graficas` para no cambiarle el acomodo a nadie mas. */
+@media (max-width: 559px) {
+  .grid.g2.graficas { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* EL HUECO: un periodo sin dato. No es una barra de altura cero y no se puede
+   parecer a una, porque significan lo contrario -- cero dias de reparacion
+   promedio afirma que se reparo en el acto, y el hueco dice que no se cerro
+   ninguna orden que medir.
+
+   Por eso el hueco NO tiene relleno: es un recuadro punteado, en el gris de
+   --muted (que esta definido en los dos temas), abierto por abajo para que se
+   lea como "aqui falta la barra" y no como una barra corta. Y mide 14px, siete
+   veces el min-height de .gtorre, para que a simple vista nunca se confunda con
+   el cero a ras de suelo que si es una medicion. La cifra de arriba va en «—» y
+   apagada; el pie se queda intacto porque el periodo SI existio y su etiqueta
+   tiene que seguir en su lugar del eje. */
+.gcol.sin-dato .ghueco {
+  width: 100%; height: 14px;
+  border: 1px dashed var(--muted); border-bottom: 0;
+  border-radius: 3px 3px 0 0; background: none; opacity: .7;
+}
+.gcol.sin-dato .gcifra { color: var(--muted); opacity: .8; }
+
+/* ======================= HISTORIALES DEL GERENTE ========================== */
+/* El selector de vista: Mecanicos / Unidades / Choferes / Talleres. Reusa
+   `.segmentado` --son cuatro caras de UNA decision (por quien quiero ver la
+   historia), no cuatro botones sueltos-- pero a diferencia del corte por
+   dia/mes/ano no vive dentro de la barra de filtro sino solo en su renglon, asi
+   que necesita su propia separacion.
+
+   `width: max-content` + `max-width: 100%` es lo que hace que el control abrace
+   a sus cuatro rotulos en escritorio y no se estire a lo ancho de la pagina
+   dejando un marco vacio a la derecha.
+
+   Y `overflow-x: auto` en lugar del `hidden` que hereda: con los cuatro rotulos
+   el control mide unos 312px y en 375px todavia entra, pero basta que el
+   navegador use una fuente un punto mas grande, o que alguien traduzca
+   «Mecanicos» a algo mas largo, para que no quepa -- y entonces lo que tiene que
+   rodar es EL CONTROL, nunca la pagina. Es el mismo trato que ya recibieron el
+   menu de navegacion cuando llego a ocho pestañas y las graficas del rango. */
+.segmentado.bloque {
+  display: flex; width: max-content; max-width: 100%; margin-bottom: 14px;
+  overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
+}
+.segmentado.bloque::-webkit-scrollbar { display: none; }
+.segmentado.bloque .btn { flex: 0 0 auto; }
+
+/* El buscador de la barra de filtro. Pesa el doble que los calendarios porque
+   lo que se teclea ahi es un nombre completo o un modelo ("CNJ BRAND 7 TONS
+   TRUCK") y en 150px no se ve lo que uno escribio. Sigue siendo `flex` con
+   `min-width: 0`, o sea que en 375px se encoge y se baja de renglon como los
+   demas campos, en vez de empujar la pagina. */
+.filtro-rango .field.busca { flex: 2 1 200px; }
+
+/* La casilla «Incluir unidades sin movimiento», dentro de la misma barra.
+   El `label` global de esta hoja son mayusculas chiquitas de rotulo de campo;
+   aqui hay que devolverle el tamano normal o la frase sale ilegible. Es la misma
+   correccion que ya hace `.radio-fila` y por la misma razon.
+
+   El `padding-bottom` la alinea con la base de los <input> de al lado: la barra
+   es `align-items: flex-end` y sin eso la casilla queda flotando por encima. */
+.filtro-rango .casilla {
+  display: flex; align-items: center; gap: 8px;
+  flex: 1 1 auto; min-width: 0; padding-bottom: 9px;
+  font-family: var(--font); font-size: .82rem; font-weight: 500;
+  letter-spacing: normal; text-transform: none; color: var(--ink-2);
+  cursor: pointer;
+}
+.filtro-rango .casilla input { width: auto; flex: none; }
+
+/* El subtitulo gris dentro de una ventana. `.sub` estaba definido solo como
+   `.card .sub`, asi que el mismo `<p className="sub">` se veia gris y chiquito
+   en una tarjeta y como texto normal dentro de un modal -- y el modal es donde
+   mas falta hace, porque ahi esa linea es la que dice de que rango habla todo lo
+   que sigue. Es exactamente el hueco que la regla de `.card .s, .modal .s` de
+   mas arriba arreglo para el otro pie de dato. */
+.modal .sub { color: var(--muted); font-size: .82rem; margin: -4px 0 12px; }
+
+/* El filtro preventivo / correctivo / todos. Su `.field` deja de estirar al
+   hijo: `.field` es una columna flex y por omision estira lo de adentro a todo
+   el ancho, asi que en 375px --donde cada campo se lleva un renglon entero-- el
+   control segmentado se alargaba y quedaba un CUARTO recuadro vacio despues de
+   «Todos». Un hueco con borde al lado de tres botones se lee como un boton que
+   no cargo, y el gerente le da clic. La regla va acotada a `.field.tipo` y no a
+   `.filtro-rango .segmentado` --que arreglaria lo mismo-- porque ese selector
+   alcanza tambien al corte por dia/mes/ano del Tablero, y ese ya esta verificado
+   y no se toca desde aqui. */
+.filtro-rango .field.tipo { align-items: flex-start; }

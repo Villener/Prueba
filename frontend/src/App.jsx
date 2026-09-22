@@ -73,13 +73,38 @@ const MODULOS = {
     { to: '/arrastres', Ico: IcoArrastres, txt: 'Arrastres' },
     { to: '/historial', Ico: IcoHistorial, txt: 'Historial' },
   ] },
+  // «Estadísticas» salió del menú y «Indicadores» entró en su lugar, y las dos
+  // cosas son el mismo pedido del gerente en la junta: lo de Estadísticas ya no
+  // es una pantalla —vive dentro del Tablero, junto a las cuatro gráficas del
+  // rango, porque preguntar «cómo vamos» y «cómo estamos» en dos pestañas
+  // distintas era lo que lo obligaba a ir y venir—, e Indicadores es la pantalla
+  // del taller que hasta hoy solo se podía abrir entrando al módulo del
+  // administrador con otro correo y otra contraseña. Eran seis pestañas y el menú
+  // no creció: cambió de contenido.
+  //
+  // «Historiales» es la séptima y sí lo hace crecer, con motivo: es lo que el
+  // gerente pidió después —todos los mecánicos con su historial de preventivos y
+  // a qué unidades fueron, más el historial de cada unidad, cada chofer y cada
+  // taller— y no cabía dentro de ninguna de las seis. Va AL FINAL a propósito,
+  // aunque por contenido se parezca a Indicadores: meterla en medio correría de
+  // lugar las otras seis, y el gerente lleva meses apretando la cuarta posición
+  // sin mirar. Las cuatro vistas se eligen DENTRO de la pantalla con el control
+  // segmentado, que es lo que evita que fueran cuatro pestañas más: en 375 px la
+  // barra ya rueda de lado con siete.
   gerente: { titulo: 'Gerente', Componente: Gerente, tabs: [
     { to: '/', Ico: IcoTablero, txt: 'Tablero' },
     { to: '/incumplimiento', Ico: IcoIncumplimiento, txt: 'Incumplimiento' },
     { to: '/taller', Ico: IcoPlano, txt: 'Taller' },
     { to: '/presupuestos', Ico: IcoPresupuestos, txt: 'Presupuestos' },
     { to: '/alertas', Ico: IcoCampana, txt: 'Alertas' },
-    { to: '/estadisticas', Ico: IcoIndicadores, txt: 'Estadísticas' },
+    // El mismo icono que lleva esta pantalla en el menú del administrador: es la
+    // MISMA pantalla, y darle otro dibujo aquí la haría parecer otra cosa.
+    { to: '/indicadores', Ico: IcoIndicadores, txt: 'Indicadores' },
+    // IcoHistorial (el reloj con la flecha) y no un dibujo nuevo: es el mismo
+    // que ya marca «Mis peritajes» y el «Historial» del chofer de grúa. Dos
+    // dibujos distintos para el mismo concepto es exactamente lo que el catálogo
+    // de ui/iconos.jsx existe para evitar.
+    { to: '/historiales', Ico: IcoHistorial, txt: 'Historiales' },
   ] },
 }
 

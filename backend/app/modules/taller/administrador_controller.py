@@ -33,6 +33,22 @@ from ..mantenimiento import meta_preventivo
 router = APIRouter(prefix="/api/admin", tags=["administrador"])
 solo_admin = require_roles("administrador")
 
+# La pantalla de Indicadores del taller la mira el gerente, no solo el
+# administrador: son los numeros con los que el responde en la junta. Hasta hoy
+# tenia que salirse de su modulo y entrar con el correo y la contrasena del
+# administrador para verlos, y eso no es un detalle de comodidad -- es una
+# cuenta compartida. Cuando dos personas entran con el mismo usuario, la
+# bitacora deja de poder decir quien hizo que (RF-GEN-04), y la contrasena del
+# administrador termina anotada en algun lado porque alguien la tiene que
+# recordar. Se abre la lectura para que no haga falta esa segunda cuenta.
+#
+# SOLO LECTURA, y solo en los cuatro GET que esa pantalla consume. El gerente
+# no captura trabajo del taller, no genera programas ni exporta el RESUMEN del
+# area: ese es el trabajo del administrador y abrirlo mezclaria las dos
+# responsabilidades que RN-07 y RN-11 separan a proposito. Si algun dia esta
+# dependencia aparece en un endpoint que ESCRIBE, es un error, no una mejora.
+admin_o_gerente = require_roles("administrador", "gerente")
+
 
 # ---------------------------------------------------------------- CU-ADM-01 -- #
 @router.get("/solicitudes", response_model=list[SolicitudOut])
@@ -199,7 +215,14 @@ def plano_taller(taller_id: int, usuario=Depends(solo_admin), db: Session = Depe
 
 
 @router.get("/talleres")
-def talleres(usuario=Depends(solo_admin), db: Session = Depends(get_db)):
+def talleres(usuario=Depends(admin_o_gerente), db: Session = Depends(get_db)):
+    """El catalogo de talleres, que es el filtro de la pantalla de Indicadores.
+
+    Lo lee tambien el gerente (ver admin_o_gerente arriba): sin esta lista su
+    selector de taller sale vacio y los indicadores no se pueden filtrar, asi
+    que abrir los otros tres GET y dejar este cerrado le habria entregado media
+    pantalla. Son un id y un nombre, nada mas.
+    """
     return [{"id": t.id, "nombre": t.nombre} for t in db.query(m.Taller).all()]
 
 
@@ -356,32 +379,46 @@ def _nombre_taller(db: Session, taller_id: int | None) -> str | None:
 
 
 @router.get("/indicadores")
-def indicadores(taller_id: int | None = None, usuario=Depends(solo_admin),
+def indicadores(taller_id: int | None = None, usuario=Depends(admin_o_gerente),
                 db: Session = Depends(get_db)):
     """Los numeros del taller para las graficas de pantalla.
 
     Salen de la MISMA funcion que arma el Excel. Es a proposito: el area tiene
     hoy una hoja Graficos que no cuadra con su hoja RESUMEN --de donde deberia
     salir-- porque los cuatro indicadores se copian a mano de una a otra.
+
+    Lo lee tambien el gerente (ver admin_o_gerente arriba): es la grafica que
+    contesta cuantas unidades estan paradas y desde cuando, y hacerle pedir
+    prestada la cuenta del administrador para verla era pedirle que compartiera
+    una contrasena. Aqui no se escribe nada.
     """
     return calcular_indicadores(db, _nombre_taller(db, taller_id))
 
 
 @router.get("/meta-preventivo")
-def meta_preventivo_hoy(usuario=Depends(solo_admin), db: Session = Depends(get_db)):
+def meta_preventivo_hoy(usuario=Depends(admin_o_gerente), db: Session = Depends(get_db)):
     """RN-12: como va el dia contra la meta de 5 a 7 preventivos.
 
     Una meta que nadie ve durante el dia no se cumple: se reporta al final.
+
+    Lo lee tambien el gerente (ver admin_o_gerente arriba). Es el numero que
+    decide si un incumplimiento es del chofer o del taller, y el gerente es
+    justo quien tiene que poder distinguirlo antes de amonestar a alguien: sin
+    este dato solo ve la falta del chofer y no la cita que nunca hubo.
     """
     return meta_preventivo.del_dia(db)
 
 
 @router.get("/meta-preventivo/serie")
-def meta_preventivo_serie(dias: int = 30, usuario=Depends(solo_admin),
+def meta_preventivo_serie(dias: int = 30, usuario=Depends(admin_o_gerente),
                           db: Session = Depends(get_db)):
     """La tendencia, con los dias que quedaron por debajo del piso.
 
     Es el dato que dice si el incumplimiento de un chofer es suyo o del taller.
+
+    Lo lee tambien el gerente (ver admin_o_gerente arriba), por lo mismo que el
+    endpoint de arriba: la foto de hoy se explica con la tendencia, y darle una
+    sin la otra deja la conversacion a medias. Solo consulta.
     """
     dias = max(7, min(dias, 180))
     return meta_preventivo.serie(db, dias)
