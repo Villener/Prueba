@@ -22,6 +22,12 @@ Sin `--si` no hace nada: solo dice a cuantas cuentas les tocaria.
     --choferes N   cuantos choferes de muestra se imprimen en pantalla (3 por
                    omision). Con 0 no se imprime ninguno. No cambia a quien se
                    le rota la clave: eso lo decide --solo-staff.
+    --sin-imprimir no muestra NINGUNA clave en pantalla; quedan solo en el CSV.
+                   Uselo siempre que vaya a copiar el archivo en vez de
+                   repartir las claves ahi mismo: la salida de una terminal
+                   acaba pegada en un chat o en una captura, y ahi van las del
+                   gerente y las de los cuatro administradores. Ojo: `--choferes
+                   0` NO basta, eso solo calla la muestra de choferes.
 """
 import argparse
 import csv
@@ -84,6 +90,8 @@ def main() -> int:
                    help="solo las cuentas de oficina, no los choferes")
     p.add_argument("--choferes", type=int, default=3, metavar="N",
                    help="cuantos choferes de muestra imprimir (0 = ninguno)")
+    p.add_argument("--sin-imprimir", action="store_true",
+                   help="no muestra ninguna clave en pantalla; solo las deja en el CSV")
     p.add_argument("--csv", default="/datos/credenciales.csv",
                    help="donde dejar las contrasenas en claro")
     args = p.parse_args()
@@ -121,6 +129,25 @@ def main() -> int:
             w.writerows(filas)
 
         print(f"Rotadas {len(filas)} contrasenas. CSV -> {args.csv}")
+
+        # LA SALIDA DE ESTE PROGRAMA ACABA PEGADA EN OTRO LADO. Se corre por SSH
+        # desde una terminal, y lo que sale de una terminal se copia a un chat,
+        # a un ticket o a una captura de pantalla para pedir ayuda -- con las
+        # claves del gerente y de los cuatro administradores dentro. Paso el
+        # 2026-09-22: se rotaron 9 cuentas y las 9 quedaron escritas en una
+        # conversacion, lo que obligo a rotarlas otra vez.
+        #
+        # Con --sin-imprimir el CSV se escribe igual y en pantalla no queda una
+        # sola clave. Es lo que conviene cuando ya sabes que vas a copiar el
+        # archivo; imprimir es util solo cuando quieres repartir ahi mismo.
+        if args.sin_imprimir:
+            print()
+            print("No se imprimio ninguna clave: estan solo en el CSV.")
+            print("Para sacarlo del contenedor:")
+            print(f"  docker compose -f docker-compose.produccion.yml cp "
+                  f"api:{args.csv} ./credenciales-staff.csv")
+            return 0
+
         print()
         # En pantalla solo el personal de oficina: son las cuentas que de verdad
         # vas a repartir. Volcar 300 choferes aqui solo llena la terminal.
