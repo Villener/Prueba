@@ -12,6 +12,12 @@ export class ApiError extends Error {
   }
 }
 
+/** La ruta de entrar, que es la unica que puede dar 401 SIN haber tenido
+ *  sesion. Va como constante y no escrita a mano en los dos sitios donde se
+ *  compara: si alguien renombra el endpoint y solo cambia una, el login vuelve
+ *  a decir que la sesion expiro y el defecto tarda otra tarde en encontrarse. */
+const RUTA_LOGIN = '/auth/login'
+
 async function request(path, { method = 'GET', body, params } = {}) {
   let url = `/api${path}`
   if (params) {
@@ -31,7 +37,20 @@ async function request(path, { method = 'GET', body, params } = {}) {
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
 
-  if (res.status === 401) {
+  // El 401 de ENTRAR no es el 401 de una sesion caida, y tratarlos igual
+  // confunde justo a quien menos puede permitirselo.
+  //
+  // Un 401 normal significa "tenias sesion y ya no vale": se limpia y se manda
+  // al login. Pero /auth/login contesta 401 cuando la contrasena esta mal, y
+  // ahi este camino hacia tres cosas absurdas: borraba una sesion que no
+  // existia, redirigia al login a quien YA estaba en el login, y sobre todo
+  // tiraba el mensaje del servidor --"Correo o contrasena incorrectos"-- para
+  // poner "Tu sesion expiro. Vuelve a entrar."
+  //
+  // Eso mando a alguien a revisar un despliegue recien hecho buscando por que
+  // se le caia la sesion, cuando lo unico que pasaba era que la contrasena
+  // habia cambiado. El mensaje describia un sintoma que no estaba ocurriendo.
+  if (res.status === 401 && path !== RUTA_LOGIN) {
     clearSession()
     window.location.hash = '#/login'
     throw new ApiError('Tu sesion expiro. Vuelve a entrar.', 401)
@@ -165,8 +184,33 @@ export const api = {
   subir,
 }
 
+/** Los dos desenlaces que el servidor distingue y la pantalla tiene que saber
+ *  decir. El texto lo pone AQUI y no el backend a proposito: los 212 mensajes
+ *  de HTTPException del servidor van sin acentos --es la convencion de ese
+ *  lado-- y "contrasena" en la pantalla de entrada de una empresa se lee como
+ *  descuido. Del servidor se respeta el codigo, que es el dato; la redaccion es
+ *  de quien la muestra.
+ *
+ *  401 y 403 dicen cosas distintas y no se pueden juntar: con el 401 uno vuelve
+ *  a teclear y entra; con el 403 puede teclear bien toda la tarde y no va a
+ *  entrar nunca, porque su cuenta esta desactivada. Decirle "revisa tu
+ *  contrasena" a quien tiene la cuenta apagada es mandarlo a perder el tiempo. */
+const MENSAJE_ENTRADA = {
+  401: 'Correo o contraseña incorrectos.',
+  403: 'Tu cuenta está desactivada. Pide al administrador que la reactive.',
+}
+
 export const login = async (email, password) => {
-  const data = await request('/auth/login', { method: 'POST', body: { email, password } })
+  let data
+  try {
+    data = await request(RUTA_LOGIN, { method: 'POST', body: { email, password } })
+  } catch (e) {
+    // El 429 NO se reescribe: el servidor manda cuantos minutos hay que
+    // esperar, y ese dato vale mas que cualquier redaccion que pongamos aqui.
+    const propio = MENSAJE_ENTRADA[e.status]
+    if (propio) throw new ApiError(propio, e.status)
+    throw e
+  }
   setSession(data.access_token, data.usuario)
   return data.usuario
 }
