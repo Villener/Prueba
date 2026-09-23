@@ -28,6 +28,7 @@ import datetime
 from sqlalchemy.orm import Session
 
 from ... import models as m
+from .plan_model import ESTADOS_PROGRAMA_CERRADOS
 
 # Valores por omision de RN-12. Se pueden cambiar sin desplegar: viven en la
 # tabla `configuracion` con estas claves.
@@ -254,8 +255,12 @@ def _ultima_visita(db: Session) -> dict:
 
 def _con_programa_abierto(db: Session) -> set:
     """Unidades que ya tienen un programa vivo. No se les crea otro."""
+    # La lista de estados cerrados vive en plan_model, junto al modelo. Estaba
+    # escrita aqui a mano y tambien en el administrador, y de tener el mapa de
+    # estados repartido en cadenas sueltas salio el defecto que dejaba 717 de 718
+    # programas sin poder cerrarse nunca.
     abiertos = (db.query(m.ProgramaMantenimiento)
-                .filter(m.ProgramaMantenimiento.estado.notin_(["cumplido", "cancelado"]))
+                .filter(m.ProgramaMantenimiento.estado.notin_(ESTADOS_PROGRAMA_CERRADOS))
                 .all())
     return {p.unidad_id for p in abiertos}
 

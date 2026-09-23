@@ -40,3 +40,35 @@ class ProgramaMantenimiento(Base, TimestampMixin):
 
     unidad = relationship("Unidad")
     plan = relationship("PlanMantenimiento")
+
+
+# Los estados por los que pasa un programa, y cuales lo dan por terminado.
+#
+# ESTA LISTA EXISTE PORQUE SU AUSENCIA COSTO EL CICLO ENTERO. El estado se
+# escribia desde cinco lugares con cadenas sueltas, y cada uno tenia en la
+# cabeza su propio mapa de a donde se podia llegar desde donde. El resultado,
+# medido en produccion el 2026-09-23: de 718 programas, 573 en `sin_cupo`, 144
+# en `agendado` y UNO en `cumplido`.
+#
+# La causa: el administrador solo daba por cumplido el programa que encontraba
+# en `pendiente`, pero la agenda ya lo habia dejado en `agendado` al darle cita.
+# O sea que el unico preventivo que el sistema podia cerrar era el que la agenda
+# nunca habia agendado -- mientras mejor funcionaba la agenda, mas cerca de cero
+# quedaba el tablero de la meta. Y como meta_preventivo excluye del alta a las
+# unidades con programa vivo, esa unidad tampoco recibia programa nuevo: el
+# ciclo se trababa solo y para siempre.
+#
+# Quien quiera saber si un programa sigue vivo pregunta aqui, no escribe la
+# lista otra vez.
+ESTADOS_PROGRAMA = ("pendiente", "agendado", "sin_cupo", "vencido",
+                    "cumplido", "cancelado")
+
+# Terminados: ya no piden nada ni bloquean el alta del siguiente programa.
+ESTADOS_PROGRAMA_CERRADOS = ("cumplido", "cancelado")
+
+# Vivos: el mantenimiento sigue debiendose, lo diga la palabra que lo diga. Un
+# programa en CUALQUIERA de estos se cierra cuando la unidad entra al taller por
+# un preventivo -- da igual si estaba esperando cita, si ya la tenia, si se
+# quedo sin cupo o si se vencio. Lo que lo cierra es que la unidad LLEGO.
+ESTADOS_PROGRAMA_VIVOS = tuple(e for e in ESTADOS_PROGRAMA
+                               if e not in ESTADOS_PROGRAMA_CERRADOS)

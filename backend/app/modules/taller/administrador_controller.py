@@ -29,6 +29,7 @@ from .indicadores import calcular as calcular_indicadores
 from ..emergencias.evidencia_controller import guardar as guardar_evidencia
 from ..emergencias.emergencias_service import fotos_de
 from ..mantenimiento import meta_preventivo
+from ..mantenimiento.plan_model import ESTADOS_PROGRAMA_VIVOS
 
 router = APIRouter(prefix="/api/admin", tags=["administrador"])
 solo_admin = require_roles("administrador")
@@ -155,15 +156,54 @@ def resolver_solicitud(sol_id: int, datos: ResolucionSolicitudIn, usuario=Depend
                   f"Se cerraron {len(hermanas)} solicitud(es) repetida(s).",
                   "solicitud", "unidad", s.unidad_id)
 
-    # Si el ingreso corresponde a un mantenimiento pendiente, se marca cumplido.
-    prog = (db.query(m.ProgramaMantenimiento)
-            .filter(m.ProgramaMantenimiento.unidad_id == s.unidad_id,
-                    m.ProgramaMantenimiento.estado == "pendiente")
-            .order_by(m.ProgramaMantenimiento.fecha_limite).first())
-    if prog and s.tipo == "preventivo":
-        prog.estado = "cumplido"
-        prog.fecha_cumplimiento = ahora_utc()
-        prog.orden_servicio_id = orden.id
+    # AQUI SE CIERRA EL CICLO DEL PREVENTIVO, y hasta el 2026-09-23 no se cerraba.
+    #
+    # Antes este bloque solo miraba los programas en `pendiente`. Pero la agenda
+    # deja el programa en `agendado` en cuanto le da cita (agenda_service), o en
+    # `sin_cupo` si no le encontro hueco, y el job nocturno lo pasa a `vencido`.
+    # A `pendiente` solo se vuelve si alguien CANCELA la cita. O sea que el unico
+    # preventivo que el sistema podia dar por cumplido era el que la agenda nunca
+    # habia agendado: mientras mejor funcionaba la agenda, mas cerca de cero
+    # quedaba el tablero de la meta.
+    #
+    # Medido en produccion antes del arreglo: de 718 programas, 573 `sin_cupo`,
+    # 144 `agendado` y UNO `cumplido` -- y ese uno llego al taller cuando todavia
+    # estaba en `pendiente`. Y como meta_preventivo excluye del alta a las
+    # unidades con programa vivo, esas 717 tampoco recibian programa nuevo: el
+    # ciclo se trababa solo.
+    #
+    # Ahora se cierra el programa vivo mas urgente, en el estado que sea. Lo que
+    # lo cierra no es la palabra que traiga escrita: es que la unidad LLEGO.
+    if s.tipo == "preventivo":
+        prog = (db.query(m.ProgramaMantenimiento)
+                .filter(m.ProgramaMantenimiento.unidad_id == s.unidad_id,
+                        m.ProgramaMantenimiento.estado.in_(ESTADOS_PROGRAMA_VIVOS))
+                .order_by(m.ProgramaMantenimiento.fecha_limite).first())
+        if prog:
+            prog.estado = "cumplido"
+            prog.fecha_cumplimiento = ahora_utc()
+            prog.orden_servicio_id = orden.id
+
+            # Y LA CITA TAMBIEN, que es la otra mitad del mismo hueco. Nadie
+            # marcaba una cita como `cumplida` en todo el sistema --la unica
+            # escritura de ese valor estaba en el sembrador de demostracion-- asi
+            # que la cita honrada se quedaba en `confirmada` de por vida y el
+            # porcentaje de citas concretadas del gerente salia 0% con la flota
+            # entrando al taller todos los dias.
+            #
+            # jobs._se_presento() ya daba por buena la llegada mirando si existe
+            # una orden, y su docstring pedia esto con todas sus letras: "el dia
+            # en que alguien cierre el ciclo marcando la cita, esto se puede
+            # reemplazar por una lectura del estado". Ese dia es hoy; se deja el
+            # rodeo de _se_presento() para las citas viejas, que nunca se van a
+            # cerrar solas.
+            cita = (db.query(m.CitaTaller)
+                    .filter(m.CitaTaller.programa_mantenimiento_id == prog.id,
+                            m.CitaTaller.estado.in_(("propuesta", "confirmada",
+                                                     "reprogramada")))
+                    .order_by(m.CitaTaller.fecha_cita).first())
+            if cita:
+                cita.estado = "cumplida"
 
     # CU-ADM-26: el formato nace AQUI, cuando se le da acceso al vehiculo, y se
     # queda abierto. Antes habia que acordarse de levantarlo a mano y el papel
