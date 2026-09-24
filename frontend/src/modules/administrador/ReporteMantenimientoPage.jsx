@@ -368,12 +368,108 @@ function ModalNuevo({ catalogo, onCerrar, onListo }) {
   )
 }
 
+/* ------------------------------------------- que el formato quepa en UNA hoja */
+/* El cliente entrega UNA hoja por servicio. Vacio el formato cabe de sobra,
+   pero los diez renglones de actividades se llenan con lo que el mecanico
+   escribio a mano, y con las dos columnas de texto puestas se pasa de los
+   996 px de alto util que tiene una carta con margen de 8 mm. Ahi se partia en
+   dos, y con fotos de evidencia no habia ni que llenarlas.
+
+   No hay manera de pedirle a CSS «que quepa»: hay que medirlo. Y medirlo en
+   pantalla no sirve, porque en pantalla el formato usa otros tamanos de letra y
+   el ancho del monitor. Por eso se mide justo antes de imprimir, con las reglas
+   de impresion ya aplicadas. */
+
+/* px por milimetro: el navegador arma la hoja a 96 dpi, pase lo que pase la
+   impresora despues. */
+const MM = 96 / 25.4
+/* El alto de una carta (279.4 mm) menos los 8 mm de margen de @page arriba y
+   abajo. El ancho lo pone el CSS, que es donde se arma la hoja. */
+const ALTO_UTIL_MM = 279.4 - 16
+/* Un pelo de holgura. Si la hoja queda a ras, un redondeo del navegador la
+   empuja entera a la segunda pagina y la primera sale en blanco -- que es peor
+   que partirla. */
+const HOLGURA = 0.97
+/* Mas apretado que esto, el 8 pt de la tabla ya no se lee en papel. Un formato
+   con tanto texto que ni asi cabe se parte, y esta bien: ilegible no sirve. */
+const ESCALA_MINIMA = 0.65
+
+/** Corre `hacer()` con las reglas de `@media print` aplicadas de verdad.
+ *
+ * Les cambia el `print` por `all` un instante y se los devuelve. No se alcanza
+ * a ver: nada cede el hilo en medio, asi que el navegador no repinta, y de
+ * todas formas iba a cambiar a la vista de impresion enseguida.
+ */
+function conReglasDeImpresion(hacer) {
+  const tocadas = []
+  for (const hoja of document.styleSheets) {
+    let reglas
+    // Una hoja de otro origen no deja leer sus reglas. Hoy no hay ninguna, pero
+    // una tipografia de Google metida por cualquier motivo tumbaria esto entero.
+    try { reglas = hoja.cssRules } catch { continue }
+    for (const r of reglas) {
+      if (r.media && r.media.mediaText.includes('print')) {
+        tocadas.push([r, r.media.mediaText])
+        r.media.mediaText = 'all'
+      }
+    }
+  }
+  try {
+    return hacer()
+  } finally {
+    for (const [r, antes] of tocadas) r.media.mediaText = antes
+  }
+}
+
+/** Mide el formato como va a salir en papel y lo aprieta lo justo para que
+ *  quepa. El factor viaja en `--ajuste-hoja`, que solo se usa al imprimir. */
+function ajustarAUnaHoja() {
+  const formato = document.querySelector('.formato')
+  if (!formato) return
+  const disponible = ALTO_UTIL_MM * MM * HOLGURA
+  const aprieta = (x) => Math.max(ESCALA_MINIMA, Math.min(1, x))
+  // Pone un apreton y devuelve lo que mide la hoja con el puesto.
+  const probar = (escala) => {
+    formato.style.setProperty('--ajuste-hoja', escala)
+    return conReglasDeImpresion(() => formato.getBoundingClientRect().height)
+  }
+
+  const alto = probar(1)
+  if (!alto || alto <= disponible) return
+
+  // Apretar la hoja no la encoge en proporcion: el CSS le divide el ancho entre
+  // el mismo factor para que siga llenando el papel a lo ancho, asi que al
+  // apretarla tambien se ENSANCHA y el mismo texto cabe en menos renglones. Por
+  // eso el factor no sale de una division -- se tantea, partiendo el rango entre
+  // el apreton que ya se sabe que cabe y el que no, para dejar la letra lo mas
+  // grande que quepa. En papel esa es la diferencia entre leerla y adivinarla.
+  let cabe = ESCALA_MINIMA
+  let noCabe = 1
+  // El primer tanteo por regla de tres siempre se queda corto, pero acota el
+  // rango de golpe y ahorra pasadas.
+  const aproximado = aprieta(disponible / alto)
+  if (probar(aproximado) <= disponible) cabe = aproximado
+  else noCabe = aproximado
+  for (let i = 0; i < 4; i++) {
+    const medio = (cabe + noCabe) / 2
+    if (probar(medio) <= disponible) cabe = medio
+    else noCabe = medio
+  }
+  probar(cabe)
+}
+
 /* --------------------------------------------------- la hoja, tal cual sale */
 function Hoja({ id, catalogo, tecnicos, onVolver }) {
   const toast = useToast()
   const { data, cargando, error, recargar } = useApi(() => api.get(`/admin/reportes/${id}`), [id])
   const [firmando, setFirmando] = useState(null)
   const [cerrando, setCerrando] = useState(false)
+
+  // `beforeprint` lo dispara igual el boton Imprimir que el Ctrl+P del usuario.
+  useEffect(() => {
+    window.addEventListener('beforeprint', ajustarAUnaHoja)
+    return () => window.removeEventListener('beforeprint', ajustarAUnaHoja)
+  }, [])
 
   if (cargando) return <Spinner />
   if (error) return <Aviso tipo="danger">{error}</Aviso>
@@ -963,13 +1059,17 @@ function EvidenciaPreventivo({ reporteId, editable }) {
   }
 
   return (
-    <section className="fmt-bloque">
+    <section className="fmt-bloque fmt-evidencia">
       <h2>Evidencia del servicio</h2>
+      {/* El recordatorio es para quien captura, no para el papel: en un formato
+          impreso «todavía no tiene foto» no significa nada. */}
       {!d.cumple && (
-        <Aviso tipo="warn">
-          Es un servicio <strong>preventivo</strong> y todavía no tiene foto.
-          El formato no se puede cerrar sin ella.
-        </Aviso>
+        <div className="no-print">
+          <Aviso tipo="warn">
+            Es un servicio <strong>preventivo</strong> y todavía no tiene foto.
+            El formato no se puede cerrar sin ella.
+          </Aviso>
+        </div>
       )}
       <TiraFotos fotos={d.fotos || []} />
       {editable && (

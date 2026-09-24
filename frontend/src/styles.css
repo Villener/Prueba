@@ -998,7 +998,16 @@ tbody tr:hover { background: var(--surface-2); }
 }
 
 @media print {
-  .formato { padding: 4px; border-width: 1px; }
+  /* El formato ES la hoja: carta (215.9 mm) menos los 8 mm de margen de @page a
+     cada lado. `--ajuste-hoja` lo pone ajustarAUnaHoja() en
+     ReporteMantenimientoPage.jsx si el texto de las actividades no cabe; se
+     divide en el ancho para que la hoja encogida siga llenando el papel a lo
+     ancho y no salga una franja en blanco a la derecha. */
+  .formato {
+    padding: 4px; border-width: 1px;
+    width: calc(199.9mm / var(--ajuste-hoja, 1));
+    zoom: var(--ajuste-hoja, 1);
+  }
 
   /* «Quien atiende» NO se imprime: en el papel esa informacion ya esta, tecnico
      por tecnico, en la columna RESPONSABLE de la tabla. Impresa aparte serian
@@ -1013,7 +1022,7 @@ tbody tr:hover { background: var(--surface-2); }
   .fmt-folio strong { font-size: 8pt; }
   .fmt-folio .lbl, .fmt-folio .s { font-size: 5pt; }
 
-  .fmt-bloque { margin-bottom: 9px; }
+  .fmt-bloque { margin-bottom: 6px; }
   .fmt-bloque > h2, .fmt-bloque .card-head h2 {
     font-size: 6pt; padding-bottom: 1px; margin-bottom: 3px;
   }
@@ -1058,9 +1067,20 @@ tbody tr:hover { background: var(--surface-2); }
 
   .renglon.ancho { height: 3.2em; }
 
-  /* Y el candado: si algo se pasara, que no se parta en dos hojas a la mitad
-     de un renglon. Una hoja o nada. */
-  .formato { page-break-inside: avoid; break-inside: avoid; }
+  /* Sin fotos, el bloque de evidencia es un titulo solo. En pantalla sirve --
+     dice que falta la foto; impreso son 56 px de papel que no dicen nada. */
+  .fmt-evidencia:not(:has(.fotos-fila)) { display: none !important; }
+  /* Y con fotos, del tamano de un timbre. La impresora del taller es de laser
+     en blanco y negro: una foto grande sale como una mancha gris igual que una
+     chica, y la evidencia de verdad esta en el sistema. */
+  .fmt-evidencia .foto-mini { width: 22mm; height: 22mm; }
+
+  /* Aqui habia un `page-break-inside: avoid` para que el formato no se partiera
+     a la mitad de un renglon. Salio contraproducente: si la hoja se pasaba
+     aunque fuera por un pixel, el navegador la mandaba ENTERA a la segunda
+     pagina y la primera salia en blanco -- dos hojas, y una vacia. Ahora el
+     formato se mide y se aprieta antes de imprimir, asi que cabe; y el dia que
+     no quepa, que se parta es menos malo que una hoja en blanco. */
 }
 
 
