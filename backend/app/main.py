@@ -5,7 +5,7 @@ docs/casos-de-uso.md v1.1. Cada endpoint cita el caso de uso que realiza.
 """
 import logging
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
@@ -136,7 +136,18 @@ def correr_jobs(usuario=Depends(require_roles("gerente", "administrador")),
 
     En produccion los corre solo despliegue/bajagas-jobs.timer cada madrugada
     (ver jobs.main); aqui se exponen para poder demostrar RN-05 y RN-08 sin
-    esperar tres meses. OJO: este boton NO revisa si hay demo sembrado, y el
-    reloj si.
+    esperar tres meses.
+
+    Con el mismo candado que el reloj. El 24-sep alguien lo apreto con el demo
+    sembrado y salieron 20 avisos de incumplimiento contra choferes reales por
+    citas que nunca existieron, y la calibracion del Excel se piso con ordenes
+    inventadas (Motor de 22 dias a 2). Un boton que se aprieta enfrente del
+    director no puede hacer eso.
     """
+    if jobs.hay_demo_sembrado(db):
+        raise HTTPException(
+            409, "No se corrieron: la base trae datos de demostración. Con ellos "
+                 "adentro, estos procesos les levantarían avisos de "
+                 "incumplimiento a choferes reales por citas inventadas. Hay que "
+                 "quitar el demo primero.")
     return jobs.correr_todos(db)

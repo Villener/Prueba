@@ -164,6 +164,43 @@ def _ids_ordenes(db) -> list:
             .filter(m.OrdenServicio.folio.like(PREFIJO_FOLIO + "%")).all()]
 
 
+# Los titulos con que jobs.generar_avisos_incumplimiento() avisa una falta. La
+# notificacion no apunta al aviso ni a la cita sino a la UNIDAD, asi que para
+# reconocer las de una cita sembrada hay que casar tres cosas: el titulo, la
+# unidad y la fecha de la cita, que va escrita en el mensaje.
+TITULOS_FALTA = ("Aviso de incumplimiento", "Falta por amonestar",
+                 "Faltaste a tu cita de taller")
+
+
+def _notificaciones_demo(db, citas) -> list:
+    """Los ids de las notificaciones que el SISTEMA mando por citas sembradas.
+
+    Este script no manda ninguna. Las manda el sistema si alguien corre los
+    procesos del dia con el demo adentro: el 24-sep alguien apreto «Correr
+    procesos del dia» y a 19 choferes reales les llego «Faltaste a tu cita de
+    taller» por citas que nunca existieron. Si --deshacer no las quita, se
+    quedan en la campana de gente real apuntando a citas que ya no estan.
+    """
+    ids = set()
+    ids_cita = [c.id for c in citas]
+    if ids_cita:
+        # Los recordatorios de 48 y 24 h si apuntan a la cita.
+        ids.update(n.id for n in db.query(m.Notificacion)
+                   .filter(m.Notificacion.entidad_tipo == "cita_taller",
+                           m.Notificacion.entidad_id.in_(ids_cita)).all())
+    # Solo una cita que acabo en «no asistio» pudo generar aviso de falta.
+    for c in citas:
+        if c.estado != "no_asistio" or not c.unidad_id or not c.fecha_cita:
+            continue
+        ids.update(n.id for n in db.query(m.Notificacion)
+                   .filter(m.Notificacion.titulo.in_(TITULOS_FALTA),
+                           m.Notificacion.entidad_tipo == "unidad",
+                           m.Notificacion.entidad_id == c.unidad_id,
+                           m.Notificacion.mensaje.like(
+                               "%" + c.fecha_cita.isoformat() + "%")).all())
+    return sorted(ids)
+
+
 def _contar(db) -> dict:
     citas = (db.query(m.CitaTaller)
              .filter(m.CitaTaller.origen_agenda == MARCA_CITA).count())
@@ -178,15 +215,26 @@ def _contar(db) -> dict:
     asignaciones = (db.query(m.AsignacionTecnico)
                     .filter(m.AsignacionTecnico.orden_servicio_id.in_(ids_orden))
                     .count() if ids_orden else 0)
+    demo = (db.query(m.CitaTaller)
+            .filter(m.CitaTaller.origen_agenda == MARCA_CITA).all())
     return {"citas": citas, "ordenes": len(ids_orden), "avisos": avisos,
-            "asignaciones": asignaciones}
+            "asignaciones": asignaciones,
+            "notificaciones": len(_notificaciones_demo(db, demo))}
 
 
 def deshacer(db) -> dict:
     """Borra lo sembrado y NADA mas. El orden importa: los avisos primero."""
     antes = _contar(db)
-    ids = [c.id for c in db.query(m.CitaTaller)
-           .filter(m.CitaTaller.origen_agenda == MARCA_CITA).all()]
+    demo = (db.query(m.CitaTaller)
+            .filter(m.CitaTaller.origen_agenda == MARCA_CITA).all())
+    ids = [c.id for c in demo]
+    # Las notificaciones antes que las citas: se reconocen por la fecha de la
+    # cita, y borrada la cita ya no hay de donde sacarla.
+    ids_notif = _notificaciones_demo(db, demo)
+    if ids_notif:
+        (db.query(m.Notificacion)
+         .filter(m.Notificacion.id.in_(ids_notif))
+         .delete(synchronize_session=False))
     if ids:
         (db.query(m.AvisoIncumplimiento)
          .filter(m.AvisoIncumplimiento.cita_id.in_(ids))
@@ -419,16 +467,18 @@ def main(argv=None):
             print("  avisos       : %d" % c["avisos"])
             print("  ordenes      : %d" % c["ordenes"])
             print("  asignaciones : %d" % c["asignaciones"])
+            print("  notificaciones que el sistema mando por citas demo: %d"
+                  % c["notificaciones"])
             if not any(c.values()):
                 print("\nNada sembrado: el tablero esta mostrando datos reales.")
             return 0
 
         if args.deshacer:
             antes = deshacer(db)
-            print("Retirado: %d citas, %d avisos, %d ordenes y %d asignaciones "
-                  "de demostracion."
+            print("Retirado: %d citas, %d avisos, %d ordenes, %d asignaciones "
+                  "y %d notificaciones de demostracion."
                   % (antes["citas"], antes["avisos"], antes["ordenes"],
-                     antes["asignaciones"]))
+                     antes["asignaciones"], antes["notificaciones"]))
             print("El tablero vuelve a mostrar solo datos reales.")
             return 0
 
