@@ -1,4 +1,5 @@
-# Los procesos del dia: avisos de incumplimiento, alertas de unidades paradas,
+# Primero pone al dia la base con los Excel de las areas; despues, los
+# procesos del dia: avisos de incumplimiento, alertas de unidades paradas,
 # prestamos vencidos, recalculo de la agenda, recordatorios de cita a 48 y 24 h
 # y recalibracion de duraciones. Lo dispara bajagas-jobs.timer; a mano:
 #
@@ -22,6 +23,13 @@ After=docker.service
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/bajagas
+# 1. Los Excel de las areas que haya en /datos/areas. Va PRIMERO para que la
+#    agenda de abajo ya vea la flota al dia: una unidad que Logistica dio de
+#    baja ayer no debe recibir cita hoy. El '-' hace que, si un area mando un
+#    archivo roto, los procesos del dia corran de todas formas. Sin carpeta o
+#    sin archivos no hace nada. Ver app/importadores/sincronizar.py.
+ExecStart=-/usr/bin/docker compose -f docker-compose.produccion.yml exec -T api python -m app.importadores.sincronizar --carpeta /datos/areas
+# 2. Los procesos del dia. Se niegan solos si hay demo sembrado.
 ExecStart=/usr/bin/docker compose -f docker-compose.produccion.yml exec -T api python -m app.jobs
 # Sin reintentos a proposito: si un proceso ya escribio y el siguiente truena,
 # repetir todo desde el principio podria duplicar algo. Mejor que falle una vez,

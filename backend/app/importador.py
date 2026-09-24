@@ -30,6 +30,7 @@ Se ejecuta con:  python -m app.importador
 import hashlib
 import os
 import re
+import secrets
 import unicodedata
 from datetime import date, datetime, timedelta
 
@@ -38,6 +39,7 @@ import openpyxl
 from sqlalchemy.orm import Session
 
 from . import models as m
+from .importadores.normaliza import clave_unidad, resolver_unidad
 from .core.security import hash_password
 
 PASSWORD_PRUEBA = "bajagas2026"
@@ -336,11 +338,24 @@ def _cabecera(ws):
     return {_norm(c.value).replace(".", ""): c.column - 1 for c in fila if c.value}, ws.min_row
 
 
-def importar(db: Session, carpeta: str, con_partes: bool = True) -> dict:
+def importar(db: Session, carpeta: str, con_partes: bool = True,
+             contrasena: str | None = PASSWORD_PRUEBA) -> dict:
+    """Carga o pone al dia lo que traen los Excel.
+
+    `contrasena` es la que reciben las cuentas NUEVAS; las que ya existen no se
+    tocan nunca. En la maquina de desarrollo es la de prueba, para poder entrar
+    con cualquiera. La sincronizacion de produccion pasa None: cada cuenta nueva
+    recibe una al azar que nadie conoce, y sale en `cuentas_nuevas` para que el
+    administrador le entregue la suya. Con la de prueba, un chofer dado de alta
+    en la madrugada tendria una contrasena que esta escrita en este archivo.
+    """
 
     res = {"plantas": 0, "supervisores": 0, "choferes": 0, "unidades": 0,
            "tecnicos": 0, "piezas": 0, "existencias": 0, "requisiciones": 0,
-           "renglones": 0, "avisos": []}
+           "renglones": 0, "avisos": [], "cuentas_nuevas": []}
+
+    def _hash_nueva():
+        return hash_password(contrasena or secrets.token_urlsafe(18))
 
     # Se puede correr sobre una base que ya tiene datos: crea lo que falte y
     # salta lo que ya existe. No hace falta borrar bajagas.db (que ademas suele
@@ -439,14 +454,29 @@ def importar(db: Session, carpeta: str, con_partes: bool = True) -> dict:
                     plantillas[(suc, nom)] = cua
                     ya_plantillas[clave_plantilla] = cua
                     continue
+                # El supervisor existe pero se quedo SIN plantilla. Antes se
+                # seguia de largo, no lo encontraba en ningun otro lado y lo
+                # daba de alta otra vez -- con '2' en el correo porque el suyo
+                # ya estaba tomado: 13 supervisores duplicados en una corrida.
+                # Se le pone la plantilla que le falta y ya.
+                if sup_previo:
+                    cua = (ya_plantillas.get(clave_plantilla)
+                           or m.Plantilla(nombre=clave_plantilla,
+                                          supervisor_id=previo.id))
+                    cua.supervisor_id = previo.id
+                    db.add(cua); db.flush()
+                    plantillas[(suc, nom)] = cua
+                    ya_plantillas[clave_plantilla] = cua
+                    continue
 
             existente = ya_plantillas.get(clave_plantilla)
             if existente:
                 plantillas[(suc, nom)] = existente
                 continue
             u = m.Usuario(nombre=n, apellidos=a, email=_correo("", nom + suc, usados),
-                          password_hash=hash_password(PASSWORD_PRUEBA))
+                          password_hash=_hash_nueva())
             db.add(u); db.flush()
+            res["cuentas_nuevas"].append(u.email)
             db.add(m.UsuarioRol(usuario_id=u.id, rol_id=roles["supervisor"].id))
             s = m.Supervisor(usuario_id=u.id, zona=suc.title())
             db.add(s); db.flush()
@@ -460,8 +490,23 @@ def importar(db: Session, carpeta: str, con_partes: bool = True) -> dict:
     # ------------------------------------------------- unidades y choferes --
     tipo_defecto = tipos.get("reparto") or next(iter(tipos.values()))
     # Lo que ya esta en la base cuenta como visto: correr dos veces no duplica.
-    vistos_unidad = {u.num_economico for u in db.query(m.Unidad.num_economico).all()}
-    vistos_empleado = set()
+    #
+    # Por CLAVE normalizada y no por texto. Cada area escribe el numero a su
+    # manera -- 'BG-677' en INFO CHOFERES, 'BG677' en la base; 'BG-362' contra
+    # 'BG362P' -- y comparando texto exacto, 10 de las 390 unidades del archivo
+    # parecian nuevas sin serlo: cada corrida las habria dado de alta otra vez.
+    # No lo hacia solo porque tronaba antes, contra la licencia repetida de su
+    # chofer. Ver importadores/normaliza.py.
+    por_clave = {}
+    for (num_eco,) in db.query(m.Unidad.num_economico).all():
+        k = clave_unidad(num_eco)
+        if k:
+            por_clave[k] = num_eco
+    # El chofer que ya existe se reconoce por su numero de empleado, que va en
+    # la licencia. Antes se empezaba de cero en cada corrida: una unidad nueva
+    # cuyo chofer ya estaba lo volvia a crear y tronaba el indice unico.
+    choferes_por_emp = {c.num_licencia[4:]: c for c in db.query(m.Chofer).all()
+                        if c.num_licencia and c.num_licencia.startswith("LIC-")}
     for hoja in _hojas_flota(wb):
         ws = wb[hoja]
         cab, hr = _cabecera(ws)
@@ -474,19 +519,24 @@ def importar(db: Session, carpeta: str, con_partes: bool = True) -> dict:
                 continue
             suc = _norm(r[iS])
             num = str(r[iU]).strip() if iU < len(r) and r[iU] else None
-            if not num or num in vistos_unidad:
+            # Sin clave no es un vehiculo: 'AYTE' es el puesto del ayudante,
+            # 'NOBORRAR' una barrera al pie de la hoja. Antes se daban de alta
+            # como unidades y limpieza.py las borraba despues.
+            clave = clave_unidad(num)
+            if not clave or resolver_unidad(clave, por_clave)[0] is not None:
                 continue
-            vistos_unidad.add(num)
+            por_clave[clave] = num
 
             # chofer, si la fila lo trae
             chofer = None
             nom = str(r[iC]).strip() if iC is not None and iC < len(r) and r[iC] else None
             emp = str(r[iE]).strip() if iE is not None and iE < len(r) and r[iE] else None
-            if nom and emp and emp not in vistos_empleado:
-                vistos_empleado.add(emp)
+            if nom and emp:
+                chofer = choferes_por_emp.get(emp)
+            if nom and emp and chofer is None:
                 n, a = _partir_nombre(nom)
                 u = m.Usuario(nombre=n, apellidos=a, email=_correo(emp, nom, usados),
-                              password_hash=hash_password(PASSWORD_PRUEBA))
+                              password_hash=_hash_nueva())
                 db.add(u); db.flush()
                 db.add(m.UsuarioRol(usuario_id=u.id, rol_id=roles["chofer"].id))
                 cua = None
@@ -496,7 +546,9 @@ def importar(db: Session, carpeta: str, con_partes: bool = True) -> dict:
                                   vencimiento_licencia=date.today() + timedelta(days=400),
                                   plantilla_id=cua.id if cua else None)
                 db.add(chofer); db.flush()
+                choferes_por_emp[emp] = chofer
                 res["choferes"] += 1
+                res["cuentas_nuevas"].append(u.email)
 
             t = taller_de(suc)
             d = datos_unidad.get(num, {})
@@ -577,8 +629,9 @@ def importar(db: Session, carpeta: str, con_partes: bool = True) -> dict:
             if modalidad == "AUTONOMO":
                 # El autonomo SI usa la app: necesita cuenta (RI-A-18).
                 u = m.Usuario(nombre=n, apellidos=a, email=_correo(emp, n + a, usados),
-                              password_hash=hash_password(PASSWORD_PRUEBA))
+                              password_hash=_hash_nueva())
                 db.add(u); db.flush()
+                res["cuentas_nuevas"].append(u.email)
                 tec.usuario_id = u.id
             res["tecnicos"] += 1
     db.flush()
