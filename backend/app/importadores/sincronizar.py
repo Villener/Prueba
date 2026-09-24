@@ -116,14 +116,80 @@ def _copiar_base(origen: str, destino: str):
         src.close()
 
 
-def _conteos(ruta: str) -> dict:
+def _foto(ruta: str) -> dict:
+    """{tabla: {rowid: huella de la fila}}.
+
+    Fila por fila y no solo cuantas hay. La primera version contaba filas, y en
+    produccion el simulacro dijo «no cambia ninguna fila» con 86 unidades por
+    darse de baja: el catalogo no agrega ni quita unidades, les cambia un campo,
+    y un conteo no ve eso. Un simulacro que calla lo que va a hacer es peor que
+    no tenerlo.
+
+    `actualizado_en` no cuenta: es la hora del cambio, no el cambio.
+    """
     c = sqlite3.connect(ruta)
     try:
-        return {t: c.execute("select count(*) from \"%s\"" % t).fetchone()[0]
-                for (t,) in c.execute(
-                    "select name from sqlite_master where type='table'")}
+        foto = {}
+        for (t,) in c.execute("select name from sqlite_master where type='table'"
+                              " and name not like 'sqlite_%'").fetchall():
+            cols = [r[1] for r in c.execute('pragma table_info("%s")' % t)
+                    if r[1] != "actualizado_en"]
+            lista = ", ".join('"%s"' % x for x in cols)
+            foto[t] = {r[0]: hash(r[1:]) for r in
+                       c.execute('select rowid, %s from "%s"' % (lista, t))}
+        return foto
     finally:
         c.close()
+
+
+def _diferencias(antes: dict, despues: dict) -> dict:
+    """{tabla: {nuevas, borradas, cambiadas, _muestra}} de las que se movieron.
+
+    `_muestra` son unos cuantos rowid de filas cambiadas, para enseñar QUE
+    cambio y no solo cuanto.
+    """
+    out = {}
+    for t in set(antes) | set(despues):
+        a, d = antes.get(t, {}), despues.get(t, {})
+        nuevas = len(d.keys() - a.keys())
+        borradas = len(a.keys() - d.keys())
+        cambiadas = [k for k in a.keys() & d.keys() if a[k] != d[k]]
+        if nuevas or borradas or cambiadas:
+            out[t] = {"nuevas": nuevas, "borradas": borradas,
+                      "cambiadas": len(cambiadas), "_muestra": sorted(cambiadas)[:6]}
+    return out
+
+
+def _ejemplos(ruta_antes: str, ruta_despues: str, cambios: dict) -> dict:
+    """{tabla: ["id 349: nombre 'Jesus Orlando' -> 'Jesus Or'", ...]}.
+
+    Sin esto el simulacro decia «usuario: 5 cambiadas» y no se veia que la
+    sincronizacion estaba mochando nombres de choferes. Los numeros dicen
+    cuanto; los ejemplos dicen si esta bien.
+    """
+    a, d = sqlite3.connect(ruta_antes), sqlite3.connect(ruta_despues)
+    out = {}
+    try:
+        for t, x in cambios.items():
+            ids = x.pop("_muestra", [])
+            if not ids:
+                continue
+            cols = [r[1] for r in d.execute('pragma table_info("%s")' % t)
+                    if r[1] != "actualizado_en"]
+            q = 'select rowid, %s from "%s" where rowid = ?' % (
+                ", ".join('"%s"' % c for c in cols), t)
+            lineas = []
+            for rid in ids:
+                fa, fd = a.execute(q, (rid,)).fetchone(), d.execute(q, (rid,)).fetchone()
+                if not fa or not fd:
+                    continue
+                dif = ["%s %r -> %r" % (c, fa[i + 1], fd[i + 1])
+                       for i, c in enumerate(cols) if fa[i + 1] != fd[i + 1]]
+                lineas.append("fila %s: %s" % (rid, "; ".join(dif)))
+            out[t] = lineas
+    finally:
+        a.close(); d.close()
+    return out
 
 
 def _resumible(v, tope=20):
@@ -172,7 +238,7 @@ def sincronizar(carpeta: str, simular: bool = False) -> dict:
         Sesion = SessionLocal
 
     try:
-        antes = _conteos(trabajo)
+        antes = _foto(trabajo)
         for nombre, que, correr in _pasos(carpeta):
             paso = {"paso": nombre, "que": que}
             faltan = [a for a in ARCHIVOS[nombre]
@@ -198,9 +264,9 @@ def sincronizar(carpeta: str, simular: bool = False) -> dict:
                 db.close()
                 paso["segundos"] = round(time.time() - t0, 1)
             informe["pasos"].append(paso)
-        despues = _conteos(trabajo)
-        informe["cambios"] = {t: [antes.get(t, 0), n] for t, n in despues.items()
-                              if antes.get(t, 0) != n}
+        informe["cambios"] = _diferencias(antes, _foto(trabajo))
+        informe["ejemplos"] = _ejemplos(
+            ruta if simular else informe["respaldo"], trabajo, informe["cambios"])
     finally:
         if temporal:
             shutil.rmtree(temporal, ignore_errors=True)
@@ -223,11 +289,22 @@ def _imprimir(inf: dict):
         if p["estado"] != "ok":
             linea += "  <- " + p["motivo"]
         print(linea)
+        # Lo que el propio importador dice que hizo, en sus palabras: «se dieron
+        # de baja 86» dice mas que «unidad: 86 cambiadas».
+        for k, v in (p.get("resultado") or {}).items():
+            if isinstance(v, (int, float)) and v and not isinstance(v, bool):
+                print("  %9s %-8s   %-28s %s" % ("", "", k, v))
     print()
     if inf["cambios"]:
         print("Filas que cambian:")
-        for t, (a, d) in sorted(inf["cambios"].items()):
-            print("  %-26s %7d -> %7d  (%+d)" % (t, a, d, d - a))
+        print("  %-26s %8s %8s %9s" % ("", "nuevas", "borradas", "cambiadas"))
+        for t, x in sorted(inf["cambios"].items()):
+            print("  %-26s %8d %8d %9d" % (t, x["nuevas"], x["borradas"], x["cambiadas"]))
+        for t, lineas in sorted(inf.get("ejemplos", {}).items()):
+            print()
+            print("Ejemplos de %s:" % t)
+            for l in lineas:
+                print("  " + l)
     else:
         print("No cambia ninguna fila: la base ya estaba al dia con estos archivos.")
     if inf["cuentas_nuevas"]:

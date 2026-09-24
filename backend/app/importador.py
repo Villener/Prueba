@@ -585,7 +585,15 @@ def importar(db: Session, carpeta: str, con_partes: bool = True,
             if iE >= len(r) or not r[iE] or iC >= len(r) or not r[iC]:
                 continue
             emp = str(r[iE]).strip()
-            n, a = _partir_nombre(str(r[iC]).strip())
+            crudo = str(r[iC]).strip()
+            # SAP corta los nombres a exactamente 30 letras: 'CASTAÑEDA
+            # PLASCENCIA, JESUS OR'. «Corregir» con uno de esos pisaba el nombre
+            # completo que ya estaba -- Jesus Orlando quedaba en 'Jesus Or', y
+            # a cinco choferes les paso en una sola corrida. Mismo criterio que
+            # normaliza.nombre_mas_completo: de 30 justas, no se le cree.
+            if len(crudo) == 30:
+                continue
+            n, a = _partir_nombre(crudo)
             u = (db.query(m.Usuario)
                  .filter(m.Usuario.email == _correo_base(emp, "")).first())
             if u and (u.nombre, u.apellidos) != (n, a):
