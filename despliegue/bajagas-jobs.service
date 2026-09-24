@@ -1,0 +1,28 @@
+# Los procesos del dia: avisos de incumplimiento, alertas de unidades paradas,
+# prestamos vencidos, recalculo de la agenda, recordatorios de cita a 48 y 24 h
+# y recalibracion de duraciones. Lo dispara bajagas-jobs.timer; a mano:
+#
+#     systemctl start bajagas-jobs.service
+#     journalctl -u bajagas-jobs.service -n 20      (que hizo la ultima vez)
+#
+# Corre DENTRO del contenedor de la API para usar el mismo codigo y la misma
+# base que la aplicacion, y no una copia que se desfase en el siguiente
+# despliegue.
+#
+# Instalacion (una vez, como root):
+#     cp /opt/bajagas/despliegue/bajagas-jobs.* /etc/systemd/system/
+#     systemctl daemon-reload
+#     systemctl enable --now bajagas-jobs.timer
+
+[Unit]
+Description=Baja Gas: procesos del dia
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/bajagas
+ExecStart=/usr/bin/docker compose -f docker-compose.produccion.yml exec -T api python -m app.jobs
+# Sin reintentos a proposito: si un proceso ya escribio y el siguiente truena,
+# repetir todo desde el principio podria duplicar algo. Mejor que falle una vez,
+# quede en el journal, y lo recoja la madrugada siguiente.

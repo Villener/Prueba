@@ -134,7 +134,9 @@ def correr_jobs(usuario=Depends(require_roles("gerente", "administrador")),
                 db: Session = Depends(get_db)):
     """Dispara manualmente los procesos del actor 'Programador de tareas' (CU-AUT-01..03).
 
-    En produccion esto lo lanza un cron diario; aqui se expone para poder
-    demostrar RN-05 y RN-08 sin esperar tres meses.
+    En produccion los corre solo despliegue/bajagas-jobs.timer cada madrugada
+    (ver jobs.main); aqui se exponen para poder demostrar RN-05 y RN-08 sin
+    esperar tres meses. OJO: este boton NO revisa si hay demo sembrado, y el
+    reloj si.
     """
     return jobs.correr_todos(db)

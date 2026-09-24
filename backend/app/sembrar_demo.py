@@ -46,13 +46,16 @@ import sys
 from .core.database import SessionLocal
 from .core.tiempo import TZ_OPERACION, a_utc
 from . import models as m
+from .jobs import MARCA_CITA_DEMO, PREFIJO_FOLIO_DEMO
 
 # Marcas de origen. Son la unica forma de saber que fila puso este script, y por
 # eso van en el dato y no en un manifiesto: un archivo JSON al lado se pierde en
 # la primera copia de la base y entonces lo sembrado ya no se distingue de lo
 # capturado, que es como una demo acaba contaminando produccion para siempre.
-MARCA_CITA = "demo"
-PREFIJO_FOLIO = "DEMO-"
+# Se definen en jobs.py, que es quien se niega a correr si las encuentra: este
+# archivo no viaja a produccion y aquel si.
+MARCA_CITA = MARCA_CITA_DEMO
+PREFIJO_FOLIO = PREFIJO_FOLIO_DEMO
 
 MESES_ATRAS = 18
 

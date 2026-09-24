@@ -13,6 +13,9 @@ por naturaleza -- una muestra nueva al dia no mueve una mediana -- pero se deja
 en `correr_todos` porque es idempotente y barato: si no hay muestras nuevas
 suficientes, no toca nada.
 """
+import argparse
+import json
+import sys
 from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
@@ -363,6 +366,32 @@ def recalibrar_duraciones_servicio(db: Session) -> int:
     return recalibrados
 
 
+# Las marcas con que sembrar_demo.py firma lo que siembra. Viven AQUI y no alla
+# porque sembrar_demo.py no viaja a produccion -- queda fuera del paquete -- y
+# este modulo si. Con una copia de cada lado, el dia que alguien cambiara una el
+# candado de abajo dejaria de ver el demo sin que nada tronara.
+MARCA_CITA_DEMO = "demo"
+PREFIJO_FOLIO_DEMO = "DEMO-"
+
+
+def hay_demo_sembrado(db: Session) -> bool:
+    """Si la base trae datos de sembrar_demo.py.
+
+    Estos procesos no distinguen una cita sembrada de una real: filtran por
+    estado y fecha, nada mas. Con el demo adentro,
+    generar_avisos_incumplimiento() levanta avisos contra choferes REALES por
+    citas que nunca existieron -- eran 34 la noche en que se instalo el reloj --
+    y esos avisos caen en la lista del supervisor, que si puede firmar la
+    amonestacion. Y recalibrar_duraciones_servicio() aprenderia las duraciones
+    de puras ordenes inventadas.
+    """
+    cita = (db.query(m.CitaTaller.id)
+            .filter(m.CitaTaller.origen_agenda == MARCA_CITA_DEMO).first())
+    orden = (db.query(m.OrdenServicio.id)
+             .filter(m.OrdenServicio.folio.like(PREFIJO_FOLIO_DEMO + "%")).first())
+    return cita is not None or orden is not None
+
+
 def correr_todos(db: Session) -> dict:
     return {
         "avisos_incumplimiento": generar_avisos_incumplimiento(db),
@@ -372,3 +401,44 @@ def correr_todos(db: Session) -> dict:
         "avisos_cita": avisar_citas_proximas(db),
         "servicios_recalibrados": recalibrar_duraciones_servicio(db),
     }
+
+
+def main(argv=None) -> int:
+    """Lo que corre el reloj del servidor cada madrugada.
+
+    Lo dispara despliegue/bajagas-jobs.timer a las 06:00 de Tijuana: ya paso la
+    medianoche, asi que `date.today()` es el dia nuevo, y todavia no llega
+    nadie, asi que la agenda y los recordatorios estan frescos cuando empieza
+    el turno. Dentro del contenedor de la API:
+
+        python -m app.jobs
+
+    Si la base trae demo sembrado NO corre, y lo dice. El dia que se corra
+    `python -m app.sembrar_demo --deshacer`, la siguiente madrugada ya corre
+    sola, sin tocar nada aqui.
+    """
+    p = argparse.ArgumentParser(
+        description="Corre los procesos del dia (CU-AUT-01 a 06).")
+    p.add_argument("--aunque-haya-demo", action="store_true",
+                   help="corre aunque la base traiga datos de demo. No lo uses "
+                        "en produccion: ver hay_demo_sembrado()")
+    args = p.parse_args(argv)
+
+    from .core.database import SessionLocal
+    db = SessionLocal()
+    try:
+        if hay_demo_sembrado(db) and not args.aunque_haya_demo:
+            print("NO SE CORRIO: la base trae datos de demo sembrados. Con ellos "
+                  "adentro, estos procesos le levantarian avisos de "
+                  "incumplimiento a choferes reales por citas inventadas. "
+                  "Quita el demo con `python -m app.sembrar_demo --deshacer` y "
+                  "la siguiente madrugada corre solo.")
+            return 0
+        print(json.dumps(correr_todos(db), ensure_ascii=False, default=str))
+        return 0
+    finally:
+        db.close()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

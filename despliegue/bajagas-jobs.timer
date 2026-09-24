@@ -1,0 +1,16 @@
+# Cada madrugada a las 06:00 de Tijuana. La zona va escrita aqui y no se toma la
+# del servidor, que esta en UTC: con la del servidor, el horario de verano
+# moveria la corrida una hora dos veces al ano.
+#
+# Persistent: si el servidor estaba apagado a las 06:00, corre al arrancar en
+# vez de saltarse el dia.
+
+[Unit]
+Description=Baja Gas: corre los procesos del dia cada madrugada
+
+[Timer]
+OnCalendar=*-*-* 06:00:00 America/Tijuana
+Persistent=true
+
+[Install]
+WantedBy=timers.target
