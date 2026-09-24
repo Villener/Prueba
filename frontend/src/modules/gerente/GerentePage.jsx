@@ -149,6 +149,91 @@ function fmtValor(v, unidad) {
   return String(n)
 }
 
+/* --------------------------------------------------- preventivo vs correctivo */
+
+const COLOR_MEZCLA = {
+  preventivo: 'var(--ok)',
+  correctivo: 'var(--grafica)',
+  siniestro: 'var(--danger)',
+  otros: 'var(--muted)',
+}
+
+/** La dona de preventivo contra correctivo.
+ *
+ *  ES UNA DONA Y NO UN PASTEL, y no es capricho: el agujero de en medio es
+ *  donde vive el número que el gerente vino a buscar —el porcentaje de
+ *  preventivo—, y leerlo de una cifra es exacto, mientras que leerlo del
+ *  ángulo de una rebanada es adivinar. La rebanada da la proporción de un
+ *  vistazo; la cifra da el dato.
+ *
+ *  SE DIBUJA CON UN SOLO CÍRCULO Y `stroke-dasharray`, sin arcos ni
+ *  trigonometría. Cada rebanada es el mismo círculo pintado con un guion tan
+ *  largo como su porcentaje y desplazado por lo que suman las anteriores. Sale
+ *  en una docena de líneas, sin una librería de gráficas de 40 kB, y el
+ *  navegador la escala sola.
+ *
+ *  CADA REBANADA LLEVA SU NÚMERO AL LADO en la leyenda. El color no es nunca el
+ *  único portador del dato: quien no distingue el verde del azul lee la tabla y
+ *  se entera igual, y quien la imprime en blanco y negro también.
+ */
+function Dona({ partes, total }) {
+  if (!total || !(partes || []).length) {
+    return <Empty>Ninguna orden entró al taller en este periodo</Empty>
+  }
+  // El radio sale de la circunferencia y no al revés: con 100 de perímetro,
+  // el porcentaje de cada rebanada ES su largo de guion, sin conversión.
+  const r = 100 / (2 * Math.PI)
+  let acumulado = 0
+  const prev = partes.find((p) => p.clave === 'preventivo')
+
+  return (
+    <div className="dona-wrap">
+      <svg viewBox="0 0 42 42" className="dona" role="img"
+           aria-label={'Reparto del trabajo del taller: '
+                       + partes.map((p) => `${p.nombre} ${p.pct}%`).join(', ')}>
+        <circle cx="21" cy="21" r={r} fill="none"
+                stroke="var(--grafica-pista)" strokeWidth="5" />
+        {partes.map((p) => {
+          const trazo = (
+            <circle key={p.clave} cx="21" cy="21" r={r} fill="none"
+                    stroke={COLOR_MEZCLA[p.clave] || 'var(--muted)'} strokeWidth="5"
+                    strokeDasharray={`${p.pct} ${100 - p.pct}`}
+                    // El -25 arranca el reparto en las doce y no en las tres,
+                    // que es donde el ojo espera que empiece.
+                    strokeDashoffset={25 - acumulado}>
+              <title>{`${p.nombre}: ${p.cuantas} (${p.pct}%)`}</title>
+            </circle>
+          )
+          acumulado += p.pct
+          return trazo
+        })}
+        {prev && (
+          <>
+            <text x="21" y="20.2" className="dona-cifra">{prev.pct}%</text>
+            <text x="21" y="24.6" className="dona-pie">preventivo</text>
+          </>
+        )}
+      </svg>
+
+      <ul className="dona-leyenda">
+        {partes.map((p) => (
+          <li key={p.clave}>
+            <span className="dona-punto"
+                  style={{ background: COLOR_MEZCLA[p.clave] || 'var(--muted)' }} />
+            <span className="grow">{p.nombre}</span>
+            <strong>{p.cuantas}</strong>
+            <span className="dona-pct">{p.pct}%</span>
+          </li>
+        ))}
+        <li className="dona-total">
+          <span className="grow">Total de órdenes</span>
+          <strong>{total}</strong>
+        </li>
+      </ul>
+    </div>
+  )
+}
+
 /** El tablero unificado: el AHORA y el CÓMO VAMOS en una sola pantalla.
  *
  *  Hasta la junta eran tres lugares para una misma pregunta: «Tablero» traía los
@@ -341,6 +426,22 @@ function Tablero() {
               )
             })}
           </div>
+
+          <Card title="Preventivo contra correctivo"
+                sub={'Las ' + (r.mezcla ? r.mezcla.total : 0) + ' orden(es) que ENTRARON'
+                     + ' al taller · del ' + fmtFecha(r.desde) + ' al ' + fmtFecha(r.hasta)}>
+            <Dona partes={(r.mezcla || {}).partes} total={(r.mezcla || {}).total} />
+            <Regla>
+              Es la pregunta de fondo: <strong>¿el taller se adelanta a las fallas o las va
+              apagando?</strong> Un preventivo alto quiere decir que el programa de
+              mantenimiento sirve. Se cuenta por la <strong>entrada</strong> de la orden y no
+              por su salida —a diferencia del tiempo de reparación— porque lo que se mide es
+              qué clase de trabajo le <em>llegó</em> al taller en el periodo: una unidad que
+              entró por un correctivo y sigue adentro ya gastó esa capacidad, haya salido o
+              no. El siniestro va aparte y no con los correctivos: un choque no es una falla
+              de mantenimiento, y sumarlo ahí hace ver al taller peor de lo que está.
+            </Regla>
+          </Card>
 
           <Regla>
             Un periodo marcado <strong>«sin dato»</strong> no es un cero: es que ahí no había

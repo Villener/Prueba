@@ -344,6 +344,37 @@ def tablero_rango(db: Session, desde: datetime.date, hasta: datetime.date,
     tot_resueltas = tot_cumplidas + sum(faltas.values())
     hoy = _clave(dia_operativo(ahora_utc()), gran)
 
+    # LA MEZCLA: cuanto del trabajo del taller fue preventivo y cuanto correctivo.
+    #
+    # Es la pregunta que el gerente hace primero y que ninguna grafica de barras
+    # contesta bien, porque no es una serie en el tiempo: es un reparto de un
+    # total. Un taller que atiende 70% preventivo esta adelantandose a las
+    # fallas; uno que atiende 70% correctivo va apagando incendios. Ese es el
+    # numero que dice si el programa de mantenimiento sirve de algo.
+    #
+    # Se cuenta por la ENTRADA de la orden y no por la salida, a diferencia del
+    # tiempo de reparacion: la pregunta es que clase de trabajo LLEGO al taller
+    # en el periodo. Una unidad que entro en enero por un correctivo y sigue
+    # adentro ya gasto la capacidad de enero, haya salido o no.
+    #
+    # `siniestro` sale como su propia rebanada en vez de esconderse en "otros":
+    # son pocas, pero meterlas con los correctivos hace ver al taller peor de lo
+    # que esta -- un choque no es una falla de mantenimiento.
+    # Se decide por la ETIQUETA del periodo, igual que todo lo de arriba, y no
+    # comparando la fecha contra el rango crudo. Asi la rebanada cubre
+    # exactamente los mismos periodos que las barras: si el tope recorto el
+    # rango, la mezcla se recorta con el, y el porcentaje de la dona siempre
+    # habla de lo que se esta viendo en pantalla.
+    mezcla = {"preventivo": 0, "correctivo": 0, "siniestro": 0, "otros": 0}
+    for o in db.query(m.OrdenServicio).all():
+        if o.fecha_entrada is None:
+            continue
+        if _clave(dia_operativo(o.fecha_entrada), gran) not in vivos:
+            continue
+        clave = (o.tipo or "").lower()
+        mezcla[clave if clave in mezcla else "otros"] += 1
+    tot_mezcla = sum(mezcla.values())
+
     return {
         "granularidad": gran,
         "desde": desde.isoformat(),
@@ -362,6 +393,30 @@ def tablero_rango(db: Session, desde: datetime.date, hasta: datetime.date,
             "citas_totales": sum(totales.values()),
             "atenciones": tot_cumplidas,
             "ordenes_cerradas": tot_ordenes,
+        },
+        # El reparto preventivo/correctivo del periodo, para la dona.
+        #
+        # El porcentaje se calcula AQUI y no en la pantalla: es el numero que el
+        # gerente va a leer en voz alta en una junta, y si la pantalla lo
+        # redondeara por su cuenta acabaria diciendo algo distinto del Excel que
+        # sale del mismo dato. Un solo lugar decide.
+        #
+        # Con el rango vacio va `total: 0` y las rebanadas en cero -- no null:
+        # aqui el cero SI es una medicion ("no entro una sola orden"), a
+        # diferencia de un promedio, que sin base no existe.
+        "mezcla": {
+            "total": tot_mezcla,
+            "partes": [
+                {"clave": k, "nombre": n, "cuantas": mezcla[k],
+                 "pct": round(100 * mezcla[k] / tot_mezcla, 1) if tot_mezcla else 0.0}
+                for k, n in (("preventivo", "Preventivo"),
+                             ("correctivo", "Correctivo"),
+                             ("siniestro", "Siniestro"),
+                             ("otros", "Otros"))
+                # Una rebanada en cero no se dibuja: ensucia la leyenda con
+                # nombres que no estan en la grafica.
+                if mezcla[k]
+            ],
         },
         "series": [
             {"clave": "dias_reparacion", "nombre": "Tiempo promedio de reparacion",

@@ -39,13 +39,28 @@ def kpis(dias: int = 30, usuario=Depends(solo_ger), db: Session = Depends(get_db
                             m.ProgramaMantenimiento.fecha_limite < date.today()).scalar() or 0)
     retrasos = [p.dias_retraso_captura for p in db.query(m.Presupuesto).all()
                 if p.dias_retraso_captura is not None]
+    # TODOS LOS CONTEOS DE FLOTA VAN SOBRE UNIDADES ACTIVAS, y hasta hoy no era
+    # asi. El tablero deci­a 1,367 unidades cuando la operacion trabaja con 628:
+    # el resto son bajas que siguen en el padron. El director lo noto en la
+    # primera revision -- "son demasiadas unidades para las que estamos usando"
+    # -- y tenia razon: un porcentaje de ocupacion o de cumplimiento calculado
+    # contra una flota que ya no existe sale sistematicamente bajo, y no por
+    # culpa del taller.
+    #
+    # `unidades_total` conserva su nombre para no romper la pantalla, pero ya
+    # cuenta solo las activas. El total del padron se sigue pudiendo ver en los
+    # Historiales, que es donde tiene sentido mirar una unidad dada de baja.
+    activas = m.Unidad.activo.is_(True)
     return {
-        "unidades_total": db.query(func.count(m.Unidad.id)).scalar() or 0,
+        "unidades_total": db.query(func.count(m.Unidad.id)).filter(
+            activas).scalar() or 0,
         "unidades_en_taller": db.query(func.count(m.Unidad.id)).filter(
+            activas,
             m.Unidad.estado.in_(["en_taller", "en_reparacion"])).scalar() or 0,
         "unidades_en_ruta": db.query(func.count(m.Unidad.id)).filter(
-            m.Unidad.estado == "en_ruta").scalar() or 0,
+            activas, m.Unidad.estado == "en_ruta").scalar() or 0,
         "unidades_varadas": db.query(func.count(m.Unidad.id)).filter(
+            activas,
             m.Unidad.estado.in_(["varada", "en_arrastre"])).scalar() or 0,
         "ocupacion_pct": round(ocupados * 100 / total_esp, 1) if total_esp else 0.0,
         "espacios_ocupados": ocupados, "espacios_totales": total_esp,

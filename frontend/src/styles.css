@@ -1168,7 +1168,7 @@ tbody tr:hover { background: var(--surface-2); }
 .gcolumnas.meta { height: 132px; }
 .gcolumnas.meta .gcol.bajo .gtorre { background: var(--grafica-alerta); }
 .gcolumnas.meta .gcol.hoy .gtorre { opacity: .45; }
-.gcolumnas.meta .gcol.hoy .gpie { font-weight: 700; color: var(--texto); }
+.gcolumnas.meta .gcol.hoy .gpie { font-weight: 700; color: var(--ink); }
 .gcolumnas.meta .gpie { font-size: .58rem; }
 
 /* Selector de granularidad del tablero del gerente: dia / mes / anio. Van
@@ -1333,3 +1333,39 @@ tbody tr:hover { background: var(--surface-2); }
    alcanza tambien al corte por dia/mes/ano del Tablero, y ese ya esta verificado
    y no se toca desde aqui. */
 .filtro-rango .field.tipo { align-items: flex-start; }
+
+/* ------------------------------------------- preventivo contra correctivo --- */
+/* La dona del tablero del gerente. En pantalla ancha va la grafica a la
+   izquierda y la leyenda a la derecha; en telefono se apilan, porque una dona
+   de 140 px con una tabla al lado no cabe en 375 px sin encogerlas a las dos
+   hasta que ninguna se lee. */
+.dona-wrap { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; }
+.dona { width: 148px; height: 148px; flex: 0 0 auto; }
+/* El giro pone el arranque del reparto en las doce. Va aqui y no en el SVG
+   para que el texto del centro NO gire con el. */
+.dona circle { transform: rotate(-90deg); transform-origin: 50% 50%; }
+.dona-cifra { font-family: var(--font-data); font-size: 6px; font-weight: 700;
+              fill: var(--ink); text-anchor: middle; }
+.dona-pie   { font-size: 2.6px; fill: var(--muted); text-anchor: middle;
+              letter-spacing: .06em; text-transform: uppercase; }
+
+.dona-leyenda { list-style: none; margin: 0; padding: 0; flex: 1 1 210px;
+                min-width: 210px; }
+.dona-leyenda li { display: flex; align-items: center; gap: 9px;
+                   padding: 7px 0; border-bottom: 1px solid var(--border);
+                   font-size: .88rem; }
+.dona-leyenda li:last-child { border-bottom: 0; }
+.dona-punto { width: 11px; height: 11px; border-radius: 3px; flex: 0 0 auto; }
+.dona-leyenda .grow { flex: 1; }
+.dona-leyenda strong { font-family: var(--font-data); }
+/* El porcentaje con ancho fijo: sin esto la columna baila entre «4%» y «68.3%»
+   y la lista se lee como si estuviera mal alineada. */
+.dona-pct { font-family: var(--font-data); color: var(--ink-2);
+            min-width: 52px; text-align: right; }
+.dona-total { color: var(--muted); }
+.dona-total strong { color: var(--ink); }
+
+@media (max-width: 520px) {
+  .dona-wrap { gap: 14px; }
+  .dona { width: 122px; height: 122px; margin: 0 auto; }
+}
