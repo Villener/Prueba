@@ -257,6 +257,14 @@ CANDADOS = [
 ]
 
 
+def sql_candado(nombre, evento, tabla, cuando, mensaje) -> str:
+    """El CREATE TRIGGER de un renglon de CANDADOS. Lo usa tambien
+    reset_produccion.py, que tiene que volver a ponerlos igualitos."""
+    condicion = f" WHEN {cuando}" if cuando else ""
+    return (f"CREATE TRIGGER IF NOT EXISTS {nombre} BEFORE {evento} ON {tabla}"
+            f"{condicion} BEGIN SELECT RAISE(ABORT, '{mensaje}'); END")
+
+
 def asegurar_candados_bitacora(engine) -> list[str]:
     """Crea los disparadores que falten. Idempotente (IF NOT EXISTS)."""
     if engine.dialect.name != "sqlite":
@@ -272,7 +280,6 @@ def asegurar_candados_bitacora(engine) -> list[str]:
     for nombre, evento, tabla, cuando, mensaje in CANDADOS:
         if tabla not in tablas:
             continue
-        condicion = f" WHEN {cuando}" if cuando else ""
         try:
             with engine.begin() as cx:
                 existe = cx.execute(text(
@@ -280,9 +287,7 @@ def asegurar_candados_bitacora(engine) -> list[str]:
                     {"n": nombre}).first()
                 if existe:
                     continue
-                cx.execute(text(
-                    f"CREATE TRIGGER IF NOT EXISTS {nombre} BEFORE {evento} ON {tabla}"
-                    f"{condicion} BEGIN SELECT RAISE(ABORT, '{mensaje}'); END"))
+                cx.execute(text(sql_candado(nombre, evento, tabla, cuando, mensaje)))
             hechos.append(f"candado {nombre}")
         except Exception as e:  # pragma: no cover
             aviso = f"ATENCION: no se pudo crear el candado {nombre}: {e}"
