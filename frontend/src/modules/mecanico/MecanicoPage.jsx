@@ -15,11 +15,11 @@
  * grandes en vez de tablas: el teléfono se sostiene con una mano.
  */
 import { useEffect, useState } from 'react'
-import { Route, Routes } from 'react-router-dom'
-import { api, fmtFecha, fmtFechaHora } from '../../core/api.js'
+import { Link, Route, Routes } from 'react-router-dom'
+import { api, diaTijuana, fmtFecha, fmtFechaHora, hoyTijuana } from '../../core/api.js'
 import {
   Aviso, Badge, BuscadorPieza, BuscadorUnidad, Card, Empty, EstadoBadge, IcoAlmacen,
-  IcoListo, IcoUbicacion, Kpi, Modal, Regla, Spinner, Tabla, useApi, useToast,
+  IcoBitacora, IcoListo, IcoUbicacion, Kpi, Modal, Regla, Spinner, Tabla, useApi, useToast,
 } from '../../ui/index.js'
 
 export default function Mecanico() {
@@ -94,9 +94,14 @@ function MiTrabajo() {
               </button>
             </div>
           )}
-          <button className="btn sm" onClick={() => setSalida(a.reporte_id)}>
-            Ver formato de salida
-          </button>
+          <div className="btn-row">
+            <button className="btn sm" onClick={() => setSalida(a.reporte_id)}>
+              Ver formato de salida
+            </button>
+            <Link className="btn sm" to={`/bitacora/${a.unidad_id}`}>
+              <IcoBitacora size={13} className="ico-inline" aria-hidden="true" /> Bitácora
+            </Link>
+          </div>
         </Card>
       ))}
 
@@ -120,8 +125,30 @@ function ModalTexto({ datos, onCerrar, onListo }) {
   const diag = modo === 'diagnostico'
   const [texto, setTexto] = useState(diag ? (a.a_realizar || '') : (a.realizada || ''))
   const [terminada, setTerminada] = useState(false)
+  // NOM-030 7.1.9 y 7.1.10: al terminar se registran inicio, término, resultado
+  // y acciones requeridas. Las fechas se proponen (hoy) pero se DECLARAN: el
+  // trabajo pudo empezar antier.
+  const hoy = hoyTijuana()
+  const [nom, setNom] = useState({
+    fecha_inicio: a.fecha_inicio || hoy,
+    fecha_termino: a.fecha_termino || hoy,
+    resultado: a.resultado || '',
+    acciones_requeridas: a.acciones_requeridas || '',
+  })
   const [enviando, setEnviando] = useState(false)
   const toast = useToast()
+  const setN = (k) => (e) => setNom({ ...nom, [k]: e.target.value })
+  const elegirResultado = (valor) => {
+    // «Ninguna» se PROPONE al elegir conforme, a la vista y editable: el campo
+    // es obligatorio y casi siempre esa es la respuesta. Y se retira al pasar a
+    // no conforme: si no cumple, algo hay que hacerle.
+    let acciones = nom.acciones_requeridas
+    if (valor === 'conforme' && !acciones.trim()) acciones = 'Ninguna'
+    if (valor === 'no_conforme' && acciones.trim().toLowerCase() === 'ninguna') acciones = ''
+    setNom({ ...nom, resultado: valor, acciones_requeridas: acciones })
+  }
+  const nomCompleto = nom.fecha_inicio && nom.fecha_termino && nom.resultado
+    && nom.acciones_requeridas.trim() && nom.fecha_inicio <= nom.fecha_termino
 
   const enviar = async () => {
     setEnviando(true)
@@ -131,8 +158,13 @@ function ModalTexto({ datos, onCerrar, onListo }) {
                        undefined, { texto })
         toast('Diagnóstico guardado')
       } else {
+        // Las acciones van en el cuerpo y no en la URL: son texto libre y la
+        // URL se queda escrita en el log del servidor.
         await api.post(`/mecanico/actividades/${a.actividad_id}/avance`,
-                       undefined, { texto, terminada })
+                       // Un avance no declara fechas: el campo no está a la vista, y
+                       // una fecha que nadie vio no es una fecha declarada.
+                       terminada ? { ...nom, resultado: nom.resultado || null } : undefined,
+                       { texto, terminada })
         toast(terminada ? 'Sistema marcado como terminado' : 'Avance guardado')
       }
       onListo()
@@ -159,13 +191,48 @@ function ModalTexto({ datos, onCerrar, onListo }) {
                    onChange={(e) => setTerminada(e.target.checked)} />
             <span>Ya quedó: dar por terminado este sistema</span>
           </label>
+          {terminada && (
+            <div className="nom-captura">
+              <div className="grid g2">
+                <div className="field">
+                  <label>Empezó el</label>
+                  <input type="date" max={hoy} min={diaTijuana(a.fecha_entrada)}
+                         value={nom.fecha_inicio} onChange={setN('fecha_inicio')} />
+                </div>
+                <div className="field">
+                  <label>Terminó el</label>
+                  <input type="date" max={hoy} min={nom.fecha_inicio} value={nom.fecha_termino}
+                         onChange={setN('fecha_termino')} />
+                </div>
+              </div>
+              <label className="radio-fila">
+                <input type="radio" name="resultado" checked={nom.resultado === 'conforme'}
+                       onChange={() => elegirResultado('conforme')} />
+                <span>Conforme: quedó dentro de lo que se pide</span>
+              </label>
+              <label className="radio-fila">
+                <input type="radio" name="resultado" checked={nom.resultado === 'no_conforme'}
+                       onChange={() => elegirResultado('no_conforme')} />
+                <span>No conforme: todavía no cumple</span>
+              </label>
+              <div className="field" style={{ marginTop: 10 }}>
+                <label>Acciones requeridas</label>
+                <textarea rows={2} value={nom.acciones_requeridas}
+                          onChange={setN('acciones_requeridas')}
+                          placeholder={nom.resultado === 'no_conforme'
+                            ? 'Qué falta para que cumpla' : 'Ninguna'} />
+              </div>
+            </div>
+          )}
           <Regla>
             Mientras no lo marques, se guarda como avance y puedes seguir escribiendo.
-            Al marcarlo se sella la fecha.
+            Al terminar, la NOM-030 pide que el libro de bitácora diga cuándo empezó y
+            terminó, si quedó conforme y qué acciones requiere.
           </Regla>
         </>
       )}
-      <button className="btn primary block" disabled={!texto.trim() || enviando}
+      <button className="btn primary block"
+              disabled={!texto.trim() || enviando || (terminada && !nomCompleto)}
               onClick={enviar}>
         {enviando ? 'Guardando…' : 'Guardar'}
       </button>

@@ -1389,3 +1389,133 @@ tbody tr:hover { background: var(--surface-2); }
   .dona-wrap { gap: 14px; }
   .dona { width: 122px; height: 122px; margin: 0 auto; }
 }
+
+/* ------------------------------------------ bitácora NOM-030 (7.1.10) ---- */
+/* Los datos que la norma pide en cada renglón realizado: inicio, término,
+   resultado y acciones requeridas. Van APILADOS dentro de las celdas que ya
+   existen y no en columnas nuevas: la hoja tiene que seguir cabiendo en una
+   carta, y cuatro columnas más la habrían partido en dos. */
+.nom-campo { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; min-width: 0; }
+.nom-campo > span {
+  font-family: var(--font-disp); font-size: .58rem; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--muted); font-weight: 700;
+}
+.nom-campo input, .nom-campo select, .nom-campo textarea,
+.nom-input { font-size: .8rem; padding: 4px 6px; min-width: 0; width: 100%; }
+.nom-input { margin-top: 6px; }
+.nom-fechas { display: grid; gap: 0 6px; grid-template-columns: 1fr; }
+.nom-captura {
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 10px 12px; margin: 8px 0; background: var(--surface-2);
+}
+.fmt-actividades .s.falta, .falta { color: var(--danger); font-weight: 600; }
+.fmt-actividades .s.resultado.conforme { color: var(--ok); }
+.fmt-actividades .s.resultado.no_conforme { color: var(--danger); font-weight: 600; }
+.registro-bitacora .list-item .t { font-weight: 400; font-size: .86rem; }
+
+/* El renglón de captura NOM, debajo del sistema y a todo lo ancho. */
+.fmt-actividades tr.nom-fila td { background: var(--surface-2); border-top: 0; }
+.nom-rejilla {
+  display: grid; gap: 4px 10px;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+}
+.nom-rejilla .nom-campo { margin-top: 0; }
+.nom-rejilla .nom-campo.ancho { grid-column: 1 / -1; }
+.asiento .ident { margin: 4px 0 0; font-size: .74rem; color: var(--muted); }
+
+/* El libro. Cada asiento es un renglón de libro contable y no una fila de
+   tabla: son nueve datos por asiento, en una tabla no caben a 375 px ni en
+   una carta vertical, y como bloque se leen igual en el teléfono y en papel. */
+.libro-cabecera {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px; margin-bottom: 12px;
+}
+.libro-titulo { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+.libro-titulo .s { font-size: .74rem; color: var(--muted); }
+.libro-datos {
+  display: grid; gap: 10px 16px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+.libro-datos .val.fuerte { font-family: var(--font-data); font-weight: 700; }
+.libro-seccion { margin: 16px 0; }
+.libro-seccion > h2 {
+  border-bottom: 1px solid var(--border); padding-bottom: 5px; margin-bottom: 10px;
+}
+.libro-nota { font-size: .8rem; color: var(--muted); }
+
+.asiento {
+  background: var(--surface); border: 1px solid var(--border);
+  border-left: 3px solid var(--brand); border-radius: var(--radius-sm);
+  padding: 10px 12px; margin-bottom: 8px; min-width: 0;
+}
+.asiento.correccion { border-left-color: var(--warn-mark); }
+.asiento.cierre { border-left-color: var(--ok); }
+.asiento.migracion { border-left-color: var(--muted); background: var(--surface-2); }
+.asiento header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.asiento .num {
+  font-family: var(--font-data); font-weight: 700; font-size: 1rem; min-width: 2ch;
+}
+.asiento .tipo {
+  font-family: var(--font-disp); font-size: .66rem; letter-spacing: .12em;
+  text-transform: uppercase; font-weight: 700; color: var(--ink-2);
+}
+.asiento .quien { margin-left: auto; font-size: .76rem; color: var(--muted); }
+.asiento .corrige { font-size: .76rem; font-weight: 600; color: var(--warn); }
+.asiento .desc { margin: 6px 0 0; font-size: .88rem; overflow-wrap: anywhere; }
+.asiento .campos {
+  display: grid; gap: 4px 14px; margin: 8px 0 0;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.asiento .campos .ancho { grid-column: 1 / -1; }
+.asiento dt {
+  font-family: var(--font-disp); font-size: .58rem; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--muted); font-weight: 700;
+}
+.asiento dd { margin: 0; font-size: .84rem; overflow-wrap: anywhere; }
+.asiento dd.conforme { color: var(--ok); font-weight: 600; }
+.asiento dd.no_conforme { color: var(--danger); font-weight: 600; }
+.asiento dd.pre { white-space: pre-wrap; }
+/* La huella: doce caracteres en pantalla (el hash entero desbordaba el
+   teléfono); completa en el pie del libro, que es la que sirve de ancla. */
+.asiento .huella, .libro-pie .huella {
+  font-family: var(--font-data); font-size: .66rem; color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.asiento .huella { text-align: right; margin-top: 4px; }
+.libro-pie {
+  border-top: 1px solid var(--border); margin-top: 16px; padding-top: 8px;
+  font-size: .78rem; color: var(--ink-2); display: grid; gap: 2px;
+}
+
+@media (max-width: 520px) {
+  .asiento .quien { margin-left: 0; width: 100%; }
+}
+
+@media print {
+  /* En papel el libro va en tinta negra aunque la pantalla esté en tema
+     oscuro: los tokens del oscuro siguen activos al imprimir y el texto claro
+     sobre papel blanco no se lee. */
+  .libro, .libro * { color: #000 !important; }
+  .libro-cabecera, .asiento {
+    background: #fff !important; box-shadow: none; border-color: #000 !important;
+  }
+  .libro-cabecera { padding: 6px; }
+  .libro-datos { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px 8px; }
+  .libro .fmt-dato .val { font-size: 8pt; border-bottom-color: #000; }
+  .libro .fmt-dato .lbl { font-size: 5.5pt; }
+  .libro h1 { font-size: 12pt; }
+  .libro-seccion > h2 { font-size: 7pt; border-bottom-color: #000; }
+  /* Un asiento no se parte entre dos hojas: medio registro en cada una no se
+     puede leer ni firmar. El libro sí se parte: puede tener cien asientos. */
+  .asiento {
+    page-break-inside: avoid; break-inside: avoid;
+    padding: 4px 6px; margin-bottom: 3px; border-left-width: 2px;
+  }
+  .asiento .desc, .asiento dd { font-size: 7.5pt; }
+  .asiento .quien, .asiento .tipo, .asiento dt { font-size: 6pt; }
+  .asiento .num { font-size: 8pt; }
+  .asiento .huella { font-size: 5.5pt; }
+  .libro-pie { font-size: 7pt; border-top-color: #000; }
+  .libro .alert-box { border: 1px solid #000; background: none !important; }
+  .fmt-correcciones .s { font-size: 6pt; }
+}

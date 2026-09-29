@@ -860,11 +860,83 @@ def asegurar_reportes_de_ordenes_abiertas(db: Session) -> str:
             kilometraje=o.km_entrada,
             fecha_entrada=o.fecha_entrada,
             notas_ingreso="Formato generado al migrar a v1.3 para una orden que "
-                          "ya estaba abierta. La revision de ingreso no se capturo.")
+                          "ya estaba abierta. La revision de ingreso no se capturo.",
+            lo_crea_el_sistema=True)
         creados += 1
     db.commit()
     return (f"{creados} formato(s) creado(s) para ordenes abiertas; "
             f"{cerradas} salida(s) a medias completada(s)")
+
+
+def asegurar_asientos_de_reportes(db: Session) -> str:
+    """Abre el libro de bitacora de las unidades con formatos anteriores a el.
+
+    SE HACE UNA SOLA VEZ. La primera vez que corre, anota en `configuracion` el
+    instante en que nacio el libro (nom030_libro_desde) y transcribe cada
+    formato que ya existia: un asiento de `migracion` con la foto del formato
+    tal como esta, registrado por el Sistema con la hora de hoy. No se
+    reconstruye un asiento por firma ni por actividad con fechas del pasado:
+    eso seria fabricar registros que nadie hizo en su momento.
+
+    Despues de esa fecha, un formato sin asiento NO se transcribe: es un
+    defecto (algun camino creo un formato sin abrir su asiento) y taparlo con
+    una copia tardia esconderia justo el hueco de rastreabilidad que la norma
+    pide evitar. Se reporta en el log como error.
+
+    Cada transcripcion va en su propia transaccion: un formato con datos raros
+    no le impide el arranque a la API ni deja sin libro a los demas.
+    """
+    import logging
+    from datetime import datetime as _dt
+
+    from .core.tiempo import a_utc, ahora_utc
+    from .modules.bitacora import asientos_reporte as bit
+    from .modules.bitacora import bitacora_service as bs
+
+    log = logging.getLogger("bajagas")
+    marca = db.query(m.Configuracion).filter_by(clave=bs.CLAVE_LIBRO_DESDE).first()
+    if marca is None:
+        desde = ahora_utc()
+        db.add(m.Configuracion(
+            clave=bs.CLAVE_LIBRO_DESDE, valor=desde.isoformat(), tipo_dato="fecha",
+            descripcion="NOM-030 7.1.10: instante en que empezo el libro de bitacora "
+                        "electronico. Lo anterior se transcribio una vez."))
+        db.commit()
+    else:
+        desde = a_utc(_dt.fromisoformat(marca.valor))
+
+    con_asiento = {rid for (rid,) in db.query(m.AsientoBitacora.reporte_id)
+                   .filter(m.AsientoBitacora.reporte_id.isnot(None)).distinct()}
+    sin_asiento = [r for r in (db.query(m.ReporteMantenimiento)
+                               .order_by(m.ReporteMantenimiento.fecha_entrada,
+                                         m.ReporteMantenimiento.id).all())
+                   if r.id not in con_asiento]
+
+    transcritos, huecos, fallas = 0, [], []
+    for r in sin_asiento:
+        # Estricto: en el mismo instante que la marca todavia es "antes". El
+        # reloj de Windows avanza a saltos de milisegundos y dos lecturas
+        # seguidas pueden dar lo mismo.
+        nacio = a_utc(r.creado_en) if r.creado_en else None
+        if nacio and nacio > desde:
+            huecos.append(r.folio)
+            continue
+        try:
+            bit.asentar_migracion(db, r, desde)
+            db.commit()
+            transcritos += 1
+        except Exception as e:  # pragma: no cover - se reporta y se sigue
+            db.rollback()
+            fallas.append(f"{r.folio}: {e}")
+    if huecos:
+        log.error("bitacora: %d formato(s) creados con el libro vigente NO tienen asiento "
+                  "de apertura: %s. Es un defecto; no se transcriben.",
+                  len(huecos), ", ".join(huecos[:20]))
+    for f in fallas:
+        log.error("bitacora: no se pudo transcribir %s", f)
+    return (f"{transcritos} formato(s) transcrito(s) al libro"
+            + (f"; {len(huecos)} sin apertura (ver error)" if huecos else "")
+            + (f"; {len(fallas)} con falla" if fallas else ""))
 
 
 def inicializar():
@@ -892,6 +964,15 @@ PARAMETROS = [
      "RN-12: piso de unidades en preventivo por dia. Por debajo, incumple el TALLER"),
     ("meta_preventivos_max", "7",
      "RN-12: techo de unidades en preventivo por dia"),
+    # PROY-NOM-030 7.1.10 c): cada libro de bitacora identifica al Regulado.
+    # La razon social es la que ya imprimia el formato de mantenimiento. El
+    # permiso va VACIO a proposito: no lo tenemos, y un numero inventado en un
+    # documento que revisa la ASEA es peor que un hueco que la pantalla marca
+    # en rojo hasta que el cliente lo capture.
+    ("nom030_razon_social", "Compañía de Gas de Tijuana, S.A. de C.V.",
+     "NOM-030 7.1.10 c): denominacion o razon social del Regulado"),
+    ("nom030_permiso", "",
+     "NOM-030 7.1.10 c): numero de permiso otorgado por la autoridad del Sector Hidrocarburos"),
 ]
 
 
@@ -905,7 +986,8 @@ def asegurar_parametros(db: Session) -> dict:
         if db.query(m.Configuracion).filter_by(clave=clave).first():
             hecho["existentes"] += 1
             continue
-        db.add(m.Configuracion(clave=clave, valor=valor, descripcion=desc))
+        db.add(m.Configuracion(clave=clave, valor=valor, descripcion=desc,
+                               tipo_dato="int" if valor.isdigit() else "texto"))
         hecho["creados"] += 1
     if hecho["creados"]:
         db.commit()

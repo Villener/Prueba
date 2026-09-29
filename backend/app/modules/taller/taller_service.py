@@ -169,7 +169,7 @@ def crear_reporte_mantenimiento(db: Session, *, unidad, taller_id: int, admin_id
                                 chofer_id=None, chofer_nombre=None,
                                 supervisor_nombre=None, fecha_entrada=None,
                                 nivel_combustible=None, notas_ingreso=None,
-                                puntos=(), actividades=()):
+                                puntos=(), actividades=(), lo_crea_el_sistema=False):
     """Levanta el formato con sus 11 puntos y sus 10 sistemas.
 
     NO hace commit: lo hace quien llama, porque el ingreso al taller crea la
@@ -186,6 +186,14 @@ def crear_reporte_mantenimiento(db: Session, *, unidad, taller_id: int, admin_id
     if ya:
         if orden is not None and ya.orden_servicio_id is None:
             ya.orden_servicio_id = orden.id
+            # NOM-030: ligar la orden puede ligar tambien un programa preventivo
+            # que este formato va a cumplir. Eso se asienta, o el cierre
+            # apareceria cumpliendo un programa sin que el libro diga desde cuando.
+            from ..bitacora import asientos_reporte as bit
+            if lo_crea_el_sistema:
+                bit.asentar_vinculo(db, ya, orden, None, registrado_por_nombre="Sistema (arranque)")
+            else:
+                bit.asentar_vinculo(db, ya, orden, admin_id)
         return ya
 
     # Y tampoco dos formatos para la MISMA orden, aunque el anterior ya este
@@ -235,6 +243,16 @@ def crear_reporte_mantenimiento(db: Session, *, unidad, taller_id: int, admin_id
             realizada=a.realizada if a else None,
             tecnico_id=a.tecnico_id if a else None,
             capturado_por_admin_id=admin_id if a else None))
+
+    # NOM-030 7.1.10: el formato nace y en el mismo acto se abre su asiento en
+    # el libro de la unidad. Lo registra quien lo capturo. El arranque del
+    # servidor pasa `lo_crea_el_sistema` para que el libro diga la verdad: ese
+    # formato lo genero el Sistema, no el administrador que abrio la orden.
+    from ..bitacora import asientos_reporte as bit
+    if lo_crea_el_sistema:
+        bit.asentar_apertura(db, r, None, registrado_por_nombre="Sistema (arranque)")
+    else:
+        bit.asentar_apertura(db, r, admin_id)
     return r
 
 
@@ -272,7 +290,15 @@ def atendido_por(r: m.ReporteMantenimiento) -> list[dict]:
 
 
 def reporte_out(db: Session, r: m.ReporteMantenimiento) -> dict:
+    from ..bitacora import asientos_reporte as bit
+    from ..bitacora import bitacora_service as bs
+
     fin = r.fecha_salida or ahora_utc()
+    ident = bit.identificacion(db, r.unidad) if r.unidad else {}
+    correcciones = (db.query(m.AsientoBitacora)
+                    .filter(m.AsientoBitacora.reporte_id == r.id,
+                            m.AsientoBitacora.tipo == "correccion")
+                    .order_by(m.AsientoBitacora.numero).all())
     ocup = ocupacion_abierta_de_unidad(db, r.unidad_id)
     espacio = colocado_por = None
     if ocup and ocup.espacio:
@@ -322,7 +348,13 @@ def reporte_out(db: Session, r: m.ReporteMantenimiento) -> dict:
              "tecnico_id": a.tecnico_id,
              "tecnico": a.tecnico.nombre_completo if a.tecnico else None,
              "fecha_realizada": a.fecha_realizada,
-             "capturado_por": nombre_usuario(db, a.capturado_por_admin_id)}
+             "capturado_por": nombre_usuario(db, a.capturado_por_admin_id),
+             "responsable_externo": a.responsable_externo,
+             "responsable": bit.responsable_de(db, a),
+             "resultado": a.resultado,
+             "acciones_requeridas": a.acciones_requeridas,
+             "fecha_inicio": a.fecha_inicio, "fecha_termino": a.fecha_termino,
+             "faltantes_nom030": bit.faltantes_para_realizada(a) if a.realizada else []}
             for a in sorted(r.actividades, key=lambda x: _ORDEN_SISTEMA.get(x.sistema, 99))
         ],
         "firmas": [
@@ -333,4 +365,8 @@ def reporte_out(db: Session, r: m.ReporteMantenimiento) -> dict:
              "registrada_por": nombre_usuario(db, f.registrada_por_admin_id)}
             for f in sorted(r.firmas, key=lambda x: _ORDEN_FIRMA.get(x.rol_firma, 99))
         ],
+        "razon_social": ident.get("razon_social"),
+        "permiso": ident.get("permiso"),
+        "asientos": bs.contar_de_reporte(db, r.id),
+        "correcciones": [bs.asiento_out(c) for c in correcciones],
     }

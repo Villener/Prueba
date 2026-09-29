@@ -73,6 +73,24 @@ def _tablas_que_apuntan_a_unidad(db: Session):
     return salida
 
 
+# Tablas que NO se repuntan al fusionar. El libro de bitacora (NOM-030 7.1.10)
+# es por unidad, numerado y encadenado: pasar asientos de un libro a otro
+# repetiria numeros, romperia la cadena y haria que un registro dejara de
+# corresponder a la unidad en la que se hizo (9.3.2.2 b). Ademas, sus candados
+# en la base rechazan el UPDATE. Una unidad con libro no se fusiona sola.
+NO_REPUNTABLES = {"bitacora_mantenimiento"}
+
+
+def _tiene_libro(db: Session, unidad_id: int) -> bool:
+    """Si la unidad ya tiene asientos o formatos cerrados (que no se editan)."""
+    asientos = (db.query(m.AsientoBitacora)
+                .filter(m.AsientoBitacora.unidad_id == unidad_id).count())
+    cerrados = (db.query(m.ReporteMantenimiento)
+                .filter(m.ReporteMantenimiento.unidad_id == unidad_id,
+                        m.ReporteMantenimiento.estado == "cerrado").count())
+    return bool(asientos or cerrados)
+
+
 def _contar(db: Session, tabla, col, unidad_id: int) -> int:
     """Cuantas filas de esa tabla apuntan a esa unidad."""
     return db.execute(
@@ -121,9 +139,20 @@ def limpiar(db: Session) -> dict:
                 hecho["fusionadas"].append(f"{solo.num_economico} (renombrada)")
             continue
 
+        # Una absorbida con libro de bitacora no se fusiona en automatico: sus
+        # asientos no se pueden mover ni borrar, y borrarla los dejaria huerfanos.
+        if _tiene_libro(db, b.id):
+            hecho["avisos"].append(
+                f"{queda}/{absorbida}: '{absorbida}' ya tiene libro de bitacora "
+                "(NOM-030) o formatos cerrados; no se fusiona automaticamente. "
+                "Decidelo a mano.")
+            continue
+
         # Se repunta TODO lo que apunte a la absorbida antes de borrarla.
         movidos = 0
         for tabla, col in refs:
+            if tabla.name in NO_REPUNTABLES:
+                continue
             r = db.execute(tabla.update().where(col == b.id).values({col: a.id}))
             movidos += r.rowcount or 0
 

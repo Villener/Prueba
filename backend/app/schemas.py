@@ -231,6 +231,13 @@ class ActividadReporteIn(BaseModel):
     a_realizar: Optional[str] = None
     realizada: Optional[str] = None
     tecnico_id: Optional[int] = None
+    # PROY-NOM-030 7.1.9 y 7.1.10. Obligatorios cuando el sistema se da por
+    # realizado; el servidor lo valida (la pantalla solo ayuda).
+    responsable_externo: Optional[str] = Field(default=None, max_length=160)
+    resultado: Optional[str] = Field(default=None, pattern="^(conforme|no_conforme)$")
+    acciones_requeridas: Optional[str] = Field(default=None, max_length=2000)
+    fecha_inicio: Optional[date] = None
+    fecha_termino: Optional[date] = None
 
 
 class ActividadReporteOut(ORMModel):
@@ -243,6 +250,15 @@ class ActividadReporteOut(ORMModel):
     tecnico: Optional[str] = None
     fecha_realizada: Optional[datetime] = None
     capturado_por: Optional[str] = None
+    responsable_externo: Optional[str] = None
+    responsable: Optional[str] = None
+    resultado: Optional[str] = None
+    acciones_requeridas: Optional[str] = None
+    fecha_inicio: Optional[date] = None
+    fecha_termino: Optional[date] = None
+    # Lo que le falta para cumplir la NOM-030 si ya esta realizado. La pantalla
+    # lo pinta en el renglon ANTES de que el cierre lo rechace.
+    faltantes_nom030: List[str] = []
 
 
 class FirmaReporteIn(BaseModel):
@@ -356,6 +372,38 @@ class ReporteMantenimientoOut(ORMModel):
     puntos: List[PuntoRevisionOut] = []
     actividades: List[ActividadReporteOut] = []
     firmas: List[FirmaReporteOut] = []
+    # PROY-NOM-030 7.1.10 c): quien es el Regulado y bajo que permiso opera la
+    # unidad. Vienen de la configuracion (o de la unidad, si tiene los suyos).
+    razon_social: Optional[str] = None
+    permiso: Optional[str] = None
+    asientos: int = 0
+    # Correcciones asentadas despues del cierre (7.1.10 a). Van impresas con la
+    # hoja: son parte del documento aunque el formato ya no cambie.
+    correcciones: List[dict] = []
+
+
+class AvanceActividadIn(BaseModel):
+    """Lo que el mecanico autonomo manda al avanzar o terminar un sistema.
+
+    Todo opcional en el modelo; al TERMINAR, el controlador exige que el
+    renglon quede con inicio, termino, resultado y acciones (NOM-030 7.1.9 y
+    7.1.10), vengan aqui o de un avance anterior.
+    """
+    fecha_inicio: Optional[date] = None
+    fecha_termino: Optional[date] = None
+    resultado: Optional[str] = Field(default=None, pattern="^(conforme|no_conforme)$")
+    acciones_requeridas: Optional[str] = Field(default=None, max_length=2000)
+
+
+class CorreccionIn(BaseModel):
+    """Una correccion a un formato cerrado: que asiento, que debe decir y por que.
+
+    El motivo es obligatorio por la misma razon que en la reasignacion: una
+    correccion sin motivo no se puede explicar frente a un inspector.
+    """
+    asiento_id: Optional[int] = None    # None = aclaracion al formato completo
+    texto: str = Field(min_length=4, max_length=2000)
+    motivo: str = Field(min_length=4, max_length=500)
 
 
 class CatalogoReporteOut(BaseModel):

@@ -12,6 +12,7 @@ import Gerente from './modules/gerente/GerentePage.jsx'
 import Perito from './modules/perito/PeritoPage.jsx'
 import Mecanico from './modules/mecanico/MecanicoPage.jsx'
 import Notificaciones from './modules/sistema/NotificacionesPage.jsx'
+import BitacoraUnidad from './modules/sistema/BitacoraUnidadPage.jsx'
 import { Logo } from './ui/Logo.jsx'
 import {
   IcoAgenda, IcoAlertas, IcoAlmacen, IcoArrastres, IcoAverias, IcoCampana, IcoCapturar,
@@ -173,6 +174,11 @@ export default function App() {
         <main className="content">
           <Routes>
             <Route path="/notificaciones" element={<Notificaciones />} />
+            {/* El libro de bitácora (NOM-030 7.1.10) es UNO para cinco roles:
+                vive aquí, como Notificaciones, y no copiado en cada módulo.
+                Quién puede ver qué unidad lo decide el servidor. */}
+            <Route path="/bitacora" element={<BitacoraUnidad usuario={usuario} />} />
+            <Route path="/bitacora/:unidadId" element={<BitacoraUnidad usuario={usuario} />} />
             <Route path="/login" element={<Navigate to="/" replace />} />
             <Route path="/*" element={<modulo.Componente usuario={usuario} />} />
           </Routes>

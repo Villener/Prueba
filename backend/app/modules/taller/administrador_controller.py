@@ -17,15 +17,19 @@ from ... import services as svc
 from ...core.database import get_db
 from ...schemas import (ActividadesIn, AsignacionTecnicoIn, AsignacionTecnicoOut, AvanceIn,
                        CapturaDiagnosticoIn, CatalogoReporteOut, CierreReporteIn,
+                       CorreccionIn,
                        FirmaReporteIn, FormatoSalidaIn, MensajeOut, OrdenServicioOut,
                        PresupuestoIn, PresupuestoOut, ReasignacionIn,
                        ReporteMantenimientoIn, ReporteMantenimientoOut,
                        ResolucionSolicitudIn, SolicitudOut, TallerOut,
                        ApoyoOut, AveriaOut, DespachoIn)
 from ...core.security import notificar, registrar_bitacora, require_roles
-from ...core.tiempo import TZ_OPERACION, a_utc, ahora_utc
+from ...core.tiempo import TZ_OPERACION, a_utc, ahora_utc, dia_operativo
+from ..bitacora import asientos_reporte as bit
+from ..bitacora import bitacora_service as bs
 from .exportar_resumen import construir as construir_resumen
 from .indicadores import calcular as calcular_indicadores
+from ..emergencias.evidencia_controller import RAIZ as RAIZ_EVIDENCIAS
 from ..emergencias.evidencia_controller import guardar as guardar_evidencia
 from ..emergencias.emergencias_service import fotos_de
 from ..mantenimiento import meta_preventivo
@@ -362,10 +366,19 @@ def reordenar_cola(asig_id: int, direccion: str, usuario=Depends(solo_admin),
 
 
 # ------------------------------------------------------ CU-ADM-11/14 (v1.1) -- #
+_RETIRADO = ("Este registro ya no se usa: el trabajo se captura por sistema en el "
+             "reporte de mantenimiento, que es el que queda en la bitacora (NOM-030).")
+
 @router.post("/asignaciones/{asig_id}/diagnostico", response_model=AsignacionTecnicoOut)
 def capturar_diagnostico(asig_id: int, datos: CapturaDiagnosticoIn, usuario=Depends(solo_admin),
                          db: Session = Depends(get_db)):
-    """CU-ADM-11: el administrador teclea lo que el mecanico le entrego (RN-11)."""
+    """CU-ADM-11 (v1.1). RETIRADO: el diagnostico se captura por sistema en el formato.
+
+    Escribia trabajo de mantenimiento con fechas FUERA del libro de bitacora
+    (NOM-030 7.1.10) y ninguna pantalla lo usa desde v1.3. Se contesta 410 para
+    que un cliente viejo se entere, en vez de seguir escribiendo donde nadie lee.
+    """
+    raise HTTPException(410, _RETIRADO)
     a = db.query(m.AsignacionTecnico).filter(m.AsignacionTecnico.id == asig_id).first()
     if not a:
         raise HTTPException(404, "Asignacion no encontrada")
@@ -382,7 +395,8 @@ def capturar_diagnostico(asig_id: int, datos: CapturaDiagnosticoIn, usuario=Depe
 @router.post("/asignaciones/{asig_id}/avance", response_model=AsignacionTecnicoOut)
 def registrar_avance(asig_id: int, datos: AvanceIn, usuario=Depends(solo_admin),
                      db: Session = Depends(get_db)):
-    """CU-ADM-14: inicio, avance y termino de la reparacion."""
+    """CU-ADM-14 (v1.1). RETIRADO por lo mismo que el diagnostico: ver arriba."""
+    raise HTTPException(410, _RETIRADO)
     a = db.query(m.AsignacionTecnico).filter(m.AsignacionTecnico.id == asig_id).first()
     if not a:
         raise HTTPException(404, "Asignacion no encontrada")
@@ -691,19 +705,16 @@ def emitir_salida(orden_id: int, datos: FormatoSalidaIn, usuario=Depends(solo_ad
     # La salida por el formato es la que usa la pantalla (CU-ADM-29). Esta
     # entrada se conserva para las ordenes que no tienen formato -- las
     # anteriores a v1.3 -- y hace exactamente lo mismo, por el mismo servicio.
+    #
+    # Y cierra el formato con las MISMAS reglas y el MISMO asiento que CU-ADM-29.
+    # Antes esta ruta solo pedia las dos firmas: un preventivo salia por aqui
+    # sin foto (RN-15) y sin asiento de cierre en la bitacora (NOM-030 7.1.9).
     reporte = svc.reporte_abierto_de_unidad(db, o.unidad_id)
     if reporte:
-        faltan = reporte.firmas_faltantes_para_salida()
-        if faltan:
-            etiquetas = {k: e for k, e, _ in m.FIRMAS}
-            raise HTTPException(409, {
-                "mensaje": f"El formato {reporte.folio} no puede cerrarse: faltan "
-                           + ", ".join(etiquetas.get(x, x) for x in faltan),
-                "reporte_id": reporte.id, "firmas_faltantes": faltan,
-            })
-        reporte.fecha_salida = ahora_utc()
-        reporte.estado = "cerrado"
-        reporte.cerrado_por_admin_id = usuario.id
+        _validar_cierre(db, reporte)
+        _sellar_cierre(db, reporte, usuario.id, ahora_utc(),
+                       unidad_operativa=datos.unidad_operativa,
+                       operacion_a_realizar=datos.operacion_a_realizar)
 
     svc.sacar_del_taller(db, o, usuario.id,
                          unidad_operativa=datos.unidad_operativa,
@@ -762,15 +773,130 @@ def _reporte_o_404(db: Session, reporte_id: int) -> m.ReporteMantenimiento:
     return r
 
 
+def _formato_bloqueado(db: Session, reporte_id: int) -> m.ReporteMantenimiento:
+    """El formato, leido DESPUES de tomar el candado del libro de su unidad.
+
+    Todo lo que escribe en el formato compara lo nuevo contra lo que habia para
+    saber si es avance o correccion (7.1.10 a). Si esa lectura se hiciera antes
+    del candado, dos personas editando a la vez compararian contra un valor que
+    la otra ya cambio, y una correccion quedaria asentada como avance.
+    """
+    r = _reporte_o_404(db, reporte_id)
+    bs.bloquear_unidad(db, r.unidad_id)
+    db.refresh(r)
+    return r
+
+
 def _exigir_abierto(r: m.ReporteMantenimiento):
     """Un reporte cerrado ya se archivo con firmas: no se reescribe.
 
     Corregir un formato firmado sin dejar rastro es lo que hace que un papel
-    deje de servir como prueba. Si hay que corregirlo, se levanta otro.
+    deje de servir como prueba. NOM-030 7.1.10 a): la correccion se hace con un
+    registro NUEVO en la bitacora (POST /reportes/{id}/correcciones).
     """
     if r.estado == "cerrado":
-        raise HTTPException(409, f"El reporte {r.folio} ya esta cerrado. "
-                                 "Para corregirlo hay que levantar uno nuevo.")
+        raise HTTPException(409, f"El reporte {r.folio} ya esta cerrado. Para "
+                                 "corregirlo, registra una correccion en la bitacora.")
+
+
+def _incompletas(r: m.ReporteMantenimiento) -> list[dict]:
+    """Los sistemas realizados a los que les falta algo que pide la NOM-030."""
+    etiquetas = dict(m.SISTEMAS)
+    fuera = []
+    for a in r.actividades:
+        if not a.realizada:
+            continue
+        falta = bit.faltantes_para_realizada(a)
+        if falta:
+            fuera.append({"sistema": a.sistema,
+                          "etiqueta": etiquetas.get(a.sistema, a.sistema), "falta": falta})
+    return fuera
+
+
+def _validar_cierre(db: Session, r: m.ReporteMantenimiento):
+    """Todo lo que tiene que cumplirse para sellar la salida, en un solo lugar.
+
+    Lo usan las DOS rutas que cierran un formato (CU-ADM-29 y CU-ADM-10). Cuando
+    cada una tenia sus propias reglas, una de las dos siempre se quedaba atras.
+    """
+    faltantes = r.firmas_faltantes_para_salida()
+    if faltantes:
+        # Detalle estructurado: la pantalla puede decir CUALES faltan en vez de
+        # mostrar "Error 409" y dejar al usuario adivinando.
+        etiquetas = {k: e for k, e, _ in m.FIRMAS}
+        raise HTTPException(409, {
+            "mensaje": "Faltan firmas para poder cerrar el reporte: "
+                       + ", ".join(etiquetas.get(x, x) for x in faltantes),
+            "reporte_id": r.id, "firmas_faltantes": faltantes,
+        })
+
+    # RN-15: un PREVENTIVO no se cierra sin foto.
+    #
+    # La firma prueba que alguien cerro el formato; la foto prueba que el
+    # trabajo se hizo. Son dos cosas distintas y hasta hoy solo se exigia la
+    # primera, asi que un preventivo se podia dar por hecho sin que nadie
+    # hubiera tocado la unidad.
+    #
+    # Solo aplica al preventivo. Un correctivo entra porque algo se rompio y su
+    # prueba es que la unidad volvio a andar; exigirle foto seria trabar la
+    # operacion por una regla que el cliente no pidio.
+    if r.tipo_servicio == "preventivo":
+        fotos = fotos_de(db, "reporte_mantenimiento", r.id)
+        if not fotos:
+            raise HTTPException(409, {
+                "mensaje": "Es un servicio preventivo y no tiene evidencia fotografica. "
+                           "La firma prueba que alguien cerro el formato; la foto prueba "
+                           "que el trabajo se hizo.",
+                "falta_evidencia": True,
+            })
+
+    # NOM-030 7.1.9: un preventivo EXISTE para demostrar que se cumplio el
+    # programa, y eso se demuestra con actividades que tengan inicio y termino.
+    # Cerrarlo sin ninguna dejaba en el libro un "conforme" sin un solo trabajo.
+    if r.tipo_servicio == "preventivo" and not any(a.realizada for a in r.actividades):
+        raise HTTPException(409, {
+            "mensaje": "Es un servicio preventivo y no tiene ninguna actividad realizada. "
+                       "Captura lo que se le hizo, con su inicio y su termino, antes de "
+                       "cerrarlo: eso es lo que demuestra el programa (NOM-030 7.1.9).",
+            "sin_actividades": True,
+        })
+
+    # NOM-030 7.1.9 y 7.1.10: cada actividad realizada tiene que llegar al libro
+    # con su inicio, su termino, su resultado, sus acciones requeridas y su
+    # responsable. Un formato cerrado ya no se completa: se revisa aqui.
+    incompletas = _incompletas(r)
+    if incompletas:
+        raise HTTPException(409, {
+            "mensaje": "Hay actividades realizadas sin los datos que pide la NOM-030: "
+                       + "; ".join(f"{x['etiqueta']} (falta {', '.join(x['falta'])})"
+                                   for x in incompletas),
+            "sistemas_incompletos": incompletas,
+        })
+
+
+def _sellar_cierre(db: Session, r: m.ReporteMantenimiento, usuario_id: int, salida,
+                   unidad_operativa: bool = True, operacion_a_realizar=None,
+                   comentarios_adicionales=None):
+    """Cierra el formato y deja su asiento. EL ORDEN NO ES NEGOCIABLE.
+
+    Los candados de la base rechazan cualquier escritura a los renglones de un
+    formato cerrado, y SQLAlchemy escribe el formato ANTES que sus renglones en
+    un mismo flush. Si algo de los renglones quedara pendiente al marcar
+    'cerrado', el cierre abortaria y ninguna unidad podria salir. Por eso: 1)
+    todo lo del formato abierto se escribe y se baja a la base, 2) hasta el
+    final se pone el sello, 3) el asiento de cierre solo lee.
+    """
+    if comentarios_adicionales is not None:
+        antes = r.comentarios_adicionales
+        r.comentarios_adicionales = comentarios_adicionales
+        bit.asentar_comentarios(db, r, antes, usuario_id)
+    db.flush()
+
+    r.fecha_salida = salida
+    r.estado = "cerrado"
+    r.cerrado_por_admin_id = usuario_id
+    db.flush()
+    bit.asentar_cierre(db, r, usuario_id, unidad_operativa, operacion_a_realizar)
 
 
 # ---------------------------------------------------------------- CU-ADM-26 -- #
@@ -799,6 +925,16 @@ def abrir_reporte(datos: ReporteMantenimientoIn, usuario=Depends(solo_admin),
                        f"{abierto.folio} abierto. Cierralo antes de levantar otro.",
             "reporte_id": abierto.id, "folio": abierto.folio,
         })
+
+    # Lo REALIZADO no entra al levantar el formato: se captura despues, por la
+    # tabla de actividades, que es donde se validan y se asientan el inicio, el
+    # termino, el resultado y el responsable (NOM-030 7.1.9 y 7.1.10). Aceptarlo
+    # aqui lo guardaba sin esos datos y sin asiento de actividad.
+    con_realizada = [a.sistema for a in datos.actividades if (a.realizada or "").strip()]
+    if con_realizada:
+        raise HTTPException(422, "Al levantar el formato solo se captura lo que hay que "
+                                 "hacer. Lo realizado se captura despues en Actividades: "
+                                 + ", ".join(con_realizada))
 
     orden = None
     if datos.orden_servicio_id:
@@ -896,37 +1032,96 @@ def capturar_actividades(reporte_id: int, datos: ActividadesIn,
     el papel y el administrador lo captura. Por eso cada renglon guarda quien
     lo hizo (`tecnico_id`) y quien lo tecleo (RN-11).
     """
-    r = _reporte_o_404(db, reporte_id)
+    r = _formato_bloqueado(db, reporte_id)
     _exigir_abierto(r)
 
     por_sistema = {a.sistema: a for a in r.actividades}
-    validos = {k for k, _ in m.SISTEMAS}
+    etiquetas = dict(m.SISTEMAS)
+    hoy = dia_operativo(ahora_utc())
+    tocados = []      # (renglon, como estaba antes)
     for entrada in datos.actividades:
-        if entrada.sistema not in validos:
+        if entrada.sistema not in etiquetas:
             raise HTTPException(422, f"Sistema desconocido: {entrada.sistema}")
         a = por_sistema.get(entrada.sistema)
         if not a:   # un formato viejo al que le falte un renglon
             a = m.ActividadReporte(reporte_id=r.id, sistema=entrada.sistema)
             db.add(a)
-        a.a_realizar = entrada.a_realizar
-        a.realizada = entrada.realizada
+        antes = bit.foto_actividad(db, a)
+
         if entrada.tecnico_id is not None:
             if not db.query(m.Tecnico).filter(m.Tecnico.id == entrada.tecnico_id).first():
                 raise HTTPException(404, f"Tecnico {entrada.tecnico_id} no encontrado")
+        a.a_realizar = entrada.a_realizar
+        a.realizada = entrada.realizada
         a.tecnico_id = entrada.tecnico_id
-        # La fecha marca cuando quedo HECHO el trabajo, no cuando se tecleo.
-        # Se sella al aparecer texto en "realizada" y no se vuelve a mover.
+        # El externo solo vale si no hay tecnico del catalogo: si hay los dos, el
+        # libro no sabria a quien atribuirle el trabajo.
+        a.responsable_externo = (None if entrada.tecnico_id is not None
+                                 else (entrada.responsable_externo or "").strip() or None)
+        # Resultado, acciones y fechas son de lo REALIZADO. Sin nada realizado
+        # no hay de que dar resultado: si llegaran (la pantalla los propone al
+        # escribir y alguien borro el texto despues), el libro asentaria un
+        # trabajo conforme que nunca se hizo.
+        hecho = bool((entrada.realizada or "").strip())
+        a.resultado = entrada.resultado if hecho else None
+        a.acciones_requeridas = ((entrada.acciones_requeridas or "").strip() or None) if hecho else None
+        a.fecha_inicio = entrada.fecha_inicio if hecho else None
+        a.fecha_termino = entrada.fecha_termino if hecho else None
+
+        # Las fechas se DECLARAN (el trabajo pudo hacerse ayer y capturarse
+        # hoy), pero tienen que caber en la estancia.
+        error = bit.error_de_fechas(a, r, hoy)
+        if error:
+            raise HTTPException(422, f"{etiquetas[entrada.sistema]}: {error}.")
+
+        # `fecha_realizada` es el sello de "terminado" (lo leen la cola del
+        # mecanico y los historiales). NO es la fecha de termino de 7.1.9: esa
+        # se declara arriba.
         if entrada.realizada and not a.fecha_realizada:
             a.fecha_realizada = ahora_utc()
         if not entrada.realizada:
             a.fecha_realizada = None
+        tocados.append((a, antes))
+
+    # NOM-030 7.1.9 y 7.1.10: un sistema que se da por realizado (o que ya lo
+    # estaba y se cambia) llega al libro con todos sus datos o no llega. Solo
+    # se revisan los renglones que CAMBIARON: la pantalla manda los diez en
+    # cada Guardar, y un renglon viejo que nadie toco no debe trabar la captura.
+    cambiados, incompletos = [], []
+    for a, antes in tocados:
+        despues = bit.foto_actividad(db, a)
+        if all(antes.get(c) == despues.get(c) for c in bit.CAMPOS_ACTIVIDAD) and \
+                bool(antes.get("fecha_realizada")) == bool(despues.get("fecha_realizada")):
+            continue
+        cambiados.append((a, antes))
+        if a.realizada:
+            falta = bit.faltantes_para_realizada(a)
+            if falta:
+                incompletos.append({"sistema": a.sistema, "etiqueta": etiquetas[a.sistema],
+                                    "falta": falta})
+    if incompletos:
+        db.rollback()
+        raise HTTPException(422, {
+            "mensaje": "Para dar un sistema por realizado, la NOM-030 pide su inicio, "
+                       "termino, resultado, acciones requeridas y responsable. Falta: "
+                       + "; ".join(f"{x['etiqueta']} ({', '.join(x['falta'])})"
+                                   for x in incompletos),
+            "sistemas_incompletos": incompletos,
+        })
+
+    # Un asiento por sistema que cambio, y ninguno por los que quedaron igual.
+    for a, antes in cambiados:
         a.capturado_por_admin_id = usuario.id
+        bit.asentar_actividad(db, r, a, antes, usuario.id)
 
     if datos.comentarios_adicionales is not None:
+        antes_c = r.comentarios_adicionales
         r.comentarios_adicionales = datos.comentarios_adicionales
+        bit.asentar_comentarios(db, r, antes_c, usuario.id)
 
     registrar_bitacora(db, usuario.id, "reporte_actividades_capturadas",
-                       "reporte_mantenimiento", r.id)
+                       "reporte_mantenimiento", r.id,
+                       datos_despues=", ".join(a.sistema for a, _ in cambiados) or None)
     db.commit()
     db.refresh(r)
     return svc.reporte_out(db, r)
@@ -944,7 +1139,7 @@ def reasignar_sistema(reporte_id: int, datos: ReasignacionIn,
     recuerda otro. Por eso el motivo es obligatorio y el cambio se asienta en
     bitacora con el valor ANTERIOR, no solo con el nuevo.
     """
-    r = _reporte_o_404(db, reporte_id)
+    r = _formato_bloqueado(db, reporte_id)
     _exigir_abierto(r)
 
     a = next((x for x in r.actividades if x.sistema == datos.sistema), None)
@@ -961,8 +1156,13 @@ def reasignar_sistema(reporte_id: int, datos: ReasignacionIn,
             raise HTTPException(409, f"{nuevo.nombre_completo} ya responde por ese sistema.")
 
     antes = a.tecnico.nombre_completo if a.tecnico else "sin asignar"
+    foto_antes = bit.foto_actividad(db, a)
     a.tecnico_id = nuevo.id if nuevo else None
+    if nuevo:
+        a.responsable_externo = None
     a.capturado_por_admin_id = usuario.id
+    bit.asentar_actividad(db, r, a, foto_antes, usuario.id, tipo="reasignacion",
+                          motivo=datos.motivo)
 
     registrar_bitacora(
         db, usuario.id, "reporte_sistema_reasignado", "reporte_mantenimiento", r.id,
@@ -984,7 +1184,7 @@ def registrar_firma(reporte_id: int, datos: FirmaReporteIn,
     la vio, quien la dio y cuando -- que es lo que permite explicar despues por
     que una unidad se quedo parada esperando un Vo. Bo.
     """
-    r = _reporte_o_404(db, reporte_id)
+    r = _formato_bloqueado(db, reporte_id)
     _exigir_abierto(r)
 
     f = next((x for x in r.firmas if x.rol_firma == datos.rol_firma), None)
@@ -1000,6 +1200,8 @@ def registrar_firma(reporte_id: int, datos: FirmaReporteIn,
     f.usuario_id = datos.usuario_id
     f.fecha = ahora_utc()
     f.registrada_por_admin_id = usuario.id
+    db.flush()
+    bit.asentar_firma(db, r, f, usuario.id)
 
     registrar_bitacora(db, usuario.id, "reporte_firma_registrada",
                        "reporte_mantenimiento", r.id,
@@ -1014,49 +1216,24 @@ def registrar_firma(reporte_id: int, datos: FirmaReporteIn,
 def cerrar_reporte(reporte_id: int, datos: CierreReporteIn,
                    usuario=Depends(solo_admin), db: Session = Depends(get_db)):
     """Sella la SALIDA del formato. Es lo ultimo que se llena en el papel."""
-    r = _reporte_o_404(db, reporte_id)
+    r = _formato_bloqueado(db, reporte_id)
     _exigir_abierto(r)
-
-    faltantes = r.firmas_faltantes_para_salida()
-    if faltantes:
-        # Detalle estructurado: la pantalla puede decir CUALES faltan en vez de
-        # mostrar "Error 409" y dejar al usuario adivinando.
-        etiquetas = {k: e for k, e, _ in m.FIRMAS}
-        raise HTTPException(409, {
-            "mensaje": "Faltan firmas para poder cerrar el reporte: "
-                       + ", ".join(etiquetas.get(x, x) for x in faltantes),
-            "firmas_faltantes": faltantes,
-        })
-
-    # RN-15: un PREVENTIVO no se cierra sin foto.
-    #
-    # La firma prueba que alguien cerro el formato; la foto prueba que el
-    # trabajo se hizo. Son dos cosas distintas y hasta hoy solo se exigia la
-    # primera, asi que un preventivo se podia dar por hecho sin que nadie
-    # hubiera tocado la unidad.
-    #
-    # Solo aplica al preventivo. Un correctivo entra porque algo se rompio y su
-    # prueba es que la unidad volvio a andar; exigirle foto seria trabar la
-    # operacion por una regla que el cliente no pidio.
-    if r.tipo_servicio == "preventivo":
-        fotos = fotos_de(db, "reporte_mantenimiento", r.id)
-        if not fotos:
-            raise HTTPException(409, {
-                "mensaje": "Es un servicio preventivo y no tiene evidencia fotografica. "
-                           "La firma prueba que alguien cerro el formato; la foto prueba "
-                           "que el trabajo se hizo.",
-                "falta_evidencia": True,
-            })
+    _validar_cierre(db, r)
 
     salida = datos.fecha_salida or ahora_utc()
     if r.fecha_entrada and salida < r.fecha_entrada:
         raise HTTPException(422, "La salida no puede ser anterior a la entrada.")
+    # Ni anterior al ultimo trabajo: el libro diria que la unidad salio antes
+    # de que terminaran de repararla.
+    terminos = [a.fecha_termino for a in r.actividades if a.realizada and a.fecha_termino]
+    if terminos and dia_operativo(salida) < max(terminos):
+        raise HTTPException(422, f"La salida no puede ser anterior al termino del ultimo "
+                                 f"trabajo ({max(terminos):%d/%m/%Y}).")
 
-    if datos.comentarios_adicionales is not None:
-        r.comentarios_adicionales = datos.comentarios_adicionales
-    r.fecha_salida = salida
-    r.estado = "cerrado"
-    r.cerrado_por_admin_id = usuario.id
+    _sellar_cierre(db, r, usuario.id, salida,
+                   unidad_operativa=datos.unidad_operativa,
+                   operacion_a_realizar=datos.operacion_a_realizar,
+                   comentarios_adicionales=datos.comentarios_adicionales)
 
     # Cerrar el formato ES la salida: se cierra la orden, se libera el cajon y
     # la unidad deja de estar en el taller. Antes esto vivia en un boton aparte
@@ -1570,10 +1747,12 @@ def subir_evidencia_reporte(reporte_id: int, archivo: UploadFile = File(...),
     dia y varias fotos cada uno, subir el original de camara serian cientos de
     MB al mes en un servidor que ya esta pagado.
     """
-    r = _reporte_o_404(db, reporte_id)
+    r = _formato_bloqueado(db, reporte_id)
     _exigir_abierto(r)
     ev = guardar_evidencia(db, usuario.id, "reporte_mantenimiento", r.id,
                            archivo, descripcion, momento="servicio")
+    bit.asentar_evidencia(db, r, ev, usuario.id, sha256=getattr(ev, "sha256", None),
+                          ruta_archivo=RAIZ_EVIDENCIAS / ev.url_archivo)
     registrar_bitacora(db, usuario.id, "subir_evidencia_reporte",
                        "reporte_mantenimiento", r.id,
                        f"evidencia {ev.id} del folio {r.folio}")
@@ -1595,3 +1774,37 @@ def evidencia_del_reporte(reporte_id: int, usuario=Depends(solo_admin),
         "exige_evidencia": r.tipo_servicio == "preventivo",
         "cumple": r.tipo_servicio != "preventivo" or bool(fotos),
     }
+
+
+# ------------------------------------------------------------- NOM-030 -- #
+@router.post("/reportes/{reporte_id}/correcciones", response_model=ReporteMantenimientoOut)
+def corregir_reporte(reporte_id: int, datos: CorreccionIn,
+                     usuario=Depends(solo_admin), db: Session = Depends(get_db)):
+    """PROY-NOM-030 7.1.10 a): corregir un formato CERRADO sin tocarlo.
+
+    El formato y sus asientos se quedan exactamente como estaban. Lo que se
+    agrega es un asiento nuevo que dice que asiento corrige, que debe decir y
+    por que. Antes la unica salida era "levantar otro formato", que no es una
+    correccion: es una segunda estancia en el taller que nunca ocurrio.
+
+    Solo para cerrados. Mientras el formato esta abierto, corregir es volver a
+    capturar, y ese cambio ya deja su propio asiento con el valor anterior.
+    """
+    r = _formato_bloqueado(db, reporte_id)
+    if r.estado != "cerrado":
+        raise HTTPException(409, "El formato sigue abierto: corrigelo capturando de nuevo. "
+                                 "El cambio queda asentado con lo que decia antes.")
+    corregido = None
+    if datos.asiento_id is not None:
+        corregido = db.get(m.AsientoBitacora, datos.asiento_id)
+        # SQLite no aplica las llaves foraneas: que el asiento sea de ESTE formato
+        # se valida aqui, o una correccion podria colgarse del libro de otra unidad.
+        if corregido is None or corregido.reporte_id != r.id:
+            raise HTTPException(404, "Ese asiento no pertenece a este formato.")
+    a = bit.asentar_correccion(db, r, corregido, datos.texto, datos.motivo, usuario.id)
+    registrar_bitacora(db, usuario.id, "reporte_corregido", "reporte_mantenimiento", r.id,
+                       datos_despues=f"asiento {a.numero} corrige "
+                                     f"{corregido.numero if corregido else 'el formato'}")
+    db.commit()
+    db.refresh(r)
+    return svc.reporte_out(db, r)

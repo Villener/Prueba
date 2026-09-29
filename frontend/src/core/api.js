@@ -259,8 +259,34 @@ export const fmtFechaHora = (v) => {
     hour: '2-digit', minute: '2-digit',
   })
 }
+/** Fecha y hora CON AÑO, para el libro de bitácora (NOM-030 7.1.10 d) 3).
+ *
+ *  fmtFechaHora omite el año a propósito —en una agenda «03 feb 14:10» basta—,
+ *  pero un libro que se conserva por años y que revisa un inspector no puede
+ *  dejar a la imaginación de qué año es un registro. */
+export const fmtFechaHoraAnio = (v) => {
+  if (!v) return '—'
+  const d = new Date(v)
+  if (isNaN(d)) return '—'
+  return d.toLocaleString('es-MX', {
+    timeZone: TZ, day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  })
+}
 export const fmtMoneda = (v) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(v || 0)
+
+/** El día (en Tijuana) de un instante, como YYYY-MM-DD. Sirve de `min` en un
+ *  <input type="date">: «no antes del día en que la unidad entró al taller».
+ *  Mismo cuidado que hoyTijuana: toISOString daría el día de UTC. */
+export const diaTijuana = (v) => {
+  if (!v) return undefined
+  const d = new Date(v)
+  if (isNaN(d)) return undefined
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(d)
+}
 
 /** Fecha de hoy en la zona de operacion, como YYYY-MM-DD para <input type="date">.
  *  No usar toISOString(): eso da la fecha en UTC y despues de las 17:00 de

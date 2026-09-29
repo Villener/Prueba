@@ -50,7 +50,9 @@ def mi_plantilla(usuario=Depends(solo_sup), db: Session = Depends(get_db)):
             "unidad": unidad.num_economico if unidad else None,
             "unidad_id": unidad.id if unidad else None,
             "estado_unidad": unidad.estado if unidad else None,
-            "unidades": [{"num_economico": x.num_economico, "estado": x.estado}
+            # El id va para ligar el libro de bitacora de CADA unidad: el chofer
+            # con unidad prestada responde por dos (NOM-030 7.1.10 b).
+            "unidades": [{"id": x.id, "num_economico": x.num_economico, "estado": x.estado}
                          for x in unidades],
             "taller": unidad.taller_actual_id is not None if unidad else False,
             "es_prestada": bool(prest and prest.estado == "activo"),

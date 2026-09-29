@@ -5,12 +5,15 @@ docs/casos-de-uso.md v1.1. Cada endpoint cita el caso de uso que realiza.
 """
 import logging
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from . import jobs
 from .core.database import Base, engine, get_db
+from .modules.bitacora.bitacora_controller import router as router_bitacora
 from .modules.emergencias.chofer_grua_controller import router as router_chofer_grua
 from .modules.emergencias.evidencia_controller import router as router_evidencias
 from .modules.emergencias.mecanico_controller import router as router_mecanico
@@ -23,9 +26,9 @@ from .modules.piezas.capturista_controller import router as router_capturista
 from .modules.sistema.gerente_controller import router as router_gerente
 from .modules.taller.administrador_controller import router as router_administrador
 from .core.security import require_roles
-from .core.migraciones import (asegurar_columnas, asegurar_indices,
-                               asegurar_renombres)
-from .seed import (asegurar_parametros, asegurar_plano,
+from .core.migraciones import (asegurar_candados_bitacora, asegurar_columnas,
+                               asegurar_indices, asegurar_renombres)
+from .seed import (asegurar_asientos_de_reportes, asegurar_parametros, asegurar_plano,
                    asegurar_reportes_de_ordenes_abiertas,
                    asegurar_rol_mecanicos, asegurar_roles, asegurar_tipos_servicio,
                    asegurar_usuarios_demo, reconciliar_cuentas, sembrar)
@@ -53,7 +56,7 @@ app.add_middleware(
 # en app/modules/<dominio>/, igual que en el diagrama de clases.
 for r in [router_auth, router_chofer, router_supervisor, router_administrador,
           router_agenda, router_chofer_grua, router_gerente, router_capturista,
-          router_evidencias, router_perito, router_mecanico]:
+          router_evidencias, router_perito, router_mecanico, router_bitacora]:
     app.include_router(r)
 
 
@@ -90,6 +93,11 @@ def startup():
         log.info("migracion: %s", hecho)
     for aviso in asegurar_indices(engine):
         log.warning(aviso)
+    # Despues de las columnas: los disparadores leen `estado` y `reporte_id`.
+    # Van ANTES de cualquier escritura del arranque, para que tampoco el propio
+    # arranque pueda borrar o reescribir un registro de la bitacora.
+    for hecho in asegurar_candados_bitacora(engine):
+        log.info("migracion: %s", hecho)
     from .core.database import SessionLocal
     db = SessionLocal()
     try:
@@ -120,8 +128,35 @@ def startup():
         # Al final: necesita las ordenes ya sembradas para saber a que unidades
         # les falta formato (v1.3, el reporte nace con el ingreso).
         log.info("reportes: %s", asegurar_reportes_de_ordenes_abiertas(db))
+        # Al final de todo: necesita los formatos que el paso anterior acaba de
+        # crear (esos ya nacen con su asiento de apertura y aqui se saltan).
+        # Protegido: si la transcripcion falla, la API tiene que levantar igual.
+        try:
+            log.info("bitacora: %s", asegurar_asientos_de_reportes(db))
+        except Exception:
+            db.rollback()
+            log.exception("bitacora: fallo la transcripcion de formatos anteriores")
     finally:
         db.close()
+
+
+@app.exception_handler(IntegrityError)
+def integridad(request: Request, exc: IntegrityError):
+    """Los candados de la bitacora hablan claro; que la pantalla los oiga.
+
+    Un disparador de la NOM-030 que aborta, o dos personas que escriben en el
+    mismo libro en el mismo instante, llegaban como un 500 mudo. Son conflictos,
+    no fallas del servidor: 409 con el motivo.
+    """
+    texto = str(exc.orig) if getattr(exc, "orig", None) else str(exc)
+    if "NOM-030" in texto:
+        return JSONResponse(status_code=409, content={"detail": texto})
+    if "bitacora_mantenimiento.unidad_id" in texto or "uq_asiento_por_unidad" in texto:
+        return JSONResponse(status_code=409, content={
+            "detail": "Otra persona registro en el libro de esta unidad en el mismo "
+                      "instante. Vuelve a intentarlo."})
+    logging.getLogger("bajagas").exception("violacion de integridad", exc_info=exc)
+    return JSONResponse(status_code=500, content={"detail": "Error de integridad en la base."})
 
 
 @app.get("/api/health", tags=["sistema"])

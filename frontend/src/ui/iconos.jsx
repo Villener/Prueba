@@ -24,6 +24,7 @@ import {
   Banknote,
   BarChart3,
   Bell,
+  BookOpen,
   CalendarDays,
   Circle,
   CircleAlert,
@@ -89,4 +90,7 @@ export const IcoNota = PencilLine
 export const IcoVacio = Inbox                // el estado "aqui no hay nada"
 export const IcoBuscar = Search
 export const IcoImprimir = Printer
+// El libro de bitácora de la unidad (NOM-030). Un libro y no un reloj: el
+// historial (IcoHistorial) es una consulta; la bitácora es un documento legal.
+export const IcoBitacora = BookOpen
 export const IcoDescargar = Download

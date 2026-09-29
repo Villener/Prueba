@@ -1,9 +1,9 @@
 /** Modulo Supervisor - CU-SUP-* de docs/casos-de-uso.md */
 import { useState } from 'react'
-import { Route, Routes } from 'react-router-dom'
+import { Link, Route, Routes } from 'react-router-dom'
 import { api, fmtFecha, fmtFechaHora } from '../../core/api.js'
 import {
-  Aviso, Badge, Card, Empty, EstadoBadge, IcoPlantilla, IcoListo, IcoPrestamos,
+  Aviso, Badge, Card, Empty, EstadoBadge, IcoBitacora, IcoPlantilla, IcoListo, IcoPrestamos,
   IcoUbicacion, Modal, Regla, Spinner, Tabla, useApi, useToast,
 } from '../../ui/index.js'
 
@@ -53,6 +53,15 @@ function Plantilla() {
               {c.unidades?.length > 0 && (
                 <div className="s">
                   Responde por: {c.unidades.map((u) => `${u.num_economico} (${u.estado})`).join(', ')}
+                </div>
+              )}
+              {c.unidades?.length > 0 && (
+                <div className="btn-row" style={{ marginTop: 4 }}>
+                  {c.unidades.map((u) => (
+                    <Link key={u.id} className="btn sm" to={`/bitacora/${u.id}`}>
+                      <IcoBitacora size={13} className="ico-inline" aria-hidden="true" /> Bitácora {u.num_economico}
+                    </Link>
+                  ))}
                 </div>
               )}
               {c.es_prestada && (

@@ -69,11 +69,15 @@ def guardar(db: Session, usuario_id: int, entidad_tipo: str, entidad_id: int,
 
     # El nombre sale del contenido, no de lo que mande el cliente. De paso, dos
     # subidas de la misma foto no ocupan el doble.
-    nombre = hashlib.sha256(datos).hexdigest()[:32] + extension
+    huella = hashlib.sha256(datos).hexdigest()
+    nombre = huella[:32] + extension
     carpeta = RAIZ / entidad_tipo
     carpeta.mkdir(parents=True, exist_ok=True)
     destino = carpeta / nombre
-    if not destino.exists():
+    # Si ya hay un archivo con ese nombre tiene que ser ESTA foto: el nombre sale
+    # de su contenido. Si no coincide, alguien lo sustituyo en el disco, y se
+    # repone con lo que se acaba de recibir en vez de heredar la sustitucion.
+    if not destino.exists() or hashlib.sha256(destino.read_bytes()).hexdigest() != huella:
         destino.write_bytes(datos)
 
     ev = m.Evidencia(entidad_tipo=entidad_tipo, entidad_id=entidad_id,
@@ -81,6 +85,9 @@ def guardar(db: Session, usuario_id: int, entidad_tipo: str, entidad_id: int,
                      momento=momento, subida_por_usuario_id=usuario_id)
     db.add(ev)
     db.flush()
+    # No es columna: viaja con el objeto para que quien asiente la evidencia en
+    # la bitacora (NOM-030) selle la huella de lo RECIBIDO, no la del disco.
+    ev.sha256 = huella
     return ev
 
 

@@ -1,12 +1,12 @@
 /** Modulo Chofer - CU-CHO-* de docs/casos-de-uso.md */
 import { useState } from 'react'
-import { Route, Routes } from 'react-router-dom'
+import { Link, Route, Routes } from 'react-router-dom'
 import { BotonEmergencia } from './BotonEmergencia.jsx'
 import { FotosAveria } from './FotosAveria.jsx'
 import { api, fmtFecha, fmtFechaHora, hoyTijuana } from '../../core/api.js'
 import {
-  Aviso, Badge, Card, Empty, EstadoBadge, IcoListo, IcoPrestamos, IcoTaller, IcoUbicacion,
-  IcoUnidad, Modal, Regla, Spinner, Tabla, useApi, useToast,
+  Aviso, Badge, Card, Empty, EstadoBadge, IcoBitacora, IcoListo, IcoPrestamos, IcoTaller,
+  IcoUbicacion, IcoUnidad, Modal, Regla, Spinner, Tabla, useApi, useToast,
 } from '../../ui/index.js'
 
 export default function Chofer({ usuario }) {
@@ -35,7 +35,16 @@ function MiUnidad({ usuario }) {
 
   if (unidad.cargando) return <Spinner />
   if (!unidad.data) {
-    return <Empty icono={IcoUnidad}>No tienes una unidad asignada. Habla con tu supervisor.</Empty>
+    // El titular que prestó su unidad no la «trae», pero sigue siendo su
+    // Operador frente a la NOM-030: su libro lo sigue viendo desde aquí.
+    return (
+      <>
+        <Empty icono={IcoUnidad}>No tienes una unidad asignada. Habla con tu supervisor.</Empty>
+        <Link className="btn block" to="/bitacora">
+          <IcoBitacora size={14} className="ico-inline" aria-hidden="true" /> Libro de bitácora
+        </Link>
+      </>
+    )
   }
 
   const u = unidad.data
@@ -79,6 +88,13 @@ function MiUnidad({ usuario }) {
           </div>
         </div>
         {u.taller_actual && <p className="sub">En taller: {u.taller_actual}</p>}
+        {/* NOM-030 7.1.10 b): el Operador tiene que poder consultar el libro de
+            su unidad sin pedírselo a nadie. Va a /bitacora y no a la de hoy: si
+            prestó la suya, sigue siendo su Operador y ahí puede elegirla (con
+            una sola unidad, la página entra directo). */}
+        <Link className="btn block" to="/bitacora" style={{ marginTop: 10 }}>
+          <IcoBitacora size={14} className="ico-inline" aria-hidden="true" /> Libro de bitácora
+        </Link>
       </Card>
 
       <Card title="Jornada">

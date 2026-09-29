@@ -51,6 +51,18 @@ class Unidad(Base, TimestampMixin):
     origen = Column(String(16))
     fecha_baja = Column(Date)
     fecha_alta = Column(Date)
+    # PROY-NOM-030 7.1.10 c): cada libro de bitacora trae el nombre de los
+    # Operadores Y del Personal Auxiliar de la unidad. Los operadores salen del
+    # titular y del poseedor; el auxiliar (el ayudante que va en la pipa) no
+    # esta ligado a ninguna unidad en los Excel de Logistica, asi que se
+    # captura aqui a mano.
+    personal_auxiliar = Column(String(200))
+    # 6.5.4 y 7.1.10 c): la unidad "forma parte" de un permiso del Regulado.
+    # Por omision vale el permiso y la razon social de la configuracion
+    # general; estos dos existen para la unidad que opere bajo OTRO permiso
+    # (otra planta) u otra razon social (franquicia). Vacios = el general.
+    permiso_hidrocarburos = Column(String(80))
+    razon_social_regulado = Column(String(200))
 
     tipo = relationship("TipoUnidad")
     titular = relationship("Chofer", foreign_keys=[titular_chofer_id])

@@ -192,3 +192,102 @@ def asegurar_renombres(engine) -> list[str]:
     for h in hechos:
         log.info("renombre: %s", h)
     return hechos
+
+
+# --------------------------------------------------------------------------- #
+# Candados de la bitacora (PROY-NOM-030-ASEA-2026, numeral 7.1.10)
+# --------------------------------------------------------------------------- #
+# La norma pide dos cosas que el codigo por si solo no puede prometer: que los
+# registros "no sean alterados" (inciso a) y que la aplicacion "no permita que
+# sean eliminados" (inciso d, punto 4). Los controladores ya se niegan a tocar
+# un reporte cerrado, pero eso vale solo para quien pase por ellos: un script,
+# un importador o un arreglo a mano en la consola pasan de largo.
+#
+# Estos disparadores ponen el candado EN LA BASE. Cualquier UPDATE o DELETE que
+# los viole se aborta con el motivo, venga de donde venga. Es el mismo criterio
+# que los indices unicos de arriba: la validacion da el mensaje, el candado
+# hace que el defecto sea imposible.
+#
+# Solo SQLite, que es lo que corre en produccion (/datos/bajagas.db). En
+# PostgreSQL la sintaxis de disparadores es otra; si algun dia se migra, se
+# avisa en el arranque para que no se pierdan en silencio.
+_MSG_NO_SE_ALTERA = ("NOM-030 7.1.10: un registro de bitacora no se altera; "
+                     "la correccion es un registro nuevo")
+_MSG_NO_SE_BORRA = "NOM-030 7.1.10: los registros de bitacora no se eliminan"
+_MSG_CERRADO = ("NOM-030 7.1.10: el formato ya esta cerrado; la correccion es "
+                "un registro nuevo en la bitacora")
+
+
+# Los renglones no saben si su formato esta cerrado: se le pregunta al padre.
+# OLD para editar o borrar un renglon que ya existe; NEW para uno que se quiere
+# AGREGAR (una firma nueva en un formato ya cerrado cambiaria la hoja impresa
+# sin tocar ningun renglon existente).
+_DE_REPORTE_CERRADO = ("(SELECT estado FROM reporte_mantenimiento "
+                       "WHERE id = OLD.reporte_id) = 'cerrado'")
+_A_REPORTE_CERRADO = ("(SELECT estado FROM reporte_mantenimiento "
+                      "WHERE id = NEW.reporte_id) = 'cerrado'")
+
+
+CANDADOS = [
+    # El libro de mantenimiento: ni se edita ni se borra, nunca.
+    ("bitacora_mant_no_se_altera", "UPDATE", "bitacora_mantenimiento", None, _MSG_NO_SE_ALTERA),
+    ("bitacora_mant_no_se_borra", "DELETE", "bitacora_mantenimiento", None, _MSG_NO_SE_BORRA),
+    # La bitacora de auditoria (RF-GEN-04) siempre se dijo inmutable; ahora lo es.
+    ("auditoria_no_se_altera", "UPDATE", "bitacora_auditoria", None, _MSG_NO_SE_ALTERA),
+    ("auditoria_no_se_borra", "DELETE", "bitacora_auditoria", None, _MSG_NO_SE_BORRA),
+    # El formato y sus renglones: no se borran, y cerrados no se editan.
+    ("reporte_no_se_borra", "DELETE", "reporte_mantenimiento", None, _MSG_NO_SE_BORRA),
+    ("reporte_cerrado_no_se_altera", "UPDATE", "reporte_mantenimiento",
+     "OLD.estado = 'cerrado'", _MSG_CERRADO),
+    ("actividad_no_se_borra", "DELETE", "actividad_reporte", None, _MSG_NO_SE_BORRA),
+    ("actividad_cerrada_no_se_altera", "UPDATE", "actividad_reporte",
+     _DE_REPORTE_CERRADO, _MSG_CERRADO),
+    ("firma_no_se_borra", "DELETE", "firma_reporte", None, _MSG_NO_SE_BORRA),
+    ("firma_cerrada_no_se_altera", "UPDATE", "firma_reporte",
+     _DE_REPORTE_CERRADO, _MSG_CERRADO),
+    ("punto_no_se_borra", "DELETE", "punto_revision", None, _MSG_NO_SE_BORRA),
+    ("punto_cerrado_no_se_altera", "UPDATE", "punto_revision",
+     _DE_REPORTE_CERRADO, _MSG_CERRADO),
+    ("actividad_cerrada_no_se_agrega", "INSERT", "actividad_reporte",
+     _A_REPORTE_CERRADO, _MSG_CERRADO),
+    ("firma_cerrada_no_se_agrega", "INSERT", "firma_reporte",
+     _A_REPORTE_CERRADO, _MSG_CERRADO),
+    ("punto_cerrado_no_se_agrega", "INSERT", "punto_revision",
+     _A_REPORTE_CERRADO, _MSG_CERRADO),
+]
+
+
+def asegurar_candados_bitacora(engine) -> list[str]:
+    """Crea los disparadores que falten. Idempotente (IF NOT EXISTS)."""
+    if engine.dialect.name != "sqlite":
+        aviso = (f"Los candados de la bitacora NOM-030 solo existen para SQLite; esta base "
+                 f"es {engine.dialect.name}. Los registros quedan protegidos solo por el codigo.")
+        log.warning(aviso)
+        return [aviso]
+    # Cada candado en su propia transaccion y su propio try, como los indices:
+    # uno que falle se reporta fuerte y los demas se crean igual. Nunca tumba
+    # el arranque -- una API caida no protege ningun registro.
+    hechos = []
+    tablas = set(inspect(engine).get_table_names())
+    for nombre, evento, tabla, cuando, mensaje in CANDADOS:
+        if tabla not in tablas:
+            continue
+        condicion = f" WHEN {cuando}" if cuando else ""
+        try:
+            with engine.begin() as cx:
+                existe = cx.execute(text(
+                    "SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = :n"),
+                    {"n": nombre}).first()
+                if existe:
+                    continue
+                cx.execute(text(
+                    f"CREATE TRIGGER IF NOT EXISTS {nombre} BEFORE {evento} ON {tabla}"
+                    f"{condicion} BEGIN SELECT RAISE(ABORT, '{mensaje}'); END"))
+            hechos.append(f"candado {nombre}")
+        except Exception as e:  # pragma: no cover
+            aviso = f"ATENCION: no se pudo crear el candado {nombre}: {e}"
+            log.error(aviso)
+            hechos.append(aviso)
+    for h in hechos:
+        log.info(h)
+    return hechos

@@ -16,7 +16,7 @@ Los mecanicos NO usan la aplicacion (v1.1), asi que este formato lo teclea el
 administrador a partir del papel: por eso guarda doble responsable (RN-11),
 quien firmo y quien capturo.
 """
-from sqlalchemy import (Column, ForeignKey, Integer, String, Text,
+from sqlalchemy import (Column, Date, ForeignKey, Integer, String, Text,
                         UniqueConstraint)
 from sqlalchemy.orm import relationship
 
@@ -175,6 +175,26 @@ class ActividadReporte(Base):
     tecnico_id = Column(Integer, ForeignKey("tecnico.id"))
     fecha_realizada = Column(UTCDateTime)
     capturado_por_admin_id = Column(Integer, ForeignKey("usuario.id"))
+
+    # PROY-NOM-030-ASEA-2026. El papel no traia estos datos y la norma los pide
+    # en cada registro de la bitacora:
+    #  - 7.1.9: la fecha de INICIO y la de TERMINO de cada actividad. Son las
+    #    que se DECLARAN --cuando se hizo el trabajo--, no cuando se tecleo: en
+    #    Alamos se captura del papel, a veces dias despues. El momento de la
+    #    captura lo sella solo el asiento de la bitacora. Son FECHAS, no
+    #    instantes: una fecha de calendario no tiene zona y no se corre de dia.
+    #  - 7.1.10: el resultado, las acciones requeridas y el personal
+    #    responsable. El resultado es contra el criterio de aceptacion o
+    #    rechazo de 7.1.8: conforme o no conforme. Si el trabajo lo hizo alguien
+    #    fuera del catalogo (una llantera, una agencia), va en
+    #    `responsable_externo`.
+    # `fecha_realizada` se queda como estaba: es el sello de "terminado" que
+    # leen la cola del mecanico y los historiales, y NO es la fecha de termino.
+    fecha_inicio = Column(Date)
+    fecha_termino = Column(Date)
+    resultado = Column(String(12))           # conforme | no_conforme
+    acciones_requeridas = Column(Text)
+    responsable_externo = Column(String(160))
 
     reporte = relationship("ReporteMantenimiento", back_populates="actividades")
     tecnico = relationship("Tecnico")

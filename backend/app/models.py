@@ -64,6 +64,11 @@ from .modules.sistema import (  # noqa: F401
     Notificacion, AlertaGerencia, BitacoraAuditoria, Configuracion,
 )
 
+# Libro de bitacora de mantenimiento (PROY-NOM-030-ASEA-2026, 7.1.10)
+from .modules.bitacora import (  # noqa: F401
+    AsientoBitacora, TIPOS_ASIENTO, RESULTADOS,
+)
+
 # ---------------------------------------------------------------------------
 
 Index("uq_orden_abierta_por_unidad", OrdenServicio.unidad_id, unique=True,

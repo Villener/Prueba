@@ -27,7 +27,10 @@ from sqlalchemy.orm import Session
 from ... import models as m
 from ...core.database import get_db
 from ...core.security import notificar, registrar_bitacora, require_roles
-from ...core.tiempo import ahora_utc
+from ...core.tiempo import ahora_utc, dia_operativo
+from ...schemas import AvanceActividadIn
+from ..bitacora import asientos_reporte as bit
+from ..bitacora import bitacora_service as bs
 from ..sistema import comun_service as comun
 from ..sistema.comun_service import nombre_usuario, siguiente_folio
 from . import emergencias_service as emsvc
@@ -83,6 +86,9 @@ def mi_cola(db: Session = Depends(get_db), usuario=Depends(solo_mec)):
             "terminada": bool(a.fecha_realizada),
             "fecha_realizada": a.fecha_realizada,
             "fecha_entrada": r.fecha_entrada,
+            # NOM-030: lo que ya capturo, para proponerlo al terminar.
+            "fecha_inicio": a.fecha_inicio, "fecha_termino": a.fecha_termino,
+            "resultado": a.resultado, "acciones_requeridas": a.acciones_requeridas,
         })
     filas.sort(key=lambda x: (x["terminada"], x["fecha_entrada"] or datetime.datetime.min))
     return filas
@@ -102,6 +108,20 @@ def _mi_actividad(db: Session, actividad_id: int, usuario_id: int) -> m.Activida
     return a
 
 
+def _mi_actividad_bloqueada(db: Session, actividad_id: int, usuario_id: int):
+    """El renglon, releido DESPUES de tomar el candado del libro de la unidad.
+
+    Si el administrador lo cambio mientras el mecanico escribia, se compara
+    contra lo que dejo el administrador: asi el cambio del mecanico queda
+    asentado como correccion de lo anterior, y no como si no hubiera nada.
+    """
+    a = _mi_actividad(db, actividad_id, usuario_id)
+    bs.bloquear_unidad(db, a.reporte.unidad_id)
+    db.refresh(a)
+    db.refresh(a.reporte)
+    return _mi_actividad(db, actividad_id, usuario_id)
+
+
 # --------------------------------------------------------------- CU-MEC-02 -- #
 @router.post("/actividades/{actividad_id}/diagnostico")
 def registrar_diagnostico(actividad_id: int, texto: str,
@@ -115,8 +135,10 @@ def registrar_diagnostico(actividad_id: int, texto: str,
     """
     if not (texto or "").strip():
         raise HTTPException(400, "Escribe el diagnostico.")
-    a = _mi_actividad(db, actividad_id, usuario.id)
+    a = _mi_actividad_bloqueada(db, actividad_id, usuario.id)
+    antes = bit.foto_actividad(db, a)
     a.a_realizar = texto.strip()
+    bit.asentar_actividad(db, a.reporte, a, antes, usuario.id)
     registrar_bitacora(db, usuario.id, "diagnostico_mecanico", "actividad_reporte",
                        a.id, f"sistema {a.sistema}")
     db.commit()
@@ -126,6 +148,7 @@ def registrar_diagnostico(actividad_id: int, texto: str,
 # --------------------------------------------------------------- CU-MEC-06 -- #
 @router.post("/actividades/{actividad_id}/avance")
 def registrar_avance(actividad_id: int, texto: str, terminada: bool = False,
+                     datos: AvanceActividadIn | None = None,
                      db: Session = Depends(get_db), usuario=Depends(solo_mec)):
     """Lo que se le hizo. Con `terminada` se sella la fecha.
 
@@ -140,10 +163,17 @@ def registrar_avance(actividad_id: int, texto: str, terminada: bool = False,
     cambiando la cola, el formato de salida y la bitacora sin que nadie lo
     pidiera. Ahora un sistema terminado se rechaza, por la misma razon que un
     formato cerrado: lo que ya se entrego no se reescribe sin que se sepa.
+
+    NOM-030 7.1.9 y 7.1.10: al TERMINAR, el registro tiene que traer inicio,
+    termino, resultado y acciones requeridas (el responsable es el mismo
+    mecanico: el sistema ya esta a su nombre). Viajan en el cuerpo JSON y no
+    en la URL, porque las acciones son texto libre y la URL queda en el log.
+    Las fechas se DECLARAN: la pantalla propone hoy, pero el trabajo pudo
+    empezar antier.
     """
     if not (texto or "").strip():
         raise HTTPException(400, "Escribe el avance.")
-    a = _mi_actividad(db, actividad_id, usuario.id)
+    a = _mi_actividad_bloqueada(db, actividad_id, usuario.id)
     if a.fecha_realizada:
         raise HTTPException(409, {
             "mensaje": "Ese sistema ya lo diste por terminado y la fecha quedo sellada. "
@@ -152,9 +182,29 @@ def registrar_avance(actividad_id: int, texto: str, terminada: bool = False,
             "ya_terminada": True,
             "terminada_el": a.fecha_realizada.isoformat(),
         })
+    antes = bit.foto_actividad(db, a)
+    datos = datos or AvanceActividadIn()
+    hoy = dia_operativo(ahora_utc())
+    if datos.fecha_inicio is not None:
+        a.fecha_inicio = datos.fecha_inicio
+    if terminada:
+        a.fecha_termino = datos.fecha_termino or a.fecha_termino
+        a.resultado = datos.resultado or a.resultado
+        a.acciones_requeridas = (datos.acciones_requeridas or "").strip() or a.acciones_requeridas
+    error = bit.error_de_fechas(a, a.reporte, hoy)
+    if error:
+        raise HTTPException(422, error[0].upper() + error[1:] + ".")
+
     a.realizada = texto.strip()
     if terminada:
+        falta = bit.faltantes_para_realizada(a)
+        if falta:
+            raise HTTPException(422, {
+                "mensaje": "Para darlo por terminado la NOM-030 pide: " + ", ".join(falta) + ".",
+                "falta": falta,
+            })
         a.fecha_realizada = ahora_utc()
+    bit.asentar_actividad(db, a.reporte, a, antes, usuario.id)
     registrar_bitacora(db, usuario.id,
                        "termino_mecanico" if terminada else "avance_mecanico",
                        "actividad_reporte", a.id, f"sistema {a.sistema}")

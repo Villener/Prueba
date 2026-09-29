@@ -741,6 +741,15 @@ function DetalleUnidad({ id, rango, onCerrar }) {
         {u.chofer && <> · poseedor actual: <strong>{u.chofer}</strong></>}
         {data && <> · del {fmtFecha(data.desde)} al {fmtFecha(data.hasta)}</>}
       </p>
+      {/* En pestaña nueva y no navegando: este detalle es un modal A PROPÓSITO
+          para no perder el buscador ni el rango, y navegar desmontaría toda la
+          pantalla de Historiales. La sesión vive en localStorage, así que la
+          pestaña nueva ya entra con ella. */}
+      <div className="btn-row" style={{ marginBottom: 10 }}>
+        <a className="btn sm" href={`#/bitacora/${id}`} target="_blank" rel="noreferrer">
+          Libro de bitácora (NOM-030)
+        </a>
+      </div>
 
       <div className="grid g4">
         <Kpi valor={num(r.entradas_taller)} etiqueta="Entradas a taller" />

@@ -11,13 +11,15 @@
  * (`/admin/reportes/catalogo`) desde modules/ordenes/reporte_model.py. Si el
  * cliente cambia el formato, cambia en un solo lugar.
  */
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { api, fmtFecha, fmtFechaHora, hoyTijuana } from '../../core/api.js'
+import {
+  api, diaTijuana, fmtFecha, fmtFechaHora, fmtFechaHoraAnio, hoyTijuana,
+} from '../../core/api.js'
 import { comprimir, kb } from '../../core/imagen.js'
 import {
-  Aviso, Badge, BuscadorUnidad, Card, Empty, IcoImprimir, IcoReportes, IcoTecnico,
-  IcoUbicacion, IcoVolver, Modal, Regla, Spinner, TiraFotos, useApi, useToast,
+  Aviso, Badge, BuscadorUnidad, Card, Empty, IcoBitacora, IcoImprimir, IcoReportes,
+  IcoTecnico, IcoUbicacion, IcoVolver, Modal, Regla, Spinner, TiraFotos, useApi, useToast,
 } from '../../ui/index.js'
 import { Logo } from '../../ui/Logo.jsx'
 import { SelectorTaller } from './PlanoTaller.jsx'
@@ -38,6 +40,14 @@ const ETIQUETA_AREA = {
 const ETIQUETA_NIVEL = {
   vacio: 'E (vacío)', '1/4': '¼', '1/2': '½', '3/4': '¾', lleno: 'F (lleno)',
 }
+
+/* NOM-030 7.1.10: el resultado de cada actividad contra su criterio de
+   aceptación o rechazo. Dos valores y no tres: «a medias» es una actividad que
+   todavía no se da por realizada. */
+const RESULTADO = { conforme: 'Conforme', no_conforme: 'No conforme' }
+// Valor del <select> de responsable cuando el trabajo lo hizo alguien fuera del
+// catálogo (una llantera, la agencia). No choca con ningún id: los ids son números.
+const EXTERNO = 'externo'
 
 /* ------------------------------------------------------- CU-ADM-26/27/28/29 */
 export function ReportesMantenimiento() {
@@ -73,7 +83,8 @@ export function ReportesMantenimiento() {
   if (id) {
     return (
       <Hoja id={Number(id)} catalogo={catalogo.data} tecnicos={tecnicos.data || []}
-            onVolver={() => navegar('/reportes')} />
+            onVolver={() => navegar('/reportes')}
+            onLibro={(unidadId) => navegar(`/bitacora/${unidadId}`)} />
     )
   }
 
@@ -459,11 +470,12 @@ function ajustarAUnaHoja() {
 }
 
 /* --------------------------------------------------- la hoja, tal cual sale */
-function Hoja({ id, catalogo, tecnicos, onVolver }) {
+function Hoja({ id, catalogo, tecnicos, onVolver, onLibro }) {
   const toast = useToast()
   const { data, cargando, error, recargar } = useApi(() => api.get(`/admin/reportes/${id}`), [id])
   const [firmando, setFirmando] = useState(null)
   const [cerrando, setCerrando] = useState(false)
+  const [corrigiendo, setCorrigiendo] = useState(false)
 
   // `beforeprint` lo dispara igual el boton Imprimir que el Ctrl+P del usuario.
   useEffect(() => {
@@ -482,6 +494,9 @@ function Hoja({ id, catalogo, tecnicos, onVolver }) {
         <button className="btn sm" onClick={onVolver}><IcoVolver size={13} className="ico-inline" aria-hidden="true" /> Reportes</button>
         <div className="spacer" />
         <Badge tono={abierto ? 'warn' : 'ok'}>{r.estado}</Badge>
+        <button className="btn" onClick={() => onLibro(r.unidad_id)}>
+          <IcoBitacora size={13} className="ico-inline" aria-hidden="true" /> Libro de la unidad
+        </button>
         <button className="btn" onClick={() => window.print()}><IcoImprimir size={13} className="ico-inline" aria-hidden="true" /> Imprimir</button>
         {abierto && (
           <button className="btn primary" onClick={() => setCerrando(true)}>
@@ -501,16 +516,23 @@ function Hoja({ id, catalogo, tecnicos, onVolver }) {
         <EvidenciaPreventivo reporteId={r.id} editable={abierto} />
         <Firmas r={r} catalogo={catalogo} editable={abierto}
                 onFirmar={(rol) => setFirmando(rol)} />
+        <Correcciones r={r} />
       </div>
 
       {!abierto && (
         <div className="no-print">
+          <div className="btn-row" style={{ marginBottom: 8 }}>
+            <button className="btn" onClick={() => setCorrigiendo(true)}>Registrar corrección</button>
+          </div>
           <Regla>
-            El formato está cerrado. Un papel firmado no se reescribe: si hay que
-            corregirlo, se levanta uno nuevo.
+            El formato está cerrado y ya no cambia. NOM-030 7.1.10 a): si algo quedó mal,
+            la corrección es un registro NUEVO en la bitácora que dice qué asiento corrige,
+            qué debe decir y por qué. Sale impresa con la hoja.
           </Regla>
         </div>
       )}
+
+      <RegistroEnBitacora r={r} />
 
       {firmando && (
         <ModalFirma reporte={r} firma={firmando} onCerrar={() => setFirmando(null)}
@@ -519,6 +541,12 @@ function Hoja({ id, catalogo, tecnicos, onVolver }) {
       {cerrando && (
         <ModalCierre reporte={r} onCerrar={() => setCerrando(false)}
                      onListo={() => { setCerrando(false); recargar(); toast('Salida sellada') }} />
+      )}
+      {corrigiendo && (
+        <ModalCorreccion reporte={r} onCerrar={() => setCorrigiendo(false)}
+                         onListo={() => {
+                           setCorrigiendo(false); recargar(); toast('Corrección registrada')
+                         }} />
       )}
     </>
   )
@@ -530,9 +558,15 @@ function CabeceraFormato({ r }) {
       {/* El logo real, no el nombre escrito. `Logo` lee src/assets/logo.svg y lo
           inyecta en línea, así que el CSS lo recolorea en tema oscuro y en la
           impresión — un <img> no se puede recolorear. */}
+      {/* La razón social y el permiso ya no van escritos aquí: los pide la
+          NOM-030 (7.1.10 c) y vienen de la configuración o de la unidad, así que
+          el día que cambien no hay que tocar la pantalla. */}
       <div className="fmt-marca">
         <Logo alto={34} />
-        <div className="fmt-razon">Compañía de Gas de Tijuana, S.A. de C.V.</div>
+        <div className="fmt-razon">{r.razon_social}</div>
+        <div className="fmt-razon">
+          Permiso: {r.permiso || <strong className="falta">SIN CAPTURAR</strong>}
+        </div>
       </div>
       <h1 className="fmt-titulo">Reporte de mantenimiento</h1>
       <div className="fmt-folio">
@@ -652,30 +686,75 @@ function TablaActividades({ r, tecnicos, editable, onGuardado }) {
   const [guardando, setGuardando] = useState(false)
   const [reasignando, setReasignando] = useState(null)
 
-  const empezar = () => setEdicion(Object.fromEntries(r.actividades.map((a) => [
-    a.sistema,
-    { a_realizar: a.a_realizar || '', realizada: a.realizada || '', tecnico_id: a.tecnico_id || '' },
-  ])))
+  const [problema, setProblema] = useState(null)
 
-  const cambiar = (sistema, campo, valor) =>
-    setEdicion({ ...edicion, [sistema]: { ...edicion[sistema], [campo]: valor } })
+  const empezar = () => {
+    setProblema(null)
+    setEdicion(Object.fromEntries(r.actividades.map((a) => [
+      a.sistema,
+      {
+        a_realizar: a.a_realizar || '', realizada: a.realizada || '',
+        tecnico_id: a.tecnico_id ? String(a.tecnico_id) : (a.responsable_externo ? EXTERNO : ''),
+        responsable_externo: a.responsable_externo || '',
+        resultado: a.resultado || '', acciones_requeridas: a.acciones_requeridas || '',
+        fecha_inicio: a.fecha_inicio || '', fecha_termino: a.fecha_termino || '',
+      },
+    ])))
+  }
+
+  const cambiar = (sistema, campo, valor) => {
+    const actual = { ...edicion[sistema], [campo]: valor }
+    // «Ninguna» se PROPONE al elegir conforme, a la vista y editable: el campo
+    // es obligatorio y en un trabajo conforme casi siempre es la respuesta.
+    if (campo === 'resultado' && valor === 'conforme' && !actual.acciones_requeridas.trim()) {
+      actual.acciones_requeridas = 'Ninguna'
+    }
+    // Y se RETIRA al pasar a no conforme: si no cumple, algo hay que hacerle, y
+    // un «Ninguna» que se quedó de la opción anterior diría lo contrario.
+    if (campo === 'resultado' && valor === 'no_conforme'
+        && actual.acciones_requeridas.trim().toLowerCase() === 'ninguna') {
+      actual.acciones_requeridas = ''
+    }
+    // Al dar el sistema por realizado se proponen las fechas de hoy. Se ven y se
+    // cambian: el trabajo pudo hacerse ayer y capturarse hoy.
+    if (campo === 'realizada' && valor.trim()) {
+      actual.fecha_inicio = actual.fecha_inicio || hoyTijuana()
+      actual.fecha_termino = actual.fecha_termino || hoyTijuana()
+    }
+    // Si se borra lo realizado, se va con él todo lo que era de lo realizado:
+    // si no, se mandaría un «conforme» con fechas de un trabajo que no existe.
+    if (campo === 'realizada' && !valor.trim()) {
+      Object.assign(actual, { resultado: '', acciones_requeridas: '',
+                              fecha_inicio: '', fecha_termino: '' })
+    }
+    setEdicion({ ...edicion, [sistema]: actual })
+  }
 
   const guardar = async () => {
     setGuardando(true)
+    setProblema(null)
     try {
       await api.post(`/admin/reportes/${r.id}/actividades`, {
         actividades: Object.entries(edicion).map(([sistema, v]) => ({
           sistema,
           a_realizar: v.a_realizar || null,
           realizada: v.realizada || null,
-          tecnico_id: v.tecnico_id === '' ? null : Number(v.tecnico_id),
+          tecnico_id: v.tecnico_id === '' || v.tecnico_id === EXTERNO ? null : Number(v.tecnico_id),
+          responsable_externo: v.tecnico_id === EXTERNO ? (v.responsable_externo || null) : null,
+          resultado: v.resultado || null,
+          acciones_requeridas: v.acciones_requeridas || null,
+          fecha_inicio: v.fecha_inicio || null,
+          fecha_termino: v.fecha_termino || null,
         })),
       })
       setEdicion(null)
       onGuardado()
       toast('Actividades capturadas')
     } catch (e) {
-      toast(e.message, 'err')
+      // El 422 de la NOM trae qué le falta a cada sistema: se deja a la vista,
+      // junto a la tabla, y no en un aviso que se borra en cuatro segundos.
+      if (e.datos?.sistemas_incompletos) setProblema(e.message)
+      else toast(e.message, 'err')
     } finally {
       setGuardando(false)
     }
@@ -691,7 +770,8 @@ function TablaActividades({ r, tecnicos, editable, onGuardado }) {
         )}
         {edicion && (
           <div className="btn-row no-print">
-            <button className="btn sm" onClick={() => setEdicion(null)}>Cancelar</button>
+            <button className="btn sm"
+                    onClick={() => { setEdicion(null); setProblema(null) }}>Cancelar</button>
             <button className="btn sm primary" disabled={guardando} onClick={guardar}>
               {guardando ? 'Guardando…' : 'Guardar'}
             </button>
@@ -712,8 +792,10 @@ function TablaActividades({ r, tecnicos, editable, onGuardado }) {
           <tbody>
             {r.actividades.map((a) => {
               const e = edicion?.[a.sistema]
+              const realizando = e && e.realizada.trim()
               return (
-                <tr key={a.sistema}>
+                <Fragment key={a.sistema}>
+                <tr>
                   <th scope="row">{a.etiqueta}</th>
                   <td>
                     {e ? (
@@ -725,44 +807,121 @@ function TablaActividades({ r, tecnicos, editable, onGuardado }) {
                     {e ? (
                       <textarea rows={2} value={e.realizada}
                                 onChange={(ev) => cambiar(a.sistema, 'realizada', ev.target.value)} />
-                    ) : (a.realizada || <span className="renglon" />)}
+                    ) : a.realizada ? (
+                      <>
+                        <div>{a.realizada}</div>
+                        {a.acciones_requeridas && (
+                          <div className="s">Acciones requeridas: {a.acciones_requeridas}</div>
+                        )}
+                      </>
+                    ) : <span className="renglon" />}
                   </td>
                   <td>
                     {e ? (
-                      <select value={e.tecnico_id}
-                              onChange={(ev) => cambiar(a.sistema, 'tecnico_id', ev.target.value)}>
-                        <option value="">—</option>
-                        {tecnicos.map((t) => (
-                          <option key={t.id} value={t.id}>{t.nombre}</option>
-                        ))}
-                      </select>
-                    ) : a.tecnico ? (
                       <>
-                        <div>{a.tecnico}</div>
-                        {a.fecha_realizada && (
+                        <select value={e.tecnico_id}
+                                onChange={(ev) => cambiar(a.sistema, 'tecnico_id', ev.target.value)}>
+                          <option value="">—</option>
+                          {tecnicos.map((t) => (
+                            <option key={t.id} value={t.id}>{t.nombre}</option>
+                          ))}
+                          <option value={EXTERNO}>Otro (externo)…</option>
+                        </select>
+                        {e.tecnico_id === EXTERNO && (
+                          <input className="nom-input" value={e.responsable_externo}
+                                 placeholder="Quién lo hizo"
+                                 onChange={(ev) => cambiar(a.sistema, 'responsable_externo', ev.target.value)} />
+                        )}
+                      </>
+                    ) : a.responsable ? (
+                      <>
+                        <div>{a.responsable}</div>
+                        {(a.fecha_inicio || a.fecha_termino) ? (
+                          <div className="s">{fmtFecha(a.fecha_inicio)} → {fmtFecha(a.fecha_termino)}</div>
+                        ) : a.fecha_realizada && (
+                          // Renglón de antes de la NOM: solo tiene el sello de terminado.
                           <div className="s">{fmtFecha(a.fecha_realizada)}</div>
                         )}
-                        {editable && (
+                        {a.resultado && (
+                          <div className={`s resultado ${a.resultado}`}>
+                            {a.resultado === 'conforme' ? '✓' : '✗'} {RESULTADO[a.resultado]}
+                          </div>
+                        )}
+                        {a.faltantes_nom030.length > 0 && (
+                          <div className="s falta no-print">Falta: {a.faltantes_nom030.join(', ')}</div>
+                        )}
+                        {editable && a.tecnico_id && (
                           <button className="btn sm no-print" style={{ marginTop: 4 }}
                                   onClick={() => setReasignando(a)}>
                             Reasignar
                           </button>
                         )}
                       </>
+                    ) : a.faltantes_nom030.length > 0 ? (
+                      <div className="s falta no-print">Falta: {a.faltantes_nom030.join(', ')}</div>
                     ) : <span className="renglon" />}
                   </td>
                 </tr>
+                {/* Los datos que la NOM pide de lo realizado, en un renglón de
+                    ancho completo y solo mientras se captura. Apilados dentro
+                    de la columna del responsable quedaban en 42 px a 375 px de
+                    ancho: no se leía ni la fecha elegida. */}
+                {realizando && (
+                  <tr className="nom-fila">
+                    <td colSpan={4}>
+                      <div className="nom-rejilla">
+                        <label className="nom-campo">
+                          <span>Inicio</span>
+                          <input type="date" max={hoyTijuana()} min={diaTijuana(r.fecha_entrada)}
+                                 value={e.fecha_inicio}
+                                 onChange={(ev) => cambiar(a.sistema, 'fecha_inicio', ev.target.value)} />
+                        </label>
+                        <label className="nom-campo">
+                          <span>Término</span>
+                          <input type="date" max={hoyTijuana()}
+                                 min={e.fecha_inicio || diaTijuana(r.fecha_entrada)}
+                                 value={e.fecha_termino}
+                                 onChange={(ev) => cambiar(a.sistema, 'fecha_termino', ev.target.value)} />
+                        </label>
+                        <label className="nom-campo">
+                          <span>Resultado</span>
+                          <select value={e.resultado}
+                                  onChange={(ev) => cambiar(a.sistema, 'resultado', ev.target.value)}>
+                            <option value="">—</option>
+                            <option value="conforme">Conforme</option>
+                            <option value="no_conforme">No conforme</option>
+                          </select>
+                        </label>
+                        <label className="nom-campo ancho">
+                          <span>Acciones requeridas</span>
+                          <textarea rows={1} value={e.acciones_requeridas}
+                                    placeholder={e.resultado === 'no_conforme'
+                                      ? 'Qué falta para que cumpla' : 'Ninguna'}
+                                    onChange={(ev) => cambiar(a.sistema, 'acciones_requeridas', ev.target.value)} />
+                        </label>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               )
             })}
           </tbody>
         </table>
       </div>
 
+      {problema && (
+        <div className="no-print"><Aviso tipo="err">{problema}</Aviso></div>
+      )}
+
       {editable && (
         <div className="no-print">
           <Regla>
             CU-ADM-27 · RN-11: el mecánico no teclea. Tú capturas lo que entregó en papel y
             el sistema guarda los dos responsables: quién lo hizo y quién lo capturó.
+            NOM-030 7.1.9 y 7.1.10: un sistema realizado lleva su inicio, su término, su
+            resultado, sus acciones requeridas y su responsable. Cada cambio queda en el
+            libro de bitácora con lo que decía antes.
           </Regla>
         </div>
       )}
@@ -846,6 +1005,132 @@ function Comentarios({ r }) {
         ? <p className="fmt-parrafo">{r.comentarios_adicionales}</p>
         : <span className="renglon ancho" />}
     </section>
+  )
+}
+
+/* ------------------------------------------------------------- NOM-030 ---- */
+/** Correcciones asentadas DESPUÉS del cierre (7.1.10 a).
+ *
+ *  Van dentro de la hoja y se imprimen: son parte del documento aunque el
+ *  formato ya no cambie. Sin ellas, el papel impreso contradiría al libro. */
+function Correcciones({ r }) {
+  if (!r.correcciones.length) return null
+  return (
+    <section className="fmt-bloque fmt-correcciones">
+      <h2>Correcciones posteriores al cierre</h2>
+      {r.correcciones.map((c) => (
+        <p key={c.id} className="fmt-parrafo">
+          <strong>Asiento {c.numero}</strong>
+          {c.corrige_a_numero ? ` (corrige el ${c.corrige_a_numero})` : ''}: {c.descripcion}
+          <span className="s"> — {c.registrado_por_nombre}, {fmtFechaHoraAnio(c.registrado_en)}</span>
+        </p>
+      ))}
+    </section>
+  )
+}
+
+/** Lo que este formato ha dejado en el libro de la unidad, con quién y cuándo.
+ *
+ *  Fuera de la hoja y sin imprimirse: la hoja tiene que caber en una carta, y
+ *  el libro completo se imprime desde su propia página. Aquí sirve para que
+ *  quien captura vea, al momento, que lo que guardó quedó asentado. */
+function RegistroEnBitacora({ r }) {
+  const { data, cargando } = useApi(
+    () => api.get(`/bitacora/unidad/${r.unidad_id}`), [r.unidad_id, r.asientos])
+  const [abierto, setAbierto] = useState(false)
+  if (cargando || !data) return null
+  const propios = data.asientos.filter((a) => a.reporte_id === r.id)
+  return (
+    <section className="card no-print registro-bitacora">
+      <div className="card-head">
+        <h2>Registro en bitácora · {propios.length} asiento(s)</h2>
+        <button className="btn sm" style={{ marginLeft: 'auto' }}
+                onClick={() => setAbierto(!abierto)}>
+          {abierto ? 'Ocultar' : 'Ver'}
+        </button>
+      </div>
+      {!data.integridad.integra && (
+        <Aviso tipo="err">El libro de esta unidad no cuadra: {data.integridad.motivo}</Aviso>
+      )}
+      {abierto && propios.map((a) => (
+        <div key={a.id} className="list-item">
+          <div className="grow">
+            <div className="t">
+              {a.numero}. {a.descripcion}
+            </div>
+            <div className="s">
+              {fmtFechaHoraAnio(a.registrado_en)} · {a.registrado_por_nombre}
+              {a.corrige_a_numero ? ` · corrige el ${a.corrige_a_numero}` : ''}
+            </div>
+          </div>
+        </div>
+      ))}
+    </section>
+  )
+}
+
+function ModalCorreccion({ reporte, onCerrar, onListo }) {
+  const toast = useToast()
+  const libro = useApi(() => api.get(`/bitacora/unidad/${reporte.unidad_id}`), [reporte.unidad_id])
+  const [form, setForm] = useState({ asiento_id: '', texto: '', motivo: '' })
+  const [enviando, setEnviando] = useState(false)
+  const asientos = (libro.data?.asientos || []).filter((a) => a.reporte_id === reporte.id)
+
+  const enviar = async (e) => {
+    e.preventDefault()
+    setEnviando(true)
+    try {
+      await api.post(`/admin/reportes/${reporte.id}/correcciones`, {
+        asiento_id: form.asiento_id === '' ? null : Number(form.asiento_id),
+        texto: form.texto.trim(),
+        motivo: form.motivo.trim(),
+      })
+      onListo()
+    } catch (err) {
+      toast(err.message, 'err')
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  return (
+    <Modal titulo={`Registrar corrección · ${reporte.folio}`} onClose={onCerrar}>
+      <form onSubmit={enviar}>
+        <div className="field">
+          <label>¿Qué asiento corrige?</label>
+          <select value={form.asiento_id}
+                  onChange={(e) => setForm({ ...form, asiento_id: e.target.value })}>
+            <option value="">Aclaración al formato completo</option>
+            {asientos.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.numero}. {a.descripcion.slice(0, 90)}{a.descripcion.length > 90 ? '…' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label>¿Qué debe decir?</label>
+          <textarea required minLength={4} rows={3} value={form.texto}
+                    onChange={(e) => setForm({ ...form, texto: e.target.value })}
+                    placeholder="Ej. Las balatas cambiadas fueron las traseras, no las delanteras" />
+        </div>
+        <div className="field">
+          <label>¿Por qué se corrige?</label>
+          <input required minLength={4} value={form.motivo}
+                 onChange={(e) => setForm({ ...form, motivo: e.target.value })}
+                 placeholder="Error al capturar del papel, dato que llegó después…" />
+        </div>
+        <button className="btn primary block"
+                disabled={enviando || form.texto.trim().length < 4 || form.motivo.trim().length < 4}>
+          {enviando ? 'Registrando…' : 'Registrar corrección'}
+        </button>
+        <Regla>
+          El asiento original no se toca: queda como estaba y la corrección se agrega
+          después, con tu nombre y la hora que pone el sistema. Así lo pide la NOM-030
+          (7.1.10 a) y así se puede explicar frente a un inspector.
+        </Regla>
+      </form>
+    </Modal>
   )
 }
 
@@ -941,11 +1226,14 @@ function ModalCierre({ reporte, onCerrar, onListo }) {
     operativa: true,
   })
   const [enviando, setEnviando] = useState(false)
+  const [problema, setProblema] = useState(null)
   const faltan = reporte.firmas_faltantes.length > 0
+  const incompletas = reporte.actividades.filter((a) => a.faltantes_nom030.length > 0)
 
   const enviar = async (e) => {
     e.preventDefault()
     setEnviando(true)
+    setProblema(null)
     try {
       await api.post(`/admin/reportes/${reporte.id}/cerrar`, {
         comentarios_adicionales: form.comentarios || null,
@@ -954,7 +1242,10 @@ function ModalCierre({ reporte, onCerrar, onListo }) {
       })
       onListo()
     } catch (err) {
-      toast(err.message, 'err')
+      // El rechazo del servidor dice QUÉ falta (firmas, foto, datos de la
+      // NOM): se queda dentro de la ventana, a la vista, hasta que se resuelva.
+      if (err.status === 409 && err.datos) setProblema(err.message)
+      else toast(err.message, 'err')
     } finally {
       setEnviando(false)
     }
@@ -974,6 +1265,14 @@ function ModalCierre({ reporte, onCerrar, onListo }) {
             rechazar de todos modos.
           </Aviso>
         )}
+        {incompletas.length > 0 && (
+          <Aviso tipo="warn">
+            A {incompletas.map((a) => a.etiqueta).join(', ')} le faltan datos que pide la
+            NOM-030 (inicio, término, resultado, acciones requeridas o responsable).
+            Captúralos en la tabla de actividades antes de cerrar.
+          </Aviso>
+        )}
+        {problema && <Aviso tipo="err">{problema}</Aviso>}
 
         {/* Cerrar el formato ES la salida: se libera el cajón, se cierra la
             orden y la unidad deja de estar en el taller. Por eso aquí se
