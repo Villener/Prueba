@@ -787,6 +787,163 @@ def c33():
 
 
 # ===================================================================== #
+# Avisos falsos contra choferes (revision del 30-sep)
+# ===================================================================== #
+@caso("35. Unidad dada de baja: su cita se cancela y no genera aviso")
+def c35():
+    from app import jobs
+    db = nueva_db()
+    t, pipa, _ = sembrar(db, genericos=1)
+    u, p, c = _cita_perdida(db, t, pipa)
+    u.activo = False                    # Logistica la dio de baja
+    db.flush()
+    creados = jobs.generar_avisos_incumplimiento(db)
+    db.refresh(c); db.refresh(p)
+    assert creados == 0, "acuso al chofer de faltar con una unidad dada de baja"
+    assert c.estado == "cancelada", "la cita quedo en '%s'" % c.estado
+    # Ya paso su fecha limite, asi que el mismo job lo marca vencido: es un
+    # hecho. Lo que no puede es seguir 'agendado' con una cita muerta.
+    assert p.estado in ("pendiente", "vencido"), "el programa quedo en '%s'" % p.estado
+    return "cita cancelada, programa %s (fuera de la agenda mientras este inactiva), " \
+           "sin aviso" % p.estado
+
+
+@caso("36. La agenda no le guarda lugar a una unidad inactiva")
+def c36():
+    db = nueva_db()
+    t, pipa, _ = sembrar(db, genericos=2)
+    srv = servicio(db, "aceite", dias=1)
+    hoy = date.today()
+    baja = unidad(db, "B1", pipa, t)
+    baja.activo = False
+    programa(db, baja, srv, hoy + timedelta(days=5))
+    viva = unidad(db, "B2", pipa, t)
+    programa(db, viva, srv, hoy + timedelta(days=5))
+    r = ag.recalcular(db, t, hoy=hoy)
+    unidades = {c.unidad_id for c in citas(db)}
+    assert unidades == {viva.id}, "citas para las unidades %s" % unidades
+    assert r["propuestas"] == 1, r
+    return "solo la unidad activa recibio cita"
+
+
+@caso("37. Si la unidad llego, la cita se cierra y el programa recibe otra")
+def c37():
+    from app import jobs
+    from datetime import datetime as dt
+    db = nueva_db()
+    t, pipa, _ = sembrar(db, genericos=1)
+    u, p, c = _cita_perdida(db, t, pipa)
+    # Entro por un correctivo: el chofer si llevo la unidad, pero el preventivo
+    # se sigue debiendo.
+    db.add(m.OrdenServicio(folio="OS-7", unidad_id=u.id, taller_id=t.id,
+                           fecha_entrada=dt.combine(c.fecha_cita, dt.min.time()),
+                           estado="cerrada"))
+    db.flush()
+    jobs.generar_avisos_incumplimiento(db)
+    db.refresh(c)
+    assert c.estado == "cumplida", \
+        "la cita quedo '%s': seguiria viva para siempre y el programa atorado" % c.estado
+    r = ag.recalcular(db, t, hoy=date.today())
+    assert r["propuestas"] == 1, "el programa no recibio cita nueva: %s" % r
+    return "cita cumplida y el preventivo pendiente vuelve a la agenda"
+
+
+@caso("38. Un formato levantado a mano (sin orden) cuenta como presentarse")
+def c38():
+    from app import jobs
+    from datetime import datetime as dt
+    db = nueva_db()
+    t, pipa, _ = sembrar(db, genericos=1)
+    u, p, c = _cita_perdida(db, t, pipa)
+    db.add(m.ReporteMantenimiento(folio="RM-9", unidad_id=u.id, taller_id=t.id,
+                                  fecha_entrada=dt.combine(c.fecha_cita, dt.min.time())
+                                  .replace(hour=10)))
+    db.flush()
+    creados = jobs.generar_avisos_incumplimiento(db)
+    assert creados == 0, "el formato de la pluma no se tomo como llegada"
+    return "formato de mantenimiento = la unidad llego"
+
+
+@caso("39. Una entrada anotada en el Excel del taller cuenta como presentarse")
+def c39():
+    from app import jobs
+    db = nueva_db()
+    t, pipa, _ = sembrar(db, genericos=1)
+    u, p, c = _cita_perdida(db, t, pipa)
+    db.add(m.MovimientoTaller(unidad_id=u.id, fecha_ingreso=c.fecha_cita + timedelta(days=1)))
+    db.flush()
+    creados = jobs.generar_avisos_incumplimiento(db)
+    assert creados == 0, "la entrada del Excel del taller no se tomo como llegada"
+    return "movimiento_taller = la unidad llego"
+
+
+@caso("40. El recalculo que mueve una cita confirmada avisa al chofer")
+def c40():
+    db = nueva_db()
+    t, pipa, _ = sembrar(db, genericos=1)
+    ch = _chofer(db)
+    srv = servicio(db, "aceite", dias=1)
+    hoy = date.today()
+    u = unidad(db, "M1", pipa, t)
+    u.poseedor_chofer_id = ch.usuario_id
+    u.titular_chofer_id = ch.usuario_id
+    db.flush()
+    p = programa(db, u, srv, hoy + timedelta(days=12))
+    p.estado = "agendado"
+    lejos = hoy + timedelta(days=10)
+    while not ag.opera(t, lejos):
+        lejos += timedelta(days=1)
+    c = m.CitaTaller(taller_id=t.id, unidad_id=u.id, programa_mantenimiento_id=p.id,
+                     tipo_servicio_id=srv.id, fecha_cita=lejos,
+                     fecha_limite_origen=p.fecha_limite, duracion_estimada_dias=1,
+                     estado="confirmada", fecha_confirmacion_chofer=ag.ahora_utc())
+    db.add(c); db.flush()
+    r = ag.recalcular(db, t, hoy=hoy)
+    db.refresh(c)
+    assert c.fecha_cita != lejos, "el caso no movio la cita (%s): %s" % (c.fecha_cita, r)
+    assert c.estado == "reprogramada", c.estado
+    assert c.fecha_confirmacion_chofer is None, "debe volver a pedir la confirmacion"
+    avisos = db.query(m.Notificacion).filter(m.Notificacion.usuario_id == ch.usuario_id).all()
+    assert len(avisos) == 1, "el chofer recibio %d avisos" % len(avisos)
+    rep = db.query(m.Reprogramacion).one()
+    assert rep.aviso_enviado, "la reprogramacion no registra el aviso"
+    return "del %s al %s, chofer avisado y confirmacion reiniciada" % (lejos, c.fecha_cita)
+
+
+@caso("41. La tolerancia configurada se respeta")
+def c41():
+    from app import jobs
+    db = nueva_db()
+    t, pipa, _ = sembrar(db, genericos=1)
+    db.add(m.Configuracion(clave="dias_tolerancia_penalizacion", valor="10"))
+    u, p, c = _cita_perdida(db, t, pipa, dias_atras=5)
+    creados = jobs.generar_avisos_incumplimiento(db)
+    db.refresh(c)
+    assert creados == 0 and c.estado == "confirmada", \
+        "con 10 dias de tolerancia, una falta de hace 5 genero %d aviso(s)" % creados
+    return "5 dias de atraso dentro de 10 de tolerancia: sin aviso todavia"
+
+
+@caso("42. El gerente no ve incumplimientos de unidades dadas de baja")
+def c42():
+    from app.modules.sistema import gerente_controller as gc
+    db = nueva_db()
+    t, pipa, _ = sembrar(db, genericos=1)
+    ch = _chofer(db)
+    srv = servicio(db, "aceite", dias=1)
+    hoy = date.today()
+    for eco, activa in (("G1", True), ("G2", False)):
+        u = unidad(db, eco, pipa, t)
+        u.activo = activa
+        u.poseedor_chofer_id = ch.usuario_id
+        programa(db, u, srv, hoy - timedelta(days=3)).estado = "vencido"
+    db.flush()
+    lista = gc.incumplimiento(usuario=None, db=db)
+    assert [x["unidad"] for x in lista] == ["G1"], [x["unidad"] for x in lista]
+    return "solo aparece la unidad activa"
+
+
+# ===================================================================== #
 def main():
     ok = fallo = pend = 0
     print("=" * 78)

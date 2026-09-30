@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from . import models as m
 from . import services as svc
-from .core.security import notificar
+from .core.security import notificar, registrar_bitacora
 from .core.tiempo import TZ_OPERACION, ahora_utc
 from .modules.mantenimiento import agenda_service as agenda
 
@@ -73,13 +73,67 @@ def _se_presento(db: Session, cita: m.CitaTaller) -> bool:
     la cita en adelante cuenta como que si se presento, aunque haya llegado
     tarde. Ante la duda no se le genera un aviso a nadie -- el costo de acusar de
     mas a un chofer es mucho mayor que el de dejar pasar un caso.
+
+    Por eso tampoco basta la orden: una unidad tambien entra con un formato de
+    mantenimiento levantado a mano en la pluma (sin orden), o queda anotada en el
+    Excel del taller que se importa cada madrugada (movimiento_taller). Mirar
+    solo la orden acusaba de falta a choferes que si llevaron la unidad.
     """
     inicio_tj = datetime.combine(cita.fecha_cita, datetime.min.time())
     inicio = inicio_tj.replace(tzinfo=TZ_OPERACION).astimezone(timezone.utc)
-    return (db.query(m.OrdenServicio)
+    if (db.query(m.OrdenServicio.id)
             .filter(m.OrdenServicio.unidad_id == cita.unidad_id,
-                    m.OrdenServicio.fecha_entrada >= inicio)
+                    m.OrdenServicio.fecha_entrada >= inicio).first()):
+        return True
+    if (db.query(m.ReporteMantenimiento.id)
+            .filter(m.ReporteMantenimiento.unidad_id == cita.unidad_id,
+                    m.ReporteMantenimiento.fecha_entrada >= inicio).first()):
+        return True
+    # `fecha_ingreso` ya es un dia del calendario del taller: se compara directo.
+    return (db.query(m.MovimientoTaller.id)
+            .filter(m.MovimientoTaller.unidad_id == cita.unidad_id,
+                    m.MovimientoTaller.fecha_ingreso >= cita.fecha_cita)
             .first() is not None)
+
+
+def cancelar_citas_de_unidades_inactivas(db: Session) -> int:
+    """Una unidad dada de baja o bloqueada ya no va a ir al taller.
+
+    Logistica la desactiva en su catalogo y la sincronizacion de la madrugada lo
+    copia a `unidad.activo`, pero sus citas seguian vivas: la agenda les guardaba
+    lugar y, si estaban confirmadas, este mismo job terminaba acusando al chofer
+    de no llevar una unidad que ya no existe para la operacion.
+
+    La cita se cancela y el programa NO: si Logistica la reactiva, el programa
+    vuelve solo a la cola (la agenda salta los de unidades inactivas mientras lo
+    esten). Es lo mismo que hace /agenda/citas/{id}/cancelar.
+    """
+    citas = (db.query(m.CitaTaller).join(m.Unidad, m.CitaTaller.unidad_id == m.Unidad.id)
+             .filter(m.CitaTaller.estado.in_(("propuesta", "confirmada", "reprogramada")),
+                     m.Unidad.activo.isnot(True)).all())
+    for c in citas:
+        comprometida = c.estado in ("confirmada", "reprogramada")
+        c.estado = "cancelada"
+        if c.programa_mantenimiento_id:
+            prog = db.query(m.ProgramaMantenimiento).filter(
+                m.ProgramaMantenimiento.id == c.programa_mantenimiento_id).first()
+            if prog and prog.estado == "agendado":
+                prog.estado = "pendiente"
+        registrar_bitacora(db, None, "cita_cancelada_unidad_inactiva", "cita_taller", c.id,
+                           datos_despues=f"unidad {c.unidad.num_economico} inactiva en el catalogo")
+        # Solo se le avisa a quien ya tenia el compromiso; una propuesta nunca
+        # le llego como algo firme.
+        poseedor = svc.poseedor_actual(db, c.unidad) if comprometida else None
+        if poseedor:
+            notificar(db, poseedor, "Se cancelo tu cita de taller",
+                      f"Unidad {c.unidad.num_economico}: la cita del {c.fecha_cita} se "
+                      "cancelo porque la unidad esta dada de baja o bloqueada.",
+                      "cita", entidad_tipo="cita_taller", entidad_id=c.id)
+    # La sesion no hace autoflush: sin esto, la consulta de faltas que corre
+    # despues leeria de la base estas citas todavia 'confirmadas' y las volveria
+    # a marcar como falta del chofer.
+    db.flush()
+    return len(citas)
 
 
 def generar_avisos_incumplimiento(db: Session) -> int:
@@ -107,9 +161,16 @@ def generar_avisos_incumplimiento(db: Session) -> int:
     El aviso se emite contra el POSEEDOR de la unidad (RN-01), no contra el
     titular, y se guarda DE DONDE salio esa conclusion (`fundamento_poseedor`).
     """
-    tolerancia = _config(db, "dias_tolerancia_aviso", 0)
+    # La clave que existe (y que se edita en Parametros) es la de la semilla. El
+    # job leia 'dias_tolerancia_aviso', que nadie crea, asi que la tolerancia
+    # configurada nunca se aplicaba. La vieja queda solo como respaldo.
+    tolerancia = _config(db, "dias_tolerancia_penalizacion",
+                         _config(db, "dias_tolerancia_aviso", 0))
     limite = date.today() - timedelta(days=tolerancia)
     creados = 0
+
+    # Antes de buscar faltas: una unidad dada de baja no puede faltar a nada.
+    cancelar_citas_de_unidades_inactivas(db)
 
     # Un mantenimiento vencido se marca como tal -- es un hecho y el tablero lo
     # necesita -- pero eso YA NO genera aviso por si solo. Son dos preguntas
@@ -126,7 +187,12 @@ def generar_avisos_incumplimiento(db: Session) -> int:
         if not c.unidad:
             continue
         if _se_presento(db, c):
-            continue                      # la unidad si llego: no hay nada que avisar
+            # La unidad si llego: no hay nada que avisar, y la cita se cierra.
+            # Antes solo se saltaba y la cita se quedaba 'confirmada' para
+            # siempre; como seguia viva, la agenda nunca le daba otra al
+            # programa y el mantenimiento se atoraba sin que nadie lo viera.
+            c.estado = "cumplida"
+            continue
 
         # Se deja escrito en la cita, que es donde vive el hecho. Sin esto la
         # cita seguiria "viva" para siempre y el recalculo la arrastraria dia

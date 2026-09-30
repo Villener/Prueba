@@ -33,10 +33,12 @@ def kpis(dias: int = 30, usuario=Depends(solo_ger), db: Session = Depends(get_db
                         m.Espacio.estado == "ocupado").scalar() or 0)
     # Incluye 'vencido': el job nocturno cambia el estado al penalizar, y si solo
     # se mirara 'pendiente' el indicador caeria a cero justo despues de penalizar.
+    # Y solo unidades activas: una dada de baja no tiene chofer que incumpla.
     incumpliendo = (db.query(func.count(func.distinct(m.Unidad.poseedor_chofer_id)))
                     .select_from(m.ProgramaMantenimiento).join(m.Unidad)
                     .filter(m.ProgramaMantenimiento.estado.in_(["pendiente", "vencido"]),
-                            m.ProgramaMantenimiento.fecha_limite < date.today()).scalar() or 0)
+                            m.ProgramaMantenimiento.fecha_limite < date.today(),
+                            m.Unidad.activo.is_(True)).scalar() or 0)
     retrasos = [p.dias_retraso_captura for p in db.query(m.Presupuesto).all()
                 if p.dias_retraso_captura is not None]
     # TODOS LOS CONTEOS DE FLOTA VAN SOBRE UNIDADES ACTIVAS, y hasta hoy no era
@@ -95,9 +97,11 @@ def incumplimiento(usuario=Depends(solo_ger), db: Session = Depends(get_db)):
     esa distincion es la que evita culpar al titular equivocado.
     """
     out = []
-    progs = (db.query(m.ProgramaMantenimiento)
+    # Una unidad dada de baja o bloqueada por Logistica no se le cobra a nadie.
+    progs = (db.query(m.ProgramaMantenimiento).join(m.Unidad)
              .filter(m.ProgramaMantenimiento.estado.in_(["pendiente", "vencido"]),
-                     m.ProgramaMantenimiento.fecha_limite < date.today()).all())
+                     m.ProgramaMantenimiento.fecha_limite < date.today(),
+                     m.Unidad.activo.is_(True)).all())
     for p in progs:
         u = p.unidad
         poseedor = svc.poseedor_actual(db, u)

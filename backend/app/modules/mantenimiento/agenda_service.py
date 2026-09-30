@@ -279,6 +279,10 @@ def _pendientes(db: Session, taller: m.Taller):
                  .all())
     salida = []
     for p in programas:
+        # Dada de baja o bloqueada por Logistica: no se le guarda lugar. El
+        # programa sigue vivo y vuelve a la cola solo si la reactivan.
+        if p.unidad is None or not p.unidad.activo:
+            continue
         if taller_de(db, p.unidad) != taller.id:
             continue
         cita = (db.query(m.CitaTaller)
@@ -290,6 +294,20 @@ def _pendientes(db: Session, taller: m.Taller):
             continue                  # compromiso firme con el chofer: no se toca
         salida.append(p)
     return salida
+
+
+def _avisar_movimiento(db: Session, cita: m.CitaTaller, anterior: date):
+    """Le dice al poseedor que el recalculo le movio una cita comprometida."""
+    # Import local: flota_service y security no deben cargarse al importar este
+    # modulo (las pruebas de la agenda lo usan solo con los modelos).
+    from ...core.security import notificar
+    from ..flota.flota_service import poseedor_actual
+    poseedor = poseedor_actual(db, cita.unidad) if cita.unidad else None
+    if poseedor:
+        notificar(db, poseedor, "Se movio tu cita de taller",
+                  f"Unidad {cita.unidad.num_economico}: por falta de espacio pasa del "
+                  f"{anterior} al {cita.fecha_cita}. Confirma la fecha nueva.",
+                  "cita", entidad_tipo="cita_taller", entidad_id=cita.id)
 
 
 def _movible(cita: m.CitaTaller) -> bool:
@@ -393,16 +411,26 @@ def recalcular(db: Session, taller: m.Taller, hoy: date | None = None) -> dict:
             cita.duracion_estimada_dias = dura
 
         if cita is not None and cita.fecha_cita != colocada:
+            # Una cita confirmada (o ya reprogramada) es un compromiso que el
+            # chofer conoce. Moverla sin decirle nada lo dejaba presentandose en
+            # la fecha vieja y, si no llegaba en la nueva, el job lo acusaba de
+            # falta. Se le avisa y tiene que volver a confirmar, igual que
+            # cuando Victor la mueve a mano (agenda_controller.reprogramar).
+            comprometida = cita.estado in ("confirmada", "reprogramada")
+            anterior = cita.fecha_cita
             db.add(m.Reprogramacion(
-                cita_id=cita.id, fecha_anterior=cita.fecha_cita, fecha_nueva=colocada,
+                cita_id=cita.id, fecha_anterior=anterior, fecha_nueva=colocada,
                 motivo="sin_espacio", automatica=True,
-                requirio_autorizacion=cita.estado == "confirmada"))
+                requirio_autorizacion=cita.estado == "confirmada",
+                aviso_enviado=comprometida))
             cita.fecha_cita = colocada
             cita.duracion_estimada_dias = dura
             cita.veces_reprogramada = (cita.veces_reprogramada or 0) + 1
             cita.score_prioridad = score_prioridad(clave)
-            if cita.estado == "confirmada":
+            if comprometida:
                 cita.estado = "reprogramada"
+                cita.fecha_confirmacion_chofer = None
+                _avisar_movimiento(db, cita, anterior)
             res["movidas"] += 1
 
         programa.estado = "agendado"
