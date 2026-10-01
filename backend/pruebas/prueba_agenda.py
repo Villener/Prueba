@@ -684,12 +684,14 @@ def c28():
 @caso("29. Si la unidad SI llego al taller, no hay aviso")
 def c29():
     from app import jobs
+    from app.core.tiempo import TZ_OPERACION
     from datetime import datetime as dt
     db = nueva_db()
     t, pipa, _ = sembrar(db, genericos=1)
     u, p, c = _cita_perdida(db, t, pipa)
     db.add(m.OrdenServicio(folio="OS-9", unidad_id=u.id, taller_id=t.id,
-                           fecha_entrada=dt.combine(c.fecha_cita, dt.min.time()),
+                           fecha_entrada=dt.combine(c.fecha_cita, dt.min.time()).replace(
+                               hour=9, tzinfo=TZ_OPERACION),  # 9 am en Tijuana, ese dia
                            estado="abierta"))
     db.flush()
     creados = jobs.generar_avisos_incumplimiento(db)
@@ -829,6 +831,7 @@ def c36():
 @caso("37. Si la unidad llego, la cita se cierra y el programa recibe otra")
 def c37():
     from app import jobs
+    from app.core.tiempo import TZ_OPERACION
     from datetime import datetime as dt
     db = nueva_db()
     t, pipa, _ = sembrar(db, genericos=1)
@@ -836,7 +839,8 @@ def c37():
     # Entro por un correctivo: el chofer si llevo la unidad, pero el preventivo
     # se sigue debiendo.
     db.add(m.OrdenServicio(folio="OS-7", unidad_id=u.id, taller_id=t.id,
-                           fecha_entrada=dt.combine(c.fecha_cita, dt.min.time()),
+                           fecha_entrada=dt.combine(c.fecha_cita, dt.min.time()).replace(
+                               hour=9, tzinfo=TZ_OPERACION),  # 9 am en Tijuana, ese dia
                            estado="cerrada"))
     db.flush()
     jobs.generar_avisos_incumplimiento(db)
