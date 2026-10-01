@@ -13,7 +13,7 @@ from ...schemas import (AlertaOut, IncumplimientoOut, KpiOut, MensajeOut, OrdenS
 from ...core.security import notificar, registrar_bitacora, require_roles
 from ...core.tiempo import ahora_utc, dia_operativo
 
-from . import estadisticas, historiales
+from . import estadisticas, historiales, patios
 from .exportar_historial import construir as construir_historial
 from .exportar_tablero import construir as construir_tablero
 
@@ -146,6 +146,21 @@ def permanencia(usuario=Depends(solo_ger), db: Session = Depends(get_db)):
     ordenes = (db.query(m.OrdenServicio).filter(m.OrdenServicio.estado != "cerrada").all())
     res = [svc.orden_out(db, o) for o in ordenes]
     return sorted(res, key=lambda x: -x["dias_en_taller"])
+
+
+@router.get("/patios")
+def patios_plantas(usuario=Depends(solo_ger), db: Session = Depends(get_db)):
+    """Las plantas con taller, con cuantas unidades tienen adentro y en flota."""
+    return patios.plantas(db)
+
+
+@router.get("/patios/{taller_id}")
+def patio_planta(taller_id: int, usuario=Depends(solo_ger), db: Session = Depends(get_db)):
+    """Que hay en el patio de esa planta (croquis, ordenes y Excel) y su flota."""
+    t = db.get(m.Taller, taller_id)
+    if not t:
+        raise HTTPException(404, "Taller no encontrado")
+    return patios.patio(db, t)
 
 
 # ---------------------------------------------------------------- CU-GER-04 -- #

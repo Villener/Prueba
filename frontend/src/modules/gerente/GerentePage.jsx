@@ -21,6 +21,8 @@ import { Indicadores } from '../administrador/IndicadoresPage.jsx'
    Reporte de Mantenimiento, pero ese dato se quedaba adentro del formato y para
    saber qué le tocó a cada quien había que abrir reporte por reporte. */
 import Historiales from './HistorialesPage.jsx'
+// Los patios de cada planta (pedido de Tiscareno): van arriba de la pestana Taller.
+import { Patios } from './PatiosPage.jsx'
 import {
   Aviso, Badge, Card, Empty, EstadoBadge, IcoCampana, IcoDescargar, IcoListo, Kpi, Modal,
   Regla, Spinner, Tabla, useApi, useToast,
@@ -779,10 +781,12 @@ function TallerVista() {
   const ocupacion = useApi(() => api.get('/gerente/ocupacion'))
   const permanencia = useApi(() => api.get('/gerente/permanencia'))
   const historial = useApi(() => api.get('/gerente/historial', { dias: 90 }))
-  if (ocupacion.cargando) return <Spinner />
   return (
     <>
-      <h1 style={{ marginBottom: 14 }}>Taller</h1>
+      <Patios />
+
+      <h1 style={{ margin: '24px 0 14px' }}>Ocupación del taller</h1>
+      {ocupacion.cargando && <Spinner />}
 
       {(ocupacion.data || []).map((t) => (
         <Card key={t.taller_id} title={t.taller}

@@ -233,7 +233,9 @@ def resolver_solicitud(sol_id: int, datos: ResolucionSolicitudIn, usuario=Depend
 
 # ------------------------------------------------------------- CU-ADM-02/03 -- #
 @router.get("/taller/{taller_id}", response_model=TallerOut)
-def plano_taller(taller_id: int, usuario=Depends(solo_admin), db: Session = Depends(get_db)):
+def plano_taller(taller_id: int, usuario=Depends(admin_o_gerente), db: Session = Depends(get_db)):
+    """El croquis. Lo lee tambien el gerente, de solo lectura, en Taller > Patios:
+    mover o sacar unidades sigue siendo solo del administrador (los POST)."""
     t = db.query(m.Taller).filter(m.Taller.id == taller_id).first()
     if not t:
         raise HTTPException(404, "Taller no encontrado")
