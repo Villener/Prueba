@@ -652,6 +652,7 @@ class CitaOut(ORMModel):
     confirmada_por_taller: bool = False
     confirmada_por_chofer: bool = False
     chofer: Optional[str] = None
+    chofer_telefono: Optional[str] = None
 
 
 class ReprogramarIn(BaseModel):

@@ -315,8 +315,9 @@ function MisCitas() {
   return (
     <Card title={`Tus citas de taller (${citas.length})`}>
       <Aviso tipo="info">
-        Confirma que te vas a presentar. <strong>Solo se cuenta como incumplimiento si faltas a
-        una cita que confirmaste</strong>, así que confirmar te protege a ti también.
+        Confirma que te vas a presentar. <strong>Si el taller ya confirmó tu cita y no llevas la
+        unidad, cuenta como incumplimiento aunque tú no la hayas confirmado.</strong> Si esa
+        fecha no te sirve, habla con Víctor antes para que la cambie.
       </Aviso>
       {citas.map((c) => (
         <div className="list-item" key={c.id}>

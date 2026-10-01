@@ -30,7 +30,8 @@ from .core.migraciones import (asegurar_candados_bitacora, asegurar_columnas,
                                asegurar_indices, asegurar_renombres)
 from .seed import (asegurar_asientos_de_reportes, asegurar_parametros, asegurar_plano,
                    asegurar_reportes_de_ordenes_abiertas,
-                   asegurar_rol_mecanicos, asegurar_roles, asegurar_tipos_servicio,
+                   asegurar_preventivo_real, asegurar_rol_mecanicos, asegurar_roles,
+                   asegurar_tipos_servicio,
                    asegurar_usuarios_demo, reconciliar_cuentas, sembrar)
 
 app = FastAPI(
@@ -111,6 +112,9 @@ def startup():
         # toda la operacion (pregunta abierta #12).
         log.info("parametros: %s", asegurar_parametros(db))
         sembrar(db)
+        # Despues de sembrar, porque necesita los planes: el preventivo dura
+        # horas (no 8 dias de bahia) y ningun plan pasa de 90 dias.
+        log.info("preventivo: %s", asegurar_preventivo_real(db))
         # Despues de sembrar: pone al dia el plano de una base que ya existia
         # (etiquetas por fila y que zonas admiten unidad). En una base nueva no
         # encuentra nada que arreglar.

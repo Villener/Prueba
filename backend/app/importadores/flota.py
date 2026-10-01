@@ -65,12 +65,17 @@ SUCURSAL_A_PLANTA = {
 TALLER_SUSTITUTO = {"LIBERTAD": "ALAMOS"}
 
 
-def _tipo_de(canal: str) -> str:
+def _tipo_explicito(canal: str):
+    """El tipo que dice el canal, o None si el canal no se reconoce."""
     c = n.clave_unidad(canal) or n.texto(canal).upper()
     for aguja, tipo in CANAL_A_TIPO:
         if aguja in c:
             return tipo
-    return TIPO_POR_OMISION
+    return None
+
+
+def _tipo_de(canal: str) -> str:
+    return _tipo_explicito(canal) or TIPO_POR_OMISION
 
 
 def _leer_catalogo(carpeta: str) -> dict:
@@ -148,7 +153,7 @@ def importar(db: Session, carpeta: str = CARPETA_DATOS) -> dict:
 
     r = {"catalogo": len(catalogo), "descartadas_del_excel": descartadas,
          "actualizadas": 0, "creadas": 0, "placas_puestas": 0, "vin_puestos": 0,
-         "renombradas": 0, "sin_taller": 0, "solo_en_taller": 0,
+         "renombradas": 0, "sin_taller": 0, "solo_en_taller": 0, "tipo_corregido": 0,
          "placas_en_conflicto": [], "vin_en_conflicto": []}
 
     def aplicar(u: m.Unidad, fila: dict, es_nueva: bool):
@@ -179,6 +184,18 @@ def importar(db: Session, carpeta: str = CARPETA_DATOS) -> dict:
             u.modelo = fila["modelo"][:60]
         if fila["anio"] and not u.anio:
             u.anio = fila["anio"]
+
+        # El canal de Logistica manda sobre el tipo TAMBIEN en las unidades que
+        # ya existian. Antes solo se usaba al crear, y 104 pipas del canal
+        # ESTACIONARIO se quedaron como 'reparto' desde la primera importacion:
+        # plan de 90 dias en vez de 60 y bahias de reparto en vez de las de
+        # pipa. Victor lo confirmo el 2026-10-01: estacionario = pipa. Un canal
+        # que no se reconoce no toca el tipo que ya tenia la unidad.
+        tipo = _tipo_explicito(fila["canal"])
+        if tipo in tipos and u.tipo_unidad_id != tipos[tipo]:
+            u.tipo_unidad_id = tipos[tipo]
+            if not es_nueva:
+                r["tipo_corregido"] += 1
 
         taller = taller_de(fila["sucursal"])
         if taller:

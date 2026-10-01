@@ -187,6 +187,8 @@ def resolver_solicitud(sol_id: int, datos: ResolucionSolicitudIn, usuario=Depend
             prog.estado = "cumplido"
             prog.fecha_cumplimiento = ahora_utc()
             prog.orden_servicio_id = orden.id
+            # Y nace el siguiente, contado desde hoy que si llego.
+            meta_preventivo.crear_siguiente_programa(db, prog)
 
             # Y LA CITA TAMBIEN, que es la otra mitad del mismo hueco. Nadie
             # marcaba una cita como `cumplida` en todo el sistema --la unica

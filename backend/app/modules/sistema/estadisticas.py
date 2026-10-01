@@ -246,6 +246,55 @@ def serie(db: Session, gran: str = "mes", cuantos: int = 12,
     }
 
 
+def _meta_pct_preventivo(db: Session) -> int:
+    c = (db.query(m.Configuracion)
+         .filter(m.Configuracion.clave == "meta_pct_preventivo").first())
+    try:
+        return int(c.valor) if c else 80
+    except (TypeError, ValueError):
+        return 80
+
+
+TOPE_PASTEL_MECANICOS = 5
+
+
+def _mecanicos_preventivo(db: Session, desde: datetime.date, hasta: datetime.date) -> dict:
+    """Quien hace los preventivos: el pastel y el ranking del gerente.
+
+    Sale de historiales.historial_mecanicos, la MISMA cuenta de la pantalla de
+    Historiales, para que los dos numeros nunca se contradigan. Un mecanico
+    suma un preventivo cuando esta capturado como responsable en el formato de
+    mantenimiento; el que trabajo sin quedar capturado no aparece, y eso es lo
+    que hay que corregir en el taller, no aqui.
+
+    Es la base para el premio que quiere dar el Lic. Tiscareno: el criterio y
+    el monto los decide el; el sistema solo pone los numeros del periodo.
+    """
+    from .historiales import historial_mecanicos
+    filas = [f for f in historial_mecanicos(db, desde, hasta, "todos")["mecanicos"]
+             if f["preventivos"]]
+    filas.sort(key=lambda f: (-f["preventivos"], f["nombre"]))
+    total = sum(f["preventivos"] for f in filas)
+
+    def pct(n):
+        return round(100 * n / total, 1) if total else 0.0
+
+    partes = [{"clave": f"m{i}", "nombre": f["nombre"], "cuantas": f["preventivos"],
+               "pct": pct(f["preventivos"])}
+              for i, f in enumerate(filas[:TOPE_PASTEL_MECANICOS])]
+    resto = filas[TOPE_PASTEL_MECANICOS:]
+    if resto:
+        n = sum(f["preventivos"] for f in resto)
+        partes.append({"clave": "otros", "nombre": f"Otros {len(resto)}",
+                       "cuantas": n, "pct": pct(n)})
+    ranking = [{"lugar": i + 1, "nombre": f["nombre"], "taller": f["taller"],
+                "preventivos": f["preventivos"], "correctivos": f["correctivos"],
+                "pct_preventivo": (round(100 * f["preventivos"] / f["trabajos"], 1)
+                                   if f["trabajos"] else None)}
+               for i, f in enumerate(filas)]
+    return {"total": total, "partes": partes, "ranking": ranking}
+
+
 def tablero_rango(db: Session, desde: datetime.date, hasta: datetime.date,
                   gran: str = "mes") -> dict:
     """Los cuatro indicadores de las unidades entre dos fechas del calendario.
@@ -404,8 +453,12 @@ def tablero_rango(db: Session, desde: datetime.date, hasta: datetime.date,
         # Con el rango vacio va `total: 0` y las rebanadas en cero -- no null:
         # aqui el cero SI es una medicion ("no entro una sola orden"), a
         # diferencia de un promedio, que sin base no existe.
+        "mecanicos_preventivo": _mecanicos_preventivo(db, desde, hasta),
         "mezcla": {
             "total": tot_mezcla,
+            # La meta del gerente (80% preventivo). Vive en configuracion para
+            # poder moverla sin desplegar.
+            "meta_pct": _meta_pct_preventivo(db),
             "partes": [
                 {"clave": k, "nombre": n, "cuantas": mezcla[k],
                  "pct": round(100 * mezcla[k] / tot_mezcla, 1) if tot_mezcla else 0.0}

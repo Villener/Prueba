@@ -334,3 +334,50 @@ def generar_programas(db: Session, hoy: datetime.date | None = None,
         "maximo_en_un_dia": picos[0],
         "promedio_por_dia": round(total / len(por_dia), 1) if por_dia else 0,
     }
+
+
+def plan_vigente(db: Session, unidad: m.Unidad):
+    """El plan activo del TIPO de la unidad, o None si su tipo no tiene plan."""
+    return (db.query(m.PlanMantenimiento)
+            .filter(m.PlanMantenimiento.tipo_unidad_id == unidad.tipo_unidad_id,
+                    m.PlanMantenimiento.activo.is_(True))
+            .order_by(m.PlanMantenimiento.id).first())
+
+
+def crear_siguiente_programa(db: Session, prog: m.ProgramaMantenimiento):
+    """Al cumplirse un preventivo nace el siguiente, anclado en el dia REAL.
+
+    Sin esto el ciclo se moria en la primera vuelta: el programa quedaba
+    `cumplido` y nadie creaba el que sigue, asi que la unidad desaparecia de la
+    agenda hasta que alguien corriera generar_programas a mano -- y ese reparte
+    desde hoy segun la posicion en la lista, no desde el servicio que se hizo.
+
+    fecha_limite = dia del cumplimiento (calendario de Tijuana) + periodicidad.
+    Se usa el plan vigente del TIPO de la unidad, no el del programa viejo: si
+    Logistica reclasifica una unidad (reparto -> pipa), su siguiente servicio ya
+    sale con la periodicidad correcta. Idempotente: si ya hay un programa vivo de
+    ese plan para la unidad, no crea otro.
+    """
+    from ...core.tiempo import dia_operativo
+    unidad = prog.unidad or db.query(m.Unidad).filter(m.Unidad.id == prog.unidad_id).first()
+    if unidad is None or not unidad.activo or prog.fecha_cumplimiento is None:
+        return None
+    plan = plan_vigente(db, unidad) or prog.plan
+    if plan is None or not plan.activo or not plan.periodicidad_dias:
+        return None
+    vivo = (db.query(m.ProgramaMantenimiento.id)
+            .filter(m.ProgramaMantenimiento.unidad_id == unidad.id,
+                    m.ProgramaMantenimiento.plan_id == plan.id,
+                    m.ProgramaMantenimiento.id != prog.id,
+                    ~m.ProgramaMantenimiento.estado.in_(ESTADOS_PROGRAMA_CERRADOS))
+            .first())
+    if vivo:
+        return None
+    limite = dia_operativo(prog.fecha_cumplimiento) + datetime.timedelta(
+        days=plan.periodicidad_dias)
+    km = ((unidad.km_actual or 0) + plan.periodicidad_km) if plan.periodicidad_km else None
+    nuevo = m.ProgramaMantenimiento(unidad_id=unidad.id, plan_id=plan.id,
+                                    fecha_limite=limite, km_programado=km,
+                                    estado="pendiente")
+    db.add(nuevo)
+    return nuevo

@@ -20,6 +20,28 @@ function Holgura({ dias }) {
   return <Badge tono="ok">{dias} d de margen</Badge>
 }
 
+/* WhatsApp sin servidor: un enlace wa.me que abre la conversación con el
+   mensaje ya escrito, y Víctor lo manda desde su propio teléfono. Solo con un
+   número de 10 dígitos que no sea el de relleno (664-000-0000). */
+function enlaceWhatsApp(cita) {
+  const tel = (cita.chofer_telefono || '').replace(/\D/g, '').slice(-10)
+  if (tel.length !== 10 || /^6640000000$/.test(tel)) return null
+  const texto = `Hola ${cita.chofer || ''}. La unidad ${cita.unidad} tiene cita de `
+    + `mantenimiento preventivo en ${cita.taller} el ${fmtFecha(cita.fecha_cita)}. `
+    + 'Por favor confírmala en la app del taller. Gracias.'
+  return `https://wa.me/52${tel}?text=${encodeURIComponent(texto)}`
+}
+
+function BotonWhatsApp({ cita }) {
+  const url = enlaceWhatsApp(cita)
+  if (!url) return <span className="s">sin teléfono</span>
+  return (
+    <a className="btn sm" href={url} target="_blank" rel="noopener noreferrer">
+      Avisar por WhatsApp
+    </a>
+  )
+}
+
 function Marca({ si }) {
   const Ico = si ? IcoListo : IcoPendiente
   return <Ico size={12} className="ico-inline" aria-hidden="true" />
@@ -164,7 +186,10 @@ export function Agenda() {
                 <div className="t">{c.unidad} · {c.servicio}</div>
                 <div className="s">{fmtFecha(c.fecha_cita)} · {c.chofer || 'sin poseedor'}</div>
               </div>
-              <Confirmaciones cita={c} />
+              <div style={{ display: 'grid', gap: 6, justifyItems: 'end' }}>
+                <Confirmaciones cita={c} />
+                <BotonWhatsApp cita={c} />
+              </div>
             </div>
           ))}
         </Card>

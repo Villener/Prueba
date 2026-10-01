@@ -176,7 +176,7 @@ const COLOR_MEZCLA = {
  *  único portador del dato: quien no distingue el verde del azul lee la tabla y
  *  se entera igual, y quien la imprime en blanco y negro también.
  */
-function Dona({ partes, total }) {
+function Dona({ partes, total, meta }) {
   if (!total || !(partes || []).length) {
     return <Empty>Ninguna orden entró al taller en este periodo</Empty>
   }
@@ -185,6 +185,14 @@ function Dona({ partes, total }) {
   const r = 100 / (2 * Math.PI)
   let acumulado = 0
   const prev = partes.find((p) => p.clave === 'preventivo')
+  const pctPrev = prev ? prev.pct : 0
+  // La meta del gerente (80%) es una rayita sobre el anillo: si la rebanada
+  // verde no la alcanza, se ve sin leer nada.
+  const a = ((meta || 0) / 100) * 2 * Math.PI - Math.PI / 2
+  const marca = meta ? {
+    x1: 21 + (r - 3.6) * Math.cos(a), y1: 21 + (r - 3.6) * Math.sin(a),
+    x2: 21 + (r + 3.6) * Math.cos(a), y2: 21 + (r + 3.6) * Math.sin(a),
+  } : null
 
   return (
     <div className="dona-wrap">
@@ -207,6 +215,11 @@ function Dona({ partes, total }) {
           acumulado += p.pct
           return trazo
         })}
+        {marca && (
+          <line {...marca} stroke="var(--ink)" strokeWidth="0.8">
+            <title>{`Meta: ${meta}% preventivo`}</title>
+          </line>
+        )}
         {prev && (
           <>
             <text x="21" y="20.2" className="dona-cifra">{prev.pct}%</text>
@@ -229,8 +242,90 @@ function Dona({ partes, total }) {
           <span className="grow">Total de órdenes</span>
           <strong>{total}</strong>
         </li>
+        {meta ? (
+          <li className="dona-total">
+            <span className="grow">Meta de preventivo (la rayita)</span>
+            <strong>{meta}%</strong>
+            <span className="dona-pct">
+              {pctPrev >= meta ? 'cumplida' : `faltan ${Math.round((meta - pctPrev) * 10) / 10} pts`}
+            </span>
+          </li>
+        ) : null}
       </ul>
     </div>
+  )
+}
+
+/* ------------------------------------------------ mecánicos en preventivo */
+
+const COLOR_MECANICO = ['var(--grafica)', 'var(--ok)', 'var(--warn-mark)',
+                        'var(--logo-azul)', 'var(--danger)']
+
+/** Pastel de quién hizo los preventivos del periodo, con su ranking abajo.
+ *
+ *  Mismo trazo que la dona (un círculo y stroke-dasharray), pero lleno: aquí
+ *  no hay un número único que poner en medio. Los cinco que más hicieron van
+ *  con color; el resto se junta en «Otros». La tabla de abajo trae a TODOS,
+ *  porque es la que sirve para decidir un premio.
+ */
+function MecanicosPreventivo({ datos }) {
+  if (!datos || !datos.total) {
+    return <Empty>Ningún preventivo tiene mecánico capturado en este periodo</Empty>
+  }
+  const r = 100 / (2 * Math.PI)
+  let acumulado = 0
+  const color = (p, i) => (p.clave === 'otros' ? 'var(--muted)'
+    : COLOR_MECANICO[i % COLOR_MECANICO.length])
+  return (
+    <>
+      <div className="dona-wrap">
+        <svg viewBox="0 0 42 42" className="dona" role="img"
+             aria-label={'Preventivos por mecánico: '
+                         + datos.partes.map((p) => `${p.nombre} ${p.cuantas}`).join(', ')}>
+          {datos.partes.map((p, i) => {
+            const trazo = (
+              <circle key={p.clave} cx="21" cy="21" r={r / 2} fill="none"
+                      stroke={color(p, i)} strokeWidth={r}
+                      pathLength="100"
+                      strokeDasharray={`${p.pct} ${100 - p.pct}`}
+                      strokeDashoffset={25 - acumulado}>
+                <title>{`${p.nombre}: ${p.cuantas} (${p.pct}%)`}</title>
+              </circle>
+            )
+            acumulado += p.pct
+            return trazo
+          })}
+        </svg>
+        <ul className="dona-leyenda">
+          {datos.partes.map((p, i) => (
+            <li key={p.clave}>
+              <span className="dona-punto" style={{ background: color(p, i) }} />
+              <span className="grow">{p.nombre}</span>
+              <strong>{p.cuantas}</strong>
+              <span className="dona-pct">{p.pct}%</span>
+            </li>
+          ))}
+          <li className="dona-total">
+            <span className="grow">Preventivos con mecánico</span>
+            <strong>{datos.total}</strong>
+          </li>
+        </ul>
+      </div>
+      <Tabla
+        columnas={[
+          { k: 'lugar', t: '#', num: true },
+          { k: 'nombre', t: 'Mecánico' },
+          { k: 'taller', t: 'Taller' },
+          { k: 'preventivos', t: 'Preventivos', num: true },
+          { k: 'correctivos', t: 'Correctivos', num: true },
+          { k: 'pct', t: '% preventivo', num: true },
+        ]}
+        filas={datos.ranking.map((f) => ({
+          ...f, id: f.lugar, taller: f.taller || '—',
+          pct: f.pct_preventivo === null ? '—' : `${f.pct_preventivo}%`,
+        }))}
+      />
+    </>
   )
 }
 
@@ -430,7 +525,8 @@ function Tablero() {
           <Card title="Preventivo contra correctivo"
                 sub={'Las ' + (r.mezcla ? r.mezcla.total : 0) + ' orden(es) que ENTRARON'
                      + ' al taller · del ' + fmtFecha(r.desde) + ' al ' + fmtFecha(r.hasta)}>
-            <Dona partes={(r.mezcla || {}).partes} total={(r.mezcla || {}).total} />
+            <Dona partes={(r.mezcla || {}).partes} total={(r.mezcla || {}).total}
+                  meta={(r.mezcla || {}).meta_pct} />
             <Regla>
               Es la pregunta de fondo: <strong>¿el taller se adelanta a las fallas o las va
               apagando?</strong> Un preventivo alto quiere decir que el programa de
@@ -440,6 +536,19 @@ function Tablero() {
               entró por un correctivo y sigue adentro ya gastó esa capacidad, haya salido o
               no. El siniestro va aparte y no con los correctivos: un choque no es una falla
               de mantenimiento, y sumarlo ahí hace ver al taller peor de lo que está.
+            </Regla>
+          </Card>
+
+          <Card title="Mecánicos en preventivos"
+                sub={'Quién hizo los preventivos · del ' + fmtFecha(r.desde)
+                     + ' al ' + fmtFecha(r.hasta)}>
+            <MecanicosPreventivo datos={r.mecanicos_preventivo} />
+            <Regla>
+              Cuenta los preventivos donde el mecánico quedó <strong>capturado como
+              responsable</strong> en el formato de mantenimiento, en las fechas de los dos
+              calendarios. Es la misma cuenta que <em>Historiales → Mecánicos</em>. El que
+              trabajó sin quedar capturado no aparece: para que el premio sea justo, Pedro
+              tiene que registrar quién hizo cada trabajo.
             </Regla>
           </Card>
 

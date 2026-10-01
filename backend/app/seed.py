@@ -382,6 +382,45 @@ def reconciliar_cuentas(db: Session) -> dict:
     return hecho
 
 
+# Lo que dijo Victor el 2026-10-01. Si alguien edita la duracion a mano despues,
+# el origen ya no trae esta marca y el arranque no la vuelve a tocar.
+ORIGEN_PREVENTIVO = "Victor 2026-10-01: de 2 a 5 horas"
+PERIODICIDAD_MAXIMA_DIAS = 90   # "maximo cada 3 meses, de ahi para abajo, todas"
+
+
+def asegurar_preventivo_real(db: Session) -> dict:
+    """El preventivo dura de 2 a 5 horas y ninguna unidad pasa de 3 meses.
+
+    El catalogo lo traia como 8 dias de bahia (mediana de 7 casos del Excel del
+    taller, que mide PERMANENCIA: incluye esperas por refacciones). Con 8 dias
+    por unidad la agenda creia que el taller casi no tenia lugar para
+    preventivos. Ahora ocupa un dia: la unidad entra y sale el mismo dia. Si en
+    el preventivo aparece una falla grave, eso pasa a electricos o carroceria
+    como otro trabajo; no alarga el preventivo.
+
+    Cuando el sistema junte 10 ordenes propias, recalibrar_duraciones_servicio
+    medira la duracion real y esa manda.
+    """
+    hecho = {"preventivo_ajustado": False, "planes_acotados": 0}
+    ids = {p.tipo_servicio_id for p in db.query(m.PlanMantenimiento).all()
+           if p.tipo_servicio_id}
+    for t in db.query(m.TipoServicio).filter(m.TipoServicio.id.in_(ids)).all():
+        if t.origen_duracion and t.origen_duracion.startswith("medido:REPARADO"):
+            t.duracion_estimada_dias = 1
+            t.duracion_mediana_dias = None
+            t.duracion_p90_dias = 1
+            t.muestras_medidas = 0
+            t.ocupa_espacio = True
+            t.origen_duracion = ORIGEN_PREVENTIVO
+            hecho["preventivo_ajustado"] = True
+    for p in db.query(m.PlanMantenimiento).filter(
+            m.PlanMantenimiento.periodicidad_dias > PERIODICIDAD_MAXIMA_DIAS).all():
+        p.periodicidad_dias = PERIODICIDAD_MAXIMA_DIAS
+        hecho["planes_acotados"] += 1
+    db.commit()
+    return hecho
+
+
 def asegurar_roles(db: Session) -> dict:
     """Crea los roles que falten. Se puede correr N veces.
 
@@ -964,6 +1003,10 @@ PARAMETROS = [
      "RN-12: piso de unidades en preventivo por dia. Por debajo, incumple el TALLER"),
     ("meta_preventivos_max", "7",
      "RN-12: techo de unidades en preventivo por dia"),
+    ("meta_pct_preventivo", "80",
+     "Meta del gerente: porcentaje de las entradas al taller que deben ser preventivo"),
+    ("dias_anticipacion_preventivo", "30",
+     "La agenda cita un preventivo cuando le faltan estos dias para su fecha limite"),
     # PROY-NOM-030 7.1.10 c): cada libro de bitacora identifica al Regulado.
     # La razon social es la que ya imprimia el formato de mantenimiento. El
     # permiso va VACIO a proposito: no lo tenemos, y un numero inventado en un

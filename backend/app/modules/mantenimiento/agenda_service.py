@@ -28,6 +28,11 @@ HORIZONTE_DIAS = 30
 # Anticipacion por debajo de la cual una cita confirmada ya no se mueve sola.
 HORAS_INTOCABLE = 48
 
+# Un programa entra a la agenda cuando le faltan estos dias para su fecha limite.
+# Se cambia sin desplegar con la clave de configuracion.
+CLAVE_ANTICIPACION = "dias_anticipacion_preventivo"
+ANTICIPACION_DIAS = 30
+
 ESTADOS_MOVIBLES = ("propuesta",)
 ESTADOS_VIVOS = ("propuesta", "confirmada", "reprogramada")
 
@@ -265,14 +270,60 @@ def taller_de(db: Session, unidad: m.Unidad) -> int | None:
     return central.id if central else None
 
 
-def _pendientes(db: Session, taller: m.Taller):
+def dias_anticipacion(db: Session) -> int:
+    """Cuantos dias antes de su fecha limite entra un programa a la agenda."""
+    c = (db.query(m.Configuracion)
+         .filter(m.Configuracion.clave == CLAVE_ANTICIPACION).first())
+    try:
+        return max(0, int(c.valor)) if c else ANTICIPACION_DIAS
+    except (TypeError, ValueError):
+        return ANTICIPACION_DIAS
+
+
+def tope_preventivos_por_dia(db: Session) -> int:
+    """Cuantas citas de preventivo acepta un taller en un mismo dia (0 = sin tope).
+
+    Es el techo de RN-12 (`meta_preventivos_max`), el numero que ya acordo el
+    cliente. Hace falta desde que el preventivo dura horas y no 8 dias: con un
+    dia por unidad lo unico que limitaba era el numero de bahias, y la agenda
+    llegaba a meter 18 preventivos el mismo dia en Alamos. Las bahias no hacen el
+    trabajo; los mecanicos si.
+    """
+    c = db.query(m.Configuracion).filter(m.Configuracion.clave == "meta_preventivos_max").first()
+    try:
+        return max(0, int(c.valor)) if c else 7
+    except (TypeError, ValueError):
+        return 7
+
+
+def _citas_por_dia(db: Session, taller: m.Taller, desde: date, excluir: set) -> dict:
+    cuenta: dict = {}
+    for (f,) in (db.query(m.CitaTaller.fecha_cita)
+                 .filter(m.CitaTaller.taller_id == taller.id,
+                         m.CitaTaller.estado.in_(ESTADOS_VIVOS),
+                         m.CitaTaller.fecha_cita >= desde,
+                         ~m.CitaTaller.id.in_(excluir or {-1}))):
+        cuenta[f] = cuenta.get(f, 0) + 1
+    return cuenta
+
+
+def _pendientes(db: Session, taller: m.Taller, hoy: date | None = None):
     """Programas que necesitan cita en este taller y todavia no la tienen firme.
 
     `vencido` va en la lista: que un mantenimiento se haya pasado de su fecha
     limite no lo cancela, al contrario -- es el que mas urge. Sin este estado
     aqui, el job que marca los vencidos los sacaba de la cola para siempre y la
     unidad no volvia a recibir cita nunca.
+
+    Y solo los que vencen pronto. La agenda le da a cada programa el PRIMER dia
+    con cupo, sin mirar su fecha limite; con la cola entera adentro, una unidad
+    recien atendida -- cuyo siguiente servicio vence en 90 dias -- recibia otra
+    cita en cuanto sobraba espacio, y el taller haria preventivos cada semana a
+    las mismas unidades. Un programa entra a la cola `dias_anticipacion` antes
+    de su fecha limite.
     """
+    hoy = hoy or ahora_utc().date()
+    tope = hoy + timedelta(days=dias_anticipacion(db))
     programas = (db.query(m.ProgramaMantenimiento)
                  .filter(m.ProgramaMantenimiento.estado.in_(("pendiente", "agendado",
                                                              "sin_cupo", "vencido")))
@@ -289,6 +340,12 @@ def _pendientes(db: Session, taller: m.Taller):
                 .filter(m.CitaTaller.programa_mantenimiento_id == p.id,
                         m.CitaTaller.estado.in_(ESTADOS_VIVOS))
                 .first())
+        if cita is None and p.fecha_limite > tope:
+            # Todavia no le toca. Si se habia quedado 'sin_cupo' de una corrida
+            # anterior, ya no es un problema de capacidad: vuelve a 'pendiente'.
+            if p.estado == "sin_cupo":
+                p.estado = "pendiente"
+            continue
         p.cita_actual = cita          # atributo de trabajo, no columna
         if cita and cita.estado not in ESTADOS_MOVIBLES and not _movible(cita):
             continue                  # compromiso firme con el chofer: no se toca
@@ -340,7 +397,7 @@ def recalcular(db: Session, taller: m.Taller, hoy: date | None = None) -> dict:
     hoy = hoy or ahora_utc().date()
     res = {"propuestas": 0, "movidas": 0, "sin_cupo": 0, "taller": taller.nombre}
 
-    cola = sorted(_pendientes(db, taller), key=lambda p: clave_prioridad(p, hoy))
+    cola = sorted(_pendientes(db, taller, hoy), key=lambda p: clave_prioridad(p, hoy))
 
     # La corrida va a recolocar TODAS las citas de la cola, asi que ninguna de
     # ellas cuenta como ocupante: la unica version valida de donde queda cada
@@ -351,6 +408,8 @@ def recalcular(db: Session, taller: m.Taller, hoy: date | None = None) -> dict:
     # un cambio de fecha cada manana y deje de mirar la app.
     ids_cola = {c.id for c in (getattr(p, "cita_actual", None) for p in cola) if c}
     reservas: dict = {}
+    tope = tope_preventivos_por_dia(db)
+    en_el_dia = _citas_por_dia(db, taller, hoy, ids_cola)   # fijas + las de esta corrida
 
     for programa in cola:
         plan = programa.plan
@@ -363,6 +422,8 @@ def recalcular(db: Session, taller: m.Taller, hoy: date | None = None) -> dict:
         colocada = None
 
         for dia in dias_habiles(taller, hoy, HORIZONTE_DIAS):
+            if tope and en_el_dia.get(dia, 0) >= tope:
+                continue
             if dura == 0:
                 colocada = dia
                 break
@@ -376,6 +437,7 @@ def recalcular(db: Session, taller: m.Taller, hoy: date | None = None) -> dict:
             programa.estado = "sin_cupo"
             res["sin_cupo"] += 1
             continue
+        en_el_dia[colocada] = en_el_dia.get(colocada, 0) + 1
 
         # Un servicio de paso no consume capacidad: no se le reserva nada.
         # La reserva va por (dia, tipo) porque la capacidad se calcula por tipo:
@@ -520,12 +582,15 @@ def cita_out(db: Session, c: m.CitaTaller) -> dict:
     if c.fecha_limite_origen and c.fecha_cita:
         holgura = (c.fecha_limite_origen - c.fecha_cita).days
 
-    chofer = None
+    chofer = telefono = None
     if c.unidad:
         from ..flota.flota_service import poseedor_actual
         from ..sistema.comun_service import nombre_chofer
         pid = poseedor_actual(db, c.unidad)
         chofer = nombre_chofer(db, pid) if pid else None
+        if pid:
+            u = db.query(m.Usuario.telefono).filter(m.Usuario.id == pid).first()
+            telefono = u[0] if u else None
 
     return {
         "id": c.id,
@@ -551,4 +616,7 @@ def cita_out(db: Session, c: m.CitaTaller) -> dict:
         # Va contra el POSEEDOR, no el titular: si la unidad esta prestada,
         # el que tiene que presentarse es el receptor.
         "chofer": chofer,
+        # Para el boton de WhatsApp de la agenda: Victor le escribe al chofer
+        # desde su propio telefono, sin servidor de mensajes de por medio.
+        "chofer_telefono": telefono,
     }
