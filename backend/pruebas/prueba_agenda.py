@@ -943,6 +943,103 @@ def c42():
     return "solo aparece la unidad activa"
 
 
+@caso("43. Al cumplirse un preventivo nace el siguiente, desde el dia real")
+def c43():
+    from datetime import datetime as dt
+    from app.core.tiempo import TZ_OPERACION
+    from app.modules.mantenimiento import meta_preventivo as mp
+    db = nueva_db()
+    t, pipa, _ = sembrar(db, genericos=1)
+    srv = servicio(db, "preventivo", dias=1)
+    u = unidad(db, "C1", pipa, t)
+    plan = m.PlanMantenimiento(nombre="prev pipa", tipo_unidad_id=pipa.id,
+                               tipo_servicio_id=srv.id, periodicidad_dias=60, activo=True)
+    db.add(plan); db.flush()
+    p = m.ProgramaMantenimiento(unidad_id=u.id, plan_id=plan.id,
+                                fecha_limite=date(2026, 9, 20), estado="agendado")
+    db.add(p); db.flush()
+    # 20:30 del 30-sep en Tijuana = 1-oct en UTC: el dia que cuenta es el 30.
+    p.estado = "cumplido"
+    p.fecha_cumplimiento = dt(2026, 9, 30, 20, 30, tzinfo=TZ_OPERACION)
+    nuevo = mp.crear_siguiente_programa(db, p)
+    db.flush()
+    assert nuevo is not None, "no nacio el siguiente programa"
+    assert nuevo.fecha_limite == date(2026, 11, 29), nuevo.fecha_limite
+    assert nuevo.estado == "pendiente" and nuevo.plan_id == plan.id
+    assert mp.crear_siguiente_programa(db, p) is None, "duplico el siguiente"
+    return "cumplido el 30-sep, el siguiente vence el %s" % nuevo.fecha_limite
+
+
+@caso("44. Un programa que vence en 90 dias todavia no recibe cita")
+def c44():
+    db = nueva_db()
+    t, pipa, _ = sembrar(db, genericos=3)
+    srv = servicio(db, "aceite", dias=1)
+    hoy = date.today()
+    lejos = unidad(db, "L1", pipa, t)
+    pl = programa(db, lejos, srv, hoy + timedelta(days=90))
+    pl.estado = "sin_cupo"                      # de una corrida vieja
+    cerca = unidad(db, "L2", pipa, t)
+    programa(db, cerca, srv, hoy + timedelta(days=20))
+    r = ag.recalcular(db, t, hoy=hoy)
+    unidades = {c.unidad_id for c in citas(db)}
+    assert unidades == {cerca.id}, \
+        "citas para %s: la agenda cita preventivos que vencen en 3 meses" % unidades
+    assert pl.estado == "pendiente", "el de 90 dias quedo '%s'" % pl.estado
+    return "solo entra a la agenda el que vence en 20 dias (%s)" % r
+
+
+@caso("45. La agenda no pasa del tope de preventivos por dia del taller")
+def c45():
+    db = nueva_db()
+    t, pipa, _ = sembrar(db, genericos=10)
+    db.add(m.Configuracion(clave="meta_preventivos_max", valor="3"))
+    srv = servicio(db, "preventivo", dias=1)
+    hoy = date.today()
+    for i in range(8):
+        programa(db, unidad(db, "T%d" % i, pipa, t), srv, hoy + timedelta(days=5))
+    ag.recalcular(db, t, hoy=hoy)
+    por_dia = {}
+    for c in citas(db):
+        por_dia[c.fecha_cita] = por_dia.get(c.fecha_cita, 0) + 1
+    assert max(por_dia.values()) <= 3, "un dia con %d citas: %s" % (max(por_dia.values()), por_dia)
+    assert sum(por_dia.values()) == 8, por_dia
+    return "8 preventivos repartidos de a 3 por dia: %s" % sorted(por_dia.values())
+
+
+@caso("46. Carga de preventivos reales: realizado cierra y abre el siguiente")
+def c46():
+    from datetime import date as d
+    from app.importadores import preventivos_reales as pr
+    db = nueva_db()
+    t, pipa, _ = sembrar(db, genericos=1)
+    srv = servicio(db, "preventivo", dias=1)
+    plan = m.PlanMantenimiento(nombre="prev pipa", tipo_unidad_id=pipa.id,
+                               tipo_servicio_id=srv.id, periodicidad_dias=60, activo=True)
+    db.add(plan); db.flush()
+    a = unidad(db, "BG365P", pipa, t)
+    inventado = m.ProgramaMantenimiento(unidad_id=a.id, plan_id=plan.id,
+                                        fecha_limite=d(2026, 11, 30), estado="sin_cupo")
+    db.add(inventado)
+    b = unidad(db, "2104", pipa, t)
+    db.flush()
+    r = pr.cargar(db, [
+        {"num_economico": "BG-365P", "estado": "realizado", "fecha": "2026-07-28",
+         "archivo": "ARTURO", "fila": "15"},
+        {"num_economico": "2104", "estado": "pendiente", "fecha": "2026-08-20",
+         "archivo": "GUAYCURA", "fila": "4"},
+        {"num_economico": "NOEXISTE", "estado": "realizado", "fecha": "2026-07-01"},
+    ])
+    assert (r["realizados"], r["pendientes"], len(r["omitidas"])) == (1, 1, 1), r
+    assert inventado.estado == "cancelado", "el programa inventado sigue '%s'" % inventado.estado
+    progs = {(p.unidad_id, p.estado): p for p in db.query(m.ProgramaMantenimiento).all()}
+    assert progs[(a.id, "cumplido")].fecha_limite == d(2026, 7, 28)
+    assert progs[(a.id, "pendiente")].fecha_limite == d(2026, 9, 26), \
+        "el siguiente debia vencer 60 dias despues: %s" % progs[(a.id, "pendiente")].fecha_limite
+    assert progs[(b.id, "pendiente")].fecha_limite == d(2026, 8, 20)
+    return "BG365P cumplido 28-jul -> siguiente 26-sep; 2104 pendiente desde 20-ago"
+
+
 # ===================================================================== #
 def main():
     ok = fallo = pend = 0
