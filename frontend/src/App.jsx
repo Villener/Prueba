@@ -1,6 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
-import { clearSession, getUser, rolPrincipal } from './core/sesion.js'
+import {
+  alCambiarSesionEnOtraVentana, borrarAvisoSesion, clearSession, dejarAvisoSesion, getUser,
+  leerAvisoSesion, mismaPersona, rolPrincipal,
+} from './core/sesion.js'
+import { Aviso } from './ui/Feedback.jsx'
 import { alternarTema, temaActual } from './core/tema.js'
 import Login from './modules/acceso/LoginPage.jsx'
 import Chofer from './modules/chofer/ChoferPage.jsx'
@@ -124,17 +128,52 @@ function BotonTema() {
   )
 }
 
+/** Por que esta ventana cambio sola de cuenta. Sin esto el usuario vuelve a
+ *  ella, ve otro modulo y cree que el sistema se descompuso. */
+function AvisoSesion({ texto, onCerrar }) {
+  if (!texto) return null
+  return (
+    <Aviso tipo="warn">
+      {texto}{' '}
+      <button className="btn sm" onClick={onCerrar}>Entendido</button>
+    </Aviso>
+  )
+}
+
 export default function App() {
   const [usuario, setUsuario] = useState(getUser())
+  const [avisoSesion, setAvisoSesion] = useState(leerAvisoSesion)
   const navigate = useNavigate()
   const rol = rolPrincipal(usuario)
 
+  // Se lee una vez y se borra: si la persona vuelve a recargar, ya no sale.
+  useEffect(() => { borrarAvisoSesion() }, [])
+
+  // Otra ventana entro con otra cuenta o salio: esta se recarga entera con la
+  // sesion que quedo, para que ningun componente se quede con datos de la
+  // anterior. Si es la misma persona que volvio a entrar, no pasa nada.
+  useEffect(() => alCambiarSesionEnOtraVentana((nuevo) => {
+    if (mismaPersona(nuevo, usuario)) return
+    dejarAvisoSesion(nuevo
+      ? `En otra ventana de este navegador se entró con la cuenta de ${nuevo.nombre}. `
+        + 'Esta ventana se cambió a esa cuenta para que nada quede a nombre de otra persona. '
+        + 'Para usar dos cuentas a la vez, abre la otra en una ventana de incógnito.'
+      : 'Se cerró la sesión en otra ventana de este navegador.')
+    window.location.hash = '#/'
+    window.location.reload()
+  }), [usuario])
+
+  const cerrarAviso = () => setAvisoSesion(null)
+
   if (!usuario || !rol) {
     return (
-      <Routes>
-        <Route path="/login" element={<Login onEntrar={setUsuario} />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
+      <>
+        <AvisoSesion texto={avisoSesion} onCerrar={cerrarAviso} />
+        <Routes>
+          <Route path="/login" element={<Login onEntrar={setUsuario} />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </>
     )
   }
 
@@ -172,6 +211,7 @@ export default function App() {
         </header>
 
         <main className="content">
+          <AvisoSesion texto={avisoSesion} onCerrar={cerrarAviso} />
           <Routes>
             <Route path="/notificaciones" element={<Notificaciones />} />
             {/* El libro de bitácora (NOM-030 7.1.10) es UNO para cinco roles:

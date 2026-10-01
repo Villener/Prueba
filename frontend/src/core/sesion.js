@@ -23,6 +23,40 @@ export const clearSession = () => {
   localStorage.removeItem(USER_KEY)
 }
 
+/** Llama a `fn` cuando OTRA ventana de este navegador cambia de cuenta o sale.
+ *
+ * La sesion vive en localStorage, que es UNO para todas las ventanas del mismo
+ * navegador. Si en otra se entraba con otra cuenta, esta seguia pintando la
+ * pantalla de la anterior pero sus peticiones ya salian con el token nuevo: lo
+ * que se capturara aqui quedaba a nombre de quien no fue, y en la bitacora de
+ * la NOM-030 eso es una firma ajena. El evento `storage` solo llega a las OTRAS
+ * ventanas. Se escucha bg_user y no el token porque setSession lo escribe al
+ * final, cuando los dos ya estan puestos. Devuelve la funcion para dejar de
+ * escuchar. */
+export const alCambiarSesionEnOtraVentana = (fn) => {
+  const oir = (e) => {
+    // key null = alguien hizo localStorage.clear()
+    if (e.key === USER_KEY || e.key === null) fn(getUser())
+  }
+  window.addEventListener('storage', oir)
+  return () => window.removeEventListener('storage', oir)
+}
+
+/** La misma persona, aunque traiga otro token (volvio a entrar en otra ventana). */
+export const mismaPersona = (a, b) => (a?.id ?? a?.email ?? null) === (b?.id ?? b?.email ?? null)
+
+/** Mensaje que sobrevive a una recarga de ESTA ventana (sessionStorage es por ventana). */
+const AVISO_KEY = 'bg_aviso_sesion'
+export const dejarAvisoSesion = (texto) => {
+  try { sessionStorage.setItem(AVISO_KEY, texto) } catch { /* sin almacenamiento: se recarga sin aviso */ }
+}
+export const leerAvisoSesion = () => {
+  try { return sessionStorage.getItem(AVISO_KEY) } catch { return null }
+}
+export const borrarAvisoSesion = () => {
+  try { sessionStorage.removeItem(AVISO_KEY) } catch { /* nada que borrar */ }
+}
+
 /** El rol define que modulo ve el usuario. El servidor lo revalida (RNF-04). */
 export const rolPrincipal = (usuario) => {
   // ESTA LISTA ES LA QUE DECIDE SI ALGUIEN PUEDE ENTRAR. Un rol que no esté
