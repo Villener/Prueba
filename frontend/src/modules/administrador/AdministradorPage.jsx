@@ -15,6 +15,7 @@ import { HojaTrabajo } from './HojaTrabajoPage.jsx'
 import { ReportesMantenimiento } from './ReporteMantenimientoPage.jsx'
 import { Indicadores } from './IndicadoresPage.jsx'
 import { Arrastres } from './ArrastresPage.jsx'
+import { CargarDatos } from '../cargas/CargarDatosPage.jsx'
 
 export default function Administrador() {
   return (
@@ -30,6 +31,7 @@ export default function Administrador() {
       <Route path="/hoja" element={<HojaTrabajo />} />
       <Route path="/indicadores" element={<Indicadores />} />
       <Route path="/arrastres" element={<Arrastres />} />
+      <Route path="/datos" element={<CargarDatos />} />
     </Routes>
   )
 }

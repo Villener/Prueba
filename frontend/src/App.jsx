@@ -17,9 +17,10 @@ import Perito from './modules/perito/PeritoPage.jsx'
 import Mecanico from './modules/mecanico/MecanicoPage.jsx'
 import Notificaciones from './modules/sistema/NotificacionesPage.jsx'
 import BitacoraUnidad from './modules/sistema/BitacoraUnidadPage.jsx'
+import Datos from './modules/cargas/CargarDatosPage.jsx'
 import { Logo } from './ui/Logo.jsx'
 import {
-  IcoAgenda, IcoAlertas, IcoAlmacen, IcoArrastres, IcoAverias, IcoCampana, IcoCapturar,
+  IcoAgenda, IcoAlertas, IcoAlmacen, IcoArrastres, IcoAverias, IcoCampana, IcoCapturar, IcoDatos,
   IcoPlantilla, IcoCumplimiento, IcoHistorial, IcoHoja, IcoIncumplimiento, IcoIndicadores,
   IcoOrdenes,
   IcoPendientes, IcoPlano, IcoPrestamos, IcoPresupuestos, IcoReportes, IcoSolicitudes,
@@ -51,6 +52,7 @@ const MODULOS = {
     { to: '/reportes', Ico: IcoReportes, txt: 'Reportes' },
     { to: '/hoja', Ico: IcoHoja, txt: 'Hoja' },
     { to: '/indicadores', Ico: IcoIndicadores, txt: 'Indicadores' },
+    { to: '/datos', Ico: IcoDatos, txt: 'Datos' },
   ] },
   capturista: { titulo: 'Capturista', Componente: Capturista, tabs: [
     { to: '/', Ico: IcoOrdenes, txt: 'Requisiciones' },
@@ -111,6 +113,15 @@ const MODULOS = {
     // de ui/iconos.jsx existe para evitar.
     { to: '/historiales', Ico: IcoHistorial, txt: 'Historiales' },
   ] },
+}
+
+// Una cuenta por area (Logistica, Almacen, Compras, Taller) que solo sube sus
+// Excel. Las cuatro ven la misma pantalla; que archivos le tocan a cada una lo
+// decide el servidor.
+for (const area of ['logistica', 'almacen', 'compras', 'taller']) {
+  MODULOS[`datos_${area}`] = { titulo: 'Carga de datos', Componente: Datos, tabs: [
+    { to: '/', Ico: IcoDatos, txt: 'Cargar datos' },
+  ] }
 }
 
 /** Interruptor de tema. Claro por defecto; el oscuro se enciende a mano. */

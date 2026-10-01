@@ -66,6 +66,8 @@ export const rolPrincipal = (usuario) => {
   // Al agregar un módulo hay que tocar TRES lugares: ROLES_DEL_SISTEMA en el
   // backend, MODULOS en App.jsx y esta línea.
   const orden = ['gerente', 'administrador', 'capturista', 'supervisor',
-                 'chofer_grua', 'perito', 'mecanico', 'chofer']
+                 'chofer_grua', 'perito', 'mecanico',
+                 'datos_logistica', 'datos_almacen', 'datos_compras', 'datos_taller',
+                 'chofer']
   return orden.find((r) => usuario?.roles?.includes(r)) || null
 }

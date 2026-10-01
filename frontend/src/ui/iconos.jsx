@@ -32,6 +32,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   Download,
+  FileSpreadsheet,
   FileText,
   History,
   Inbox,
@@ -75,6 +76,7 @@ export const IcoHistorial = History
 export const IcoTablero = LayoutDashboard
 export const IcoIncumplimiento = CircleAlert
 export const IcoIndicadores = BarChart3
+export const IcoDatos = FileSpreadsheet     // los Excel de las areas
 
 /* ------------------------------------------------------------ transversal --- */
 export const IcoCampana = Bell

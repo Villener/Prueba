@@ -145,7 +145,9 @@ USUARIOS_REALES = [
 # del 2026-09-14). Falta darle de alta su usuario; el rol ya existe para que el
 # dia que se cree, el aviso funcione solo.
 ROLES_DEL_SISTEMA = ["chofer", "supervisor", "administrador", "chofer_grua",
-                     "gerente", "capturista", "perito", "mecanico"]
+                     "gerente", "capturista", "perito", "mecanico",
+                     # Una cuenta por area para subir sus Excel (cargas_service).
+                     "datos_logistica", "datos_almacen", "datos_compras", "datos_taller"]
 
 # La misma que usa el importador para la gente que saca del Excel.
 PASSWORD_REAL = "bajagas2026"
