@@ -2,6 +2,7 @@
 from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ... import models as m
@@ -10,6 +11,7 @@ from ...core.database import get_db
 from ...schemas import AveriaOut, MensajeOut, PrestamoOut
 from ...core.security import notificar, registrar_bitacora, require_roles
 from ...core.tiempo import ahora_utc
+from ...importadores import normaliza as n
 from ..mantenimiento import amonestacion_service as amon
 
 router = APIRouter(prefix="/api/supervisor", tags=["supervisor"])
@@ -45,6 +47,7 @@ def mi_plantilla(usuario=Depends(solo_sup), db: Session = Depends(get_db)):
         out.append({
             "chofer_id": c.usuario_id,
             "chofer": c.usuario.nombre_completo if c.usuario else "-",
+            "telefono": c.usuario.telefono if c.usuario else None,
             "conduciendo": jornada is not None,
             "desde": jornada.hora_inicio if jornada else None,
             "unidad": unidad.num_economico if unidad else None,
@@ -234,3 +237,35 @@ def expediente_del_chofer(chofer_id: int, usuario=Depends(solo_sup),
     if chofer_id not in mios:
         raise HTTPException(403, "Ese chofer no es de tu plantilla.")
     return amon.historial(db, chofer_id)
+
+
+class TelefonoIn(BaseModel):
+    telefono: str
+
+
+@router.put("/choferes/{chofer_id}/telefono")
+def telefono_del_chofer(chofer_id: int, datos: TelefonoIn, usuario=Depends(solo_sup),
+                        db: Session = Depends(get_db)):
+    """El supervisor captura el celular de SU gente, que el conoce.
+
+    350 de 434 personas no traen telefono en ningun Excel, y muchos choferes
+    casi no entran a la app para ponerlo ellos (Mis datos). Solo de su plantilla:
+    el de otro supervisor no lo puede tocar. Al chofer se le avisa, para que sepa
+    que numero tiene el taller y lo corrija en Mis datos si esta mal.
+    """
+    if chofer_id not in {c.usuario_id for c in _mis_choferes(db, usuario.id)}:
+        raise HTTPException(403, "Ese chofer no es de tu plantilla.")
+    nuevo = n.celular(datos.telefono)
+    if not nuevo:
+        raise HTTPException(422, "Escribe un celular de 10 digitos, por ejemplo 664 123 4567")
+    u = db.get(m.Usuario, chofer_id)
+    anterior = u.telefono
+    if anterior != nuevo:
+        u.telefono = nuevo
+        registrar_bitacora(db, usuario.id, "telefono_capturado_por_supervisor", "usuario",
+                           chofer_id, datos_despues=nuevo, datos_antes=anterior)
+        notificar(db, chofer_id, "Tu supervisor registro tu celular",
+                  f"El taller te avisara de tus citas al {nuevo[:3]} {nuevo[3:6]} {nuevo[6:]}. "
+                  "Si no es tu numero, corrigelo en Mis datos.", "info", "usuario", chofer_id)
+        db.commit()
+    return {"chofer_id": chofer_id, "telefono": u.telefono}

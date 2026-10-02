@@ -88,6 +88,74 @@ def _():
     assert otro.telefono is None
 
 
+def plantillas(db):
+    """Dos supervisores, cada uno con un chofer sin celular."""
+    def persona(nombre, correo, tel=None):
+        u = m.Usuario(nombre=nombre, apellidos="X", email=correo, password_hash="x", telefono=tel)
+        db.add(u)
+        db.flush()
+        return u
+    out = []
+    for i in (1, 2):
+        sup = persona(f"Sup{i}", f"s{i}@bajagas.mx")
+        db.add(m.Supervisor(usuario_id=sup.id))
+        db.flush()
+        p = m.Plantilla(nombre=f"P{i}", supervisor_id=sup.id)
+        db.add(p)
+        db.flush()
+        ch = persona(f"Chofer{i}", f"c{i}@bajagas.mx", tel="664-000-0000")
+        db.add(m.Chofer(usuario_id=ch.id, plantilla_id=p.id))
+        out.append((sup, ch))
+    db.commit()
+    return out
+
+
+@caso("el supervisor captura el celular de su chofer, queda auditado y el chofer se entera")
+def _():
+    from app.modules.flota import supervisor_controller as sc
+    db, _ = escenario()
+    (sup, ch), _otro = plantillas(db)
+    r = sc.telefono_del_chofer(ch.id, sc.TelefonoIn(telefono="664-321-0099"), usuario=sup, db=db)
+    assert r == {"chofer_id": ch.id, "telefono": "6643210099"}, r
+    b = (db.query(m.BitacoraAuditoria)
+         .filter_by(accion="telefono_capturado_por_supervisor").one())
+    assert b.usuario_id == sup.id and b.entidad_id == ch.id
+    assert b.datos_antes == "664-000-0000" and b.datos_despues == "6643210099"
+    aviso = db.query(m.Notificacion).filter_by(usuario_id=ch.id).one()
+    assert "664 321 0099" in aviso.mensaje
+    fila = next(x for x in sc.mi_plantilla(usuario=sup, db=db) if x["chofer_id"] == ch.id)
+    assert fila["telefono"] == "6643210099"
+
+
+@caso("el supervisor no puede tocar el celular de un chofer de otra plantilla")
+def _():
+    from app.modules.flota import supervisor_controller as sc
+    db, _ = escenario()
+    (sup1, _ch1), (_sup2, ch2) = plantillas(db)
+    try:
+        sc.telefono_del_chofer(ch2.id, sc.TelefonoIn(telefono="6641112233"), usuario=sup1, db=db)
+    except HTTPException as e:
+        assert e.status_code == 403
+    else:
+        raise AssertionError("dejo cambiar el celular de un chofer ajeno")
+    db.refresh(ch2)
+    assert ch2.telefono == "664-000-0000"
+
+
+@caso("el supervisor tampoco puede guardar el relleno ni un numero incompleto")
+def _():
+    from app.modules.flota import supervisor_controller as sc
+    db, _ = escenario()
+    (sup, ch), _otro = plantillas(db)
+    for malo in ("664 000 0000", "66412"):
+        try:
+            sc.telefono_del_chofer(ch.id, sc.TelefonoIn(telefono=malo), usuario=sup, db=db)
+        except HTTPException as e:
+            assert e.status_code == 422
+        else:
+            raise AssertionError(f"acepto {malo!r}")
+
+
 if __name__ == "__main__":
     ok = fallo = 0
     for i, (nombre, fn) in enumerate(CASOS, 1):

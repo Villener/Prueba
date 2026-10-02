@@ -274,6 +274,12 @@ export const fmtFechaHoraAnio = (v) => {
     hour: '2-digit', minute: '2-digit', second: '2-digit',
   })
 }
+/** 6641234567 -> 664 123 4567, como la gente dicta un celular. */
+export const fmtCelular = (t) => {
+  const d = (t || '').replace(/\D/g, '').slice(-10)
+  return d.length === 10 ? d.replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3') : ''
+}
+
 export const fmtMoneda = (v) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(v || 0)
 

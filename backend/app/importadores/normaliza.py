@@ -208,6 +208,20 @@ def telefono(valor) -> str:
     return digitos if len(digitos) == 10 else ""
 
 
+# El relleno que puso la semilla ('664-000-0000'): no es el numero de nadie.
+TELEFONO_RELLENO = "6640000000"
+
+
+def celular(valor) -> str:
+    """Como `telefono`, pero el relleno de la semilla cuenta como vacio.
+
+    Es la regla de lo que una PERSONA captura en la app (Mis datos, el
+    supervisor por su gente): un numero que no sirve para avisar no se guarda.
+    """
+    t = telefono(valor)
+    return "" if t == TELEFONO_RELLENO else t
+
+
 def turno(valor) -> str:
     """El turno en mayusculas. 'Matutino', 'MATUTINO ' y 'matutino' son uno."""
     t = texto(valor).upper()

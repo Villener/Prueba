@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { api } from '../../core/api.js'
+import { api, fmtCelular } from '../../core/api.js'
 import { getToken, setSession, telefonoValido } from '../../core/sesion.js'
 import { Aviso, Card, Regla, useToast } from '../../ui/index.js'
 
@@ -17,9 +17,7 @@ const NOMBRE_ROL = {
   datos_taller: 'Carga de datos · Taller',
 }
 
-// 6641234567 -> 664 123 4567: asi lo dicta la gente por telefono.
-const bonito = (t) => (telefonoValido(t) ? t.replace(/\D/g, '').slice(-10)
-  .replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3') : '')
+const bonito = (t) => (telefonoValido(t) ? fmtCelular(t) : '')
 
 function Dato({ etiqueta, children }) {
   return (

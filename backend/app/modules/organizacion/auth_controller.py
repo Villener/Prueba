@@ -79,10 +79,6 @@ def me(usuario: Usuario = Depends(get_current_user)):
     return _usuario_out(usuario)
 
 
-# El relleno que puso la semilla; el importador tambien lo trata como "sin telefono".
-TELEFONO_RELLENO = "6640000000"
-
-
 class TelefonoIn(BaseModel):
     telefono: str
 
@@ -98,8 +94,8 @@ def mi_telefono(datos: TelefonoIn, usuario: Usuario = Depends(get_current_user),
     reglas que el importador (normaliza.telefono: 10 digitos, sin lada de pais),
     y el importador no lo vuelve a pisar porque solo llena telefonos vacios.
     """
-    nuevo = n.telefono(datos.telefono)
-    if not nuevo or nuevo == TELEFONO_RELLENO:
+    nuevo = n.celular(datos.telefono)
+    if not nuevo:
         raise HTTPException(422, "Escribe un celular de 10 digitos, por ejemplo 664 123 4567")
     u = db.get(Usuario, usuario.id)
     anterior = u.telefono

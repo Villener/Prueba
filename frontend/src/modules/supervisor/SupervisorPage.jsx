@@ -1,7 +1,8 @@
 /** Modulo Supervisor - CU-SUP-* de docs/casos-de-uso.md */
 import { useState } from 'react'
 import { Link, Route, Routes } from 'react-router-dom'
-import { api, fmtFecha, fmtFechaHora } from '../../core/api.js'
+import { api, fmtCelular, fmtFecha, fmtFechaHora } from '../../core/api.js'
+import { telefonoValido } from '../../core/sesion.js'
 import {
   Aviso, Badge, Card, Empty, EstadoBadge, IcoBitacora, IcoPlantilla, IcoListo, IcoPrestamos,
   IcoUbicacion, Modal, Regla, Spinner, Tabla, useApi, useToast,
@@ -20,11 +21,18 @@ export default function Supervisor() {
 
 /* -------------------------------------------------- CU-SUP-01/02/05 -------- */
 function Plantilla() {
-  const { data, cargando, error } = useApi(() => api.get('/supervisor/plantilla'))
+  const toast = useToast()
+  const { data, cargando, error, recargar } = useApi(() => api.get('/supervisor/plantilla'))
+  const [soloSinCelular, setSoloSinCelular] = useState(false)
+  const [celularDe, setCelularDe] = useState(null)
   if (cargando) return <Spinner />
   if (error) return <Aviso tipo="err">{error}</Aviso>
 
   const conduciendo = (data || []).filter((x) => x.conduciendo).length
+  // Sin celular el taller no le puede avisar al chofer de su cita. El
+  // supervisor conoce a su gente: es quien mas rapido puede completarlo.
+  const sinCelular = (data || []).filter((x) => !telefonoValido(x.telefono))
+  const lista = soloSinCelular ? sinCelular : (data || [])
 
   return (
     <>
@@ -39,8 +47,18 @@ function Plantilla() {
           <div className="lbl">Con unidad prestada</div></div>
       </div>
 
+      {sinCelular.length > 0 && (
+        <Aviso tipo="warn">
+          {sinCelular.length} de tus {data.length} choferes no tienen celular. Sin él, el taller
+          no puede avisarles de sus citas.{' '}
+          <button className="btn sm" onClick={() => setSoloSinCelular((v) => !v)}>
+            {soloSinCelular ? 'Ver a todos' : 'Ver solo los que faltan'}
+          </button>
+        </Aviso>
+      )}
+
       <Card title="Estado en tiempo real">
-        {(data || []).map((c) => (
+        {lista.map((c) => (
           <div className="list-item" key={c.chofer_id}>
             <span className={`dot ${c.conduciendo ? 'on' : 'off'}`} />
             <div className="grow">
@@ -49,6 +67,14 @@ function Plantilla() {
                 {c.conduciendo
                   ? `Conduciendo desde ${fmtFechaHora(c.desde)}`
                   : 'Sin jornada abierta'}
+              </div>
+              <div className="s">
+                {telefonoValido(c.telefono)
+                  ? <>Celular {fmtCelular(c.telefono)}</>
+                  : <span style={{ color: 'var(--warn)' }}>Sin celular</span>}{' '}
+                <button className="btn sm" onClick={() => setCelularDe(c)}>
+                  {telefonoValido(c.telefono) ? 'Cambiar' : 'Agregar celular'}
+                </button>
               </div>
               {c.unidades?.length > 0 && (
                 <div className="s">
@@ -81,7 +107,51 @@ function Plantilla() {
         ))}
         {(data || []).length === 0 && <Empty icono={IcoPlantilla}>Sin choferes asignados</Empty>}
       </Card>
+      {celularDe && (
+        <ModalCelular chofer={celularDe} onCerrar={() => setCelularDe(null)}
+                      onListo={() => { setCelularDe(null); recargar(); toast('Celular guardado') }} />
+      )}
     </>
+  )
+}
+
+function ModalCelular({ chofer, onCerrar, onListo }) {
+  const [telefono, setTelefono] = useState(fmtCelular(telefonoValido(chofer.telefono) ? chofer.telefono : ''))
+  const [error, setError] = useState(null)
+  const [guardando, setGuardando] = useState(false)
+  const guardar = async (e) => {
+    e.preventDefault()
+    const digitos = telefono.replace(/\D/g, '').replace(/^52(?=\d{10}$)/, '')
+    if (digitos.length !== 10) {
+      setError('Escribe el celular de 10 dígitos, por ejemplo 664 123 4567.')
+      return
+    }
+    setGuardando(true)
+    try {
+      await api.put(`/supervisor/choferes/${chofer.chofer_id}/telefono`, { telefono: digitos })
+      onListo()
+    } catch (err) {
+      setError(err.message)
+      setGuardando(false)
+    }
+  }
+  return (
+    <Modal titulo={`Celular de ${chofer.chofer}`} onClose={onCerrar}>
+      <form onSubmit={guardar}>
+        <div className="field">
+          <label htmlFor="cel-chofer">Celular (10 dígitos)</label>
+          <input id="cel-chofer" type="tel" inputMode="numeric" placeholder="664 123 4567"
+                 value={telefono} autoFocus
+                 onChange={(e) => { setTelefono(e.target.value); setError(null) }} />
+          {error && <span style={{ color: 'var(--danger)', fontSize: 13 }}>{error}</span>}
+        </div>
+        <button className="btn primary block" disabled={guardando}>
+          {guardando ? 'Guardando…' : 'Guardar celular'}
+        </button>
+      </form>
+      <Regla>Al chofer le llega un aviso con el número que capturaste; si está mal, lo puede
+        corregir él mismo en Mis datos. Queda registrado quién lo capturó.</Regla>
+    </Modal>
   )
 }
 
