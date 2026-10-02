@@ -47,6 +47,7 @@ import {
   SquareParking,
   Sun,
   TriangleAlert,
+  UserRound,
   Truck,
   Users,
   Wrench,
@@ -80,6 +81,7 @@ export const IcoDatos = FileSpreadsheet     // los Excel de las areas
 
 /* ------------------------------------------------------------ transversal --- */
 export const IcoCampana = Bell
+export const IcoMisDatos = UserRound           // la cuenta de quien esta adentro
 export const IcoTemaOscuro = Moon
 export const IcoTemaClaro = Sun
 export const IcoCerrar = X

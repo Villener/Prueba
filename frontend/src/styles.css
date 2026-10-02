@@ -137,6 +137,15 @@ a  { color: var(--brand); }
   display: flex; align-items: center;
   border-left: 4px solid var(--brand); padding-left: 10px;
 }
+/* En el telefono la barra lleva logo, puesto y cuatro botones (tema, Mis datos,
+   avisos, Salir): con 12px entre cada uno, «Salir» quedaba fuera de la pantalla
+   en 375px. En los muy angostos se va el puesto, que el chofer ya conoce. */
+@media (max-width: 480px) {
+  .topbar { gap: 6px; padding-left: 12px; padding-right: 12px; }
+}
+@media (max-width: 360px) {
+  .topbar .rolechip { display: none; }
+}
 
 /* ------------------------------------------------------------------ logo --- */
 /* El trazo viene del archivo (src/assets/logo.svg), que trae los colores como

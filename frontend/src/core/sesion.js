@@ -57,6 +57,13 @@ export const borrarAvisoSesion = () => {
   try { sessionStorage.removeItem(AVISO_KEY) } catch { /* nada que borrar */ }
 }
 
+/** Si el usuario ya tiene un celular de verdad: 10 digitos y no el relleno de
+ *  la semilla (664-000-0000), que el importador y el servidor tratan como vacio. */
+export const telefonoValido = (t) => {
+  const d = (t || '').replace(/\D/g, '').slice(-10)
+  return d.length === 10 && d !== '6640000000'
+}
+
 /** El rol define que modulo ve el usuario. El servidor lo revalida (RNF-04). */
 export const rolPrincipal = (usuario) => {
   // ESTA LISTA ES LA QUE DECIDE SI ALGUIEN PUEDE ENTRAR. Un rol que no esté

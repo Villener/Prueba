@@ -180,6 +180,7 @@ export async function bajarEvidencia(id) {
 export const api = {
   get: (p, params) => request(p, { params }),
   post: (p, body, params) => request(p, { method: 'POST', body, params }),
+  put: (p, body, params) => request(p, { method: 'PUT', body, params }),
   descargar,
   subir,
 }

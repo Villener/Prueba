@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
+import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import {
-  alCambiarSesionEnOtraVentana, borrarAvisoSesion, clearSession, dejarAvisoSesion, getUser,
-  leerAvisoSesion, mismaPersona, rolPrincipal,
+  alCambiarSesionEnOtraVentana, borrarAvisoSesion, clearSession, dejarAvisoSesion, getToken, getUser,
+  leerAvisoSesion, mismaPersona, rolPrincipal, setSession, telefonoValido,
 } from './core/sesion.js'
+import { api } from './core/api.js'
 import { Aviso } from './ui/Feedback.jsx'
 import { alternarTema, temaActual } from './core/tema.js'
 import Login from './modules/acceso/LoginPage.jsx'
@@ -17,10 +18,12 @@ import Perito from './modules/perito/PeritoPage.jsx'
 import Mecanico from './modules/mecanico/MecanicoPage.jsx'
 import Notificaciones from './modules/sistema/NotificacionesPage.jsx'
 import BitacoraUnidad from './modules/sistema/BitacoraUnidadPage.jsx'
+import MisDatos from './modules/sistema/MisDatosPage.jsx'
 import Datos from './modules/cargas/CargarDatosPage.jsx'
 import { Logo } from './ui/Logo.jsx'
 import {
   IcoAgenda, IcoAlertas, IcoAlmacen, IcoArrastres, IcoAverias, IcoCampana, IcoCapturar, IcoDatos,
+  IcoMisDatos,
   IcoPlantilla, IcoCumplimiento, IcoHistorial, IcoHoja, IcoIncumplimiento, IcoIndicadores,
   IcoOrdenes,
   IcoPendientes, IcoPlano, IcoPrestamos, IcoPresupuestos, IcoReportes, IcoSolicitudes,
@@ -151,6 +154,22 @@ function AvisoSesion({ texto, onCerrar }) {
   )
 }
 
+/** Recordatorio para quien no tiene celular: sin el, el taller no puede
+ *  avisarle de sus citas por WhatsApp. Se puede posponer en esta ventana. Las
+ *  cuentas de carga de datos son de un area, no de una persona: a esas no. */
+const LUEGO_KEY = 'bg_tel_luego'
+function PideTelefono({ usuario, onLuego }) {
+  if (telefonoValido(usuario.telefono)) return null
+  if ((usuario.roles || []).every((r) => r.startsWith('datos_'))) return null
+  return (
+    <Aviso tipo="info">
+      Agrega tu celular para que el taller te pueda avisar de tus citas.{' '}
+      <NavLink to="/mis-datos" className="btn sm primary">Agregar celular</NavLink>{' '}
+      <button className="btn sm" onClick={onLuego}>Ahora no</button>
+    </Aviso>
+  )
+}
+
 export default function App() {
   const [usuario, setUsuario] = useState(getUser())
   const [avisoSesion, setAvisoSesion] = useState(leerAvisoSesion)
@@ -175,6 +194,28 @@ export default function App() {
   }), [usuario])
 
   const cerrarAviso = () => setAvisoSesion(null)
+
+  const ubicacion = useLocation()
+  const [telLuego, setTelLuego] = useState(() => {
+    try { return sessionStorage.getItem(LUEGO_KEY) === '1' } catch { return false }
+  })
+  const posponerTelefono = () => {
+    try { sessionStorage.setItem(LUEGO_KEY, '1') } catch { /* solo dura esta vista */ }
+    setTelLuego(true)
+  }
+
+  // Los datos guardados al entrar pueden haber envejecido (la carga nocturna pone
+  // telefonos, el administrador corrige un nombre): se piden una vez al abrir.
+  useEffect(() => {
+    if (!usuario) return
+    api.get('/auth/me').then((yo) => {
+      if (mismaPersona(yo, usuario) && JSON.stringify(yo) !== JSON.stringify(usuario)) {
+        setSession(getToken(), yo)
+        setUsuario(yo)
+      }
+    }).catch(() => { /* sin red: se queda con lo guardado */ })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usuario?.id])
 
   if (!usuario || !rol) {
     return (
@@ -214,6 +255,9 @@ export default function App() {
           <span className="rolechip">{modulo.titulo}</span>
           <span className="spacer" />
           <BotonTema />
+          <NavLink to="/mis-datos" className="btn sm" title="Mis datos" aria-label="Mis datos">
+            <IcoMisDatos size={15} strokeWidth={2} aria-hidden="true" />
+          </NavLink>
           <NavLink to="/notificaciones" className="btn sm" title="Notificaciones"
                  aria-label="Notificaciones">
           <IcoCampana size={15} strokeWidth={2} aria-hidden="true" />
@@ -223,8 +267,12 @@ export default function App() {
 
         <main className="content">
           <AvisoSesion texto={avisoSesion} onCerrar={cerrarAviso} />
+          {!telLuego && ubicacion.pathname !== '/mis-datos' && (
+            <PideTelefono usuario={usuario} onLuego={posponerTelefono} />
+          )}
           <Routes>
             <Route path="/notificaciones" element={<Notificaciones />} />
+            <Route path="/mis-datos" element={<MisDatos usuario={usuario} onCambio={setUsuario} />} />
             {/* El libro de bitácora (NOM-030 7.1.10) es UNO para cinco roles:
                 vive aquí, como Notificaciones, y no copiado en cada módulo.
                 Quién puede ver qué unidad lo decide el servidor. */}

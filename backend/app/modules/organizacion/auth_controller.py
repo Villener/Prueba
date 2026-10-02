@@ -3,6 +3,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ...core.database import get_db
@@ -10,7 +11,9 @@ from ...core.intentos import (ip_del_cliente, limpiar, registrar_fallo,
                               segundos_de_espera)
 from ...models import Notificacion, Usuario
 from ...schemas import LoginIn, MensajeOut, NotificacionOut, TokenOut, UsuarioOut
-from ...core.security import create_access_token, get_current_user, verify_password
+from ...core.security import (create_access_token, get_current_user, registrar_bitacora,
+                              verify_password)
+from ...importadores import normaliza as n
 from ...core.tiempo import ahora_utc
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -74,6 +77,38 @@ def login_form(request: Request, form: OAuth2PasswordRequestForm = Depends(),
 @router.get("/me", response_model=UsuarioOut)
 def me(usuario: Usuario = Depends(get_current_user)):
     return _usuario_out(usuario)
+
+
+# El relleno que puso la semilla; el importador tambien lo trata como "sin telefono".
+TELEFONO_RELLENO = "6640000000"
+
+
+class TelefonoIn(BaseModel):
+    telefono: str
+
+
+@router.put("/me/telefono", response_model=UsuarioOut)
+def mi_telefono(datos: TelefonoIn, usuario: Usuario = Depends(get_current_user),
+                db: Session = Depends(get_db)):
+    """Cada quien pone SU celular, ya dentro de su cuenta (pantalla Mis datos).
+
+    No es un registro: no crea cuentas, solo completa el dato de alguien que ya
+    entro con la suya. 350 de 434 personas no traen telefono en ningun Excel, y
+    sin el no hay WhatsApp para avisar de una cita. Se guarda con las mismas
+    reglas que el importador (normaliza.telefono: 10 digitos, sin lada de pais),
+    y el importador no lo vuelve a pisar porque solo llena telefonos vacios.
+    """
+    nuevo = n.telefono(datos.telefono)
+    if not nuevo or nuevo == TELEFONO_RELLENO:
+        raise HTTPException(422, "Escribe un celular de 10 digitos, por ejemplo 664 123 4567")
+    u = db.get(Usuario, usuario.id)
+    anterior = u.telefono
+    if anterior != nuevo:
+        u.telefono = nuevo
+        registrar_bitacora(db, u.id, "telefono_actualizado", "usuario", u.id,
+                           datos_despues=nuevo, datos_antes=anterior)
+        db.commit()
+    return _usuario_out(u)
 
 
 @router.get("/notificaciones", response_model=list[NotificacionOut])
