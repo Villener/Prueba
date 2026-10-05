@@ -52,7 +52,7 @@ function Columnas({ datos }) {
           <div className="gcol" key={d.etiqueta} title={`${d.etiqueta}: ${d.cuantas} entradas`}>
             <span className="gcifra">{d.cuantas}</span>
             <div className="gtorre" style={{ height: `${(d.cuantas / tope) * 100}%` }} />
-            <span className="gpie">{mes}/{anio.slice(2)}</span>
+            <span className="gpie">{mes}<span className="gpie-anio">{anio.slice(2)}</span></span>
           </div>
         )
       })}
@@ -208,7 +208,9 @@ export function Indicadores() {
         </Regla>
       </Card>
 
-      <div className="grid g2">
+      {/* `graficas`: en el telefono una por renglon. Lado a lado, en 320px las
+          barras no cabian y la pagina se salia de lado. */}
+      <div className="grid g2 graficas">
         <Card title="Por área" sub="A qué operación sirve cada unidad detenida">
           <Barras datos={d.por_area || []} total={patio} />
         </Card>

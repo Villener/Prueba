@@ -458,6 +458,13 @@ def hay_demo_sembrado(db: Session) -> bool:
     return cita is not None or orden is not None
 
 
+def _reconciliar_espacios(db: Session) -> dict:
+    from .modules.taller.taller_service import reconciliar_espacios
+    r = reconciliar_espacios(db)
+    db.commit()
+    return r
+
+
 def correr_todos(db: Session) -> dict:
     return {
         "avisos_incumplimiento": generar_avisos_incumplimiento(db),
@@ -466,6 +473,7 @@ def correr_todos(db: Session) -> dict:
         "agenda": recalcular_agenda(db),
         "avisos_cita": avisar_citas_proximas(db),
         "servicios_recalibrados": recalibrar_duraciones_servicio(db),
+        "espacios_reconciliados": _reconciliar_espacios(db),
     }
 
 

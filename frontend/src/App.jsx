@@ -49,7 +49,7 @@ const MODULOS = {
     { to: '/averias', Ico: IcoAverias, txt: 'Averías' },
     { to: '/cumplimiento', Ico: IcoCumplimiento, txt: 'Cumplimiento' },
   ] },
-  administrador: { titulo: 'Administrador', Componente: Administrador, tabs: [
+  administrador: { titulo: 'Administrador', corto: 'Admin', Componente: Administrador, tabs: [
     { to: '/', Ico: IcoSolicitudes, txt: 'Solicitudes' },
     { to: '/arrastres', Ico: IcoArrastres, txt: 'Carretera' },
     { to: '/agenda', Ico: IcoAgenda, txt: 'Agenda' },
@@ -83,7 +83,7 @@ const MODULOS = {
     { to: '/piezas', Ico: IcoAlmacen, txt: 'Piezas' },
     { to: '/traslados', Ico: IcoArrastres, txt: 'Traslados' },
   ] },
-  chofer_grua: { titulo: 'Chofer de grúa', Componente: ChoferGrua, tabs: [
+  chofer_grua: { titulo: 'Chofer de grúa', corto: 'Grúa', Componente: ChoferGrua, tabs: [
     { to: '/', Ico: IcoAlertas, txt: 'Alertas' },
     { to: '/arrastres', Ico: IcoArrastres, txt: 'Arrastres' },
     { to: '/historial', Ico: IcoHistorial, txt: 'Historial' },
@@ -127,7 +127,7 @@ const MODULOS = {
 // Excel. Las cuatro ven la misma pantalla; que archivos le tocan a cada una lo
 // decide el servidor.
 for (const area of ['logistica', 'almacen', 'compras', 'taller']) {
-  MODULOS[`datos_${area}`] = { titulo: 'Carga de datos', Componente: Datos, tabs: [
+  MODULOS[`datos_${area}`] = { titulo: 'Carga de datos', corto: 'Datos', Componente: Datos, tabs: [
     { to: '/', Ico: IcoDatos, txt: 'Cargar datos' },
   ] }
 }
@@ -344,7 +344,13 @@ export default function App() {
       <div className="main-col">
         <header className="topbar">
           <span className="brand"><Logo alto={24} /></span>
-          <span className="rolechip">{modulo.titulo}</span>
+          {/* En el telefono, los puestos largos van en corto: «ADMINISTRADOR»
+              no cabe junto a los cuatro botones. */}
+          <span className="rolechip" title={modulo.titulo}>
+            {modulo.corto
+              ? <><span className="solo-ancho">{modulo.titulo}</span><span className="solo-angosto">{modulo.corto}</span></>
+              : modulo.titulo}
+          </span>
           <span className="spacer" />
           <BotonTema />
           <NavLink to="/mis-datos" className="btn sm" title="Mis datos" aria-label="Mis datos">

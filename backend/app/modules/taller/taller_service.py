@@ -4,6 +4,7 @@ Servicio del paquete taller: aqui viven las reglas de negocio y los
 serializadores de este dominio. No sabe de HTTP (eso es del _controller) ni
 define tablas (eso es del _model).
 """
+import json
 from datetime import date, datetime
 
 from fastapi import HTTPException
@@ -13,6 +14,34 @@ from sqlalchemy.orm import Session
 from ... import models as m
 from ...core.tiempo import ahora_utc
 from ..sistema.comun_service import nombre_chofer, nombre_usuario, siguiente_folio  # noqa: F401
+
+
+def reconciliar_espacios(db: Session) -> dict:
+    """Que `Espacio.estado` diga lo mismo que las ocupaciones abiertas.
+
+    Son dos lugares que cuentan lo mismo y se desincronizaron: el arranque
+    operativo del 1 de octubre borro las ocupaciones de prueba pero dejo T-01 y
+    T-02 de REPARTO NORTE en "ocupado". El plano las pintaba azules sin unidad
+    adentro, el contador decia "2 ocupados" y, peor, al aceptar una solicitud
+    esas dos bahias no se ofrecian: estaban libres y el sistema no lo sabia.
+
+    Manda la ocupacion (quien entro y no ha salido), que es el registro con
+    fecha y responsable. "bloqueado" no se toca: ese lo pone una persona a
+    proposito y no depende de si hay unidad. No hace commit.
+    """
+    abiertas = {eid for (eid,) in db.query(m.OcupacionEspacio.espacio_id)
+                .filter(m.OcupacionEspacio.fecha_salida.is_(None))}
+    cambios = {"liberados": [], "ocupados": []}
+    for e in db.query(m.Espacio).filter(m.Espacio.estado.in_(("libre", "ocupado"))):
+        debe = "ocupado" if e.id in abiertas else "libre"
+        if e.estado != debe:
+            cambios["ocupados" if debe == "ocupado" else "liberados"].append(e.id)
+            e.estado = debe
+    if cambios["liberados"] or cambios["ocupados"]:
+        db.add(m.BitacoraAuditoria(usuario_id=None, accion="espacios_reconciliados",
+                                   entidad_tipo="espacio",
+                                   datos_despues=json.dumps(cambios)))
+    return {k: len(v) for k, v in cambios.items()}
 
 
 def espacios_libres_compatibles(db: Session, taller_id: int, tipo_unidad_id: int,

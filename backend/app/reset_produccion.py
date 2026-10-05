@@ -211,6 +211,13 @@ def purgar(cx, ahora, respaldo, evidencias_a) -> dict:
             "UPDATE unidad SET poseedor_chofer_id = titular_chofer_id "
             "WHERE poseedor_chofer_id IS NOT titular_chofer_id").rowcount
 
+        # --- casillas: las ocupaciones de prueba se van abajo, y con ellas cada
+        # casilla tiene que quedar libre. Esto faltaba: T-01 y T-02 de Alamos
+        # quedaron "ocupadas" sin unidad adentro (ver reconciliar_espacios).
+        uni["casillas_liberadas"] = (cx.execute(
+            "UPDATE espacio SET estado = 'libre' WHERE estado = 'ocupado'").rowcount
+            if "espacio" in existentes else 0)
+
         borrados = {}
         for t in TABLAS:
             if t in existentes:

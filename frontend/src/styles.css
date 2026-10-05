@@ -146,6 +146,15 @@ a  { color: var(--brand); }
 @media (max-width: 360px) {
   .topbar .rolechip { display: none; }
 }
+/* El puesto es lo UNICO de la barra que puede ceder: se recorta con «…» y los
+   botones se quedan enteros. «ADMINISTRADOR» no cabia en 375px y empujaba
+   «Salir» hasta 400: la pagina entera quedaba mas ancha que el telefono, se
+   podia deslizar de lado y la barra de abajo ya no llegaba a la orilla. */
+.topbar > * { flex-shrink: 0; }
+.topbar .rolechip {
+  flex-shrink: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
 /* ------------------------------------------------------------------ logo --- */
 /* El trazo viene del archivo (src/assets/logo.svg), que trae los colores como
@@ -509,6 +518,8 @@ tbody tr:hover { background: var(--surface-2); }
 /* El boton de tema muestra solo el icono en movil. */
 .solo-ancho { display: none; }
 @media (min-width: 620px) { .solo-ancho { display: inline; } }
+.solo-angosto { display: inline; }
+@media (min-width: 620px) { .solo-angosto { display: none; } }
 
 /* --------------------------------------------------------- impresion ------ */
 /* La hoja de trabajo se entrega EN PAPEL a los mecanicos de Alamos. Sin esto,
@@ -1121,8 +1132,11 @@ tbody tr:hover { background: var(--surface-2); }
    de izquierda a derecha es lo que el ojo espera. */
 .gcolumnas { display: flex; align-items: flex-end; gap: 4px; height: 168px;
              padding-top: 18px; }
+/* min-width: 0 porque una columna flex no se encoge por debajo de su etiqueta:
+   treinta etiquetas «05» median mas que la tarjeta y la grafica se salia de su
+   recuadro en el telefono (y empujaba la pagina de lado). */
 .gcol { flex: 1; display: flex; flex-direction: column; justify-content: flex-end;
-        align-items: center; gap: 5px; height: 100%; }
+        align-items: center; gap: 5px; height: 100%; min-width: 0; }
 .gcol .gtorre { width: 100%; background: var(--grafica);
                 border-radius: 4px 4px 2px 2px; min-height: 2px; }
 .gcol .gpie { font-family: var(--font-data); font-size: .62rem; color: var(--muted);
@@ -1199,6 +1213,21 @@ tbody tr:hover { background: var(--surface-2); }
 .gcolumnas.meta .gcol.hoy .gtorre { opacity: .45; }
 .gcolumnas.meta .gcol.hoy .gpie { font-weight: 700; color: var(--ink); }
 .gcolumnas.meta .gpie { font-size: .58rem; }
+
+/* En el telefono no caben 30 fechas ni 12 «10/26» seguidas. La meta enseña un
+   dia de cada cinco y el de hoy; las barras siguen siendo las 30, y la fecha de
+   cada una sigue en su globo al tocarla. En las entradas por mes el año baja a
+   un segundo renglon. */
+.gpie-anio::before { content: '/'; }
+@media (max-width: 600px) {
+  .gcolumnas.meta { gap: 2px; }
+  .gcolumnas.meta .gcol:not(.hoy):not(:nth-child(5n+1)) .gpie { visibility: hidden; }
+  .gcolumnas.meta .gcifra { font-size: .56rem; }
+  .gcol .gpie { text-align: center; line-height: 1.15; }
+  .gcol .gpie-anio { display: block; }
+  .gcol .gpie-anio::before { content: none; }
+  .gcolumnas:not(.meta) .gcifra { font-size: .6rem; }
+}
 
 /* Selector de granularidad del tablero del gerente: dia / mes / anio. Van
    pegados a proposito -- son una sola decision, no tres botones sueltos. */

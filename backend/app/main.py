@@ -122,6 +122,11 @@ def startup():
         # (etiquetas por fila y que zonas admiten unidad). En una base nueva no
         # encuentra nada que arreglar.
         log.info("plano: %s", asegurar_plano(db))
+        # Despues del plano: el estado de cada casilla se cuadra con las
+        # unidades que de verdad estan adentro (ver reconciliar_espacios).
+        from .modules.taller.taller_service import reconciliar_espacios
+        log.info("espacios: %s", reconciliar_espacios(db))
+        db.commit()
         # Antes de tocar cuentas: un rol nuevo (capturista) tiene que existir
         # en el catalogo o su cuenta se salta en silencio.
         log.info("roles: %s", asegurar_roles(db))
