@@ -25,6 +25,7 @@ from .modules.organizacion.auth_controller import router as router_auth
 from .modules.piezas.capturista_controller import router as router_capturista
 from .modules.sistema.gerente_controller import router as router_gerente
 from .modules.sistema.cargas_controller import router as router_cargas
+from .modules.sistema.push_controller import router as router_push
 from .modules.taller.administrador_controller import router as router_administrador
 from .core.security import require_roles
 from .core.migraciones import (asegurar_candados_bitacora, asegurar_columnas,
@@ -59,7 +60,7 @@ app.add_middleware(
 for r in [router_auth, router_chofer, router_supervisor, router_administrador,
           router_agenda, router_chofer_grua, router_gerente, router_capturista,
           router_evidencias, router_perito, router_mecanico, router_bitacora,
-          router_cargas]:
+          router_cargas, router_push]:
     app.include_router(r)
 
 
@@ -144,6 +145,16 @@ def startup():
             log.exception("bitacora: fallo la transcripcion de formatos anteriores")
     finally:
         db.close()
+
+    # Las claves de los avisos al celular se crean AQUI y no en el primer aviso:
+    # la carga nocturna es otro proceso y, si las dos las crearan a la vez,
+    # habria dos claves y los celulares suscritos con una no recibirian con la otra.
+    try:
+        from .modules.sistema.push_service import archivo_claves, claves
+        claves()
+        log.info("avisos al celular: claves en %s", archivo_claves())
+    except Exception:
+        log.exception("avisos al celular: no se pudieron preparar las claves")
 
 
 @app.exception_handler(IntegrityError)

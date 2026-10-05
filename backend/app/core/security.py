@@ -104,11 +104,16 @@ def registrar_bitacora(db: Session, usuario_id, accion: str, entidad_tipo: str =
 
 def notificar(db: Session, usuario_id: int, titulo: str, mensaje: str = "",
               tipo: str = "info", entidad_tipo: str = None, entidad_id: int = None):
-    """RF-GEN-05: notificacion in-app."""
+    """RF-GEN-05: notificacion in-app, y al celular si la persona lo activo.
+
+    El aviso al celular sale DESPUES del commit (ver sistema/push_service.py):
+    si la operacion se deshace, no se avisa nada."""
     from ..models import Notificacion
+    from ..modules.sistema.push_service import encolar
     if usuario_id is None:
         return
     db.add(Notificacion(usuario_id=usuario_id, titulo=titulo, mensaje=mensaje, tipo=tipo,
                         entidad_tipo=entidad_tipo, entidad_id=entidad_id))
+    encolar(db, usuario_id, titulo, mensaje, entidad_tipo, entidad_id)
 """Eston son comentaarios en python 
 es una prueba para ver el limite del trabajo  No se cual es el """

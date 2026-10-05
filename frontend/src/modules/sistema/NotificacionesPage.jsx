@@ -1,4 +1,5 @@
 /** Modulo Sistema - CU-GEN-02 de docs/casos-de-uso.md */
+import { useEffect } from 'react'
 import { api, fmtFechaHora } from '../../core/api.js'
 import {
   Card, Empty, IcoCampana, Spinner, useApi, useToast,
@@ -7,6 +8,12 @@ import {
 export default function Notificaciones() {
   const toast = useToast()
   const { data, cargando, recargar } = useApi(() => api.get('/auth/notificaciones'))
+
+  // Llego un aviso al celular con esta pantalla abierta: que aparezca sin recargar.
+  useEffect(() => {
+    window.addEventListener('bg:aviso', recargar)
+    return () => window.removeEventListener('bg:aviso', recargar)
+  }, [recargar])
 
   const leer = async (n) => {
     if (n.leida) return

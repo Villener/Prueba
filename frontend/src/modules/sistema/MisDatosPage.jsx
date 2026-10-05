@@ -1,5 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api, fmtCelular } from '../../core/api.js'
+import {
+  activarAvisos, alCambiarInstalable, desactivarAvisos, estadoAvisos, instalada, instalar,
+  probarAvisos, sePuedeInstalar,
+} from '../../core/pwa.js'
 import { getToken, setSession, telefonoValido } from '../../core/sesion.js'
 import { Aviso, Card, Regla, useToast } from '../../ui/index.js'
 
@@ -27,6 +31,77 @@ function Dato({ etiqueta, children }) {
       </span>
       <span>{children}</span>
     </div>
+  )
+}
+
+/** Lo que dice la tarjeta de avisos segun como este ESTE celular. */
+const TEXTO_AVISOS = {
+  activo: ['ok', 'Este celular recibe tus avisos.'],
+  inactivo: ['info', 'Este celular todavía no recibe avisos.'],
+  bloqueado: ['warn', 'Los avisos están bloqueados para esta página. Toca el candado junto a la '
+    + 'dirección, entra a Permisos → Notificaciones → Permitir y vuelve a esta pantalla.'],
+  'ios-instalar': ['info', 'En iPhone los avisos solo llegan con la app instalada: abre esta página '
+    + 'en Safari, toca Compartir (el cuadro con la flecha hacia arriba) y luego «Agregar a inicio». '
+    + 'Abre la app desde ese ícono y vuelve a Mis datos.'],
+  'no-soportado': ['warn', 'Este navegador no puede recibir avisos. En Android usa Chrome; en '
+    + 'iPhone, Safari con la app agregada a inicio.'],
+}
+
+function AvisosCelular() {
+  const [estado, setEstado] = useState(null)
+  const [ocupado, setOcupado] = useState(false)
+  const [instalable, setInstalable] = useState(sePuedeInstalar)
+  const toast = useToast()
+  const revisar = () => estadoAvisos({ confirmar: true }).then(setEstado)
+
+  useEffect(() => { revisar() }, [])
+  useEffect(() => alCambiarInstalable(setInstalable), [])
+
+  const hacer = (fn, exito) => async () => {
+    setOcupado(true)
+    try {
+      const r = await fn()
+      const texto = typeof exito === 'function' ? exito(r) : exito
+      if (texto) toast(...[].concat(texto))
+    } catch (e) {
+      toast(e.message, 'err')
+    } finally {
+      setOcupado(false)
+      revisar()
+    }
+  }
+  const activar = hacer(activarAvisos, 'Listo: los avisos del taller te llegarán a este celular')
+  const probar = hacer(probarAvisos, (r) => (r.enviados
+    ? 'Aviso enviado: debe llegarte en unos segundos'
+    : ['No se pudo entregar. Desactiva los avisos y vuelve a activarlos.', 'err']))
+  const quitar = hacer(desactivarAvisos, 'Este celular ya no recibirá avisos')
+  const instalarApp = hacer(instalar, (ok) => (ok ? 'La app quedó instalada' : null))
+
+  const [tipo, texto] = TEXTO_AVISOS[estado] || ['info', 'Revisando este celular…']
+  return (
+    <Card title="Avisos en este celular">
+      <Aviso tipo={tipo}>{texto}</Aviso>
+      <div className="btn-row">
+        {estado === 'inactivo' && (
+          <button className="btn primary" onClick={activar} disabled={ocupado}>
+            {ocupado ? 'Activando…' : 'Activar avisos'}
+          </button>
+        )}
+        {estado === 'activo' && (
+          <>
+            <button className="btn primary" onClick={probar} disabled={ocupado}>Enviar aviso de prueba</button>
+            <button className="btn" onClick={quitar} disabled={ocupado}>Dejar de recibir aquí</button>
+          </>
+        )}
+        {instalable && !instalada() && (
+          <button className="btn" onClick={instalarApp} disabled={ocupado}>Instalar la app en este celular</button>
+        )}
+      </div>
+      <Regla>
+        Son los mismos avisos de la campana —tus citas, sus cambios y lo que te asigne el taller—,
+        pero te llegan aunque la app esté cerrada. Al salir de tu cuenta, este celular deja de recibirlos.
+      </Regla>
+    </Card>
   )
 }
 
@@ -97,6 +172,8 @@ export default function MisDatos({ usuario, onCambio }) {
           WhatsApp. Queda registrado quién lo cambió y cuándo.
         </Regla>
       </Card>
+
+      {!(usuario.roles || []).every((r) => r.startsWith('datos_')) && <AvisosCelular />}
     </>
   )
 }

@@ -181,6 +181,7 @@ export const api = {
   get: (p, params) => request(p, { params }),
   post: (p, body, params) => request(p, { method: 'POST', body, params }),
   put: (p, body, params) => request(p, { method: 'PUT', body, params }),
+  del: (p, body) => request(p, { method: 'DELETE', body }),
   descargar,
   subir,
 }

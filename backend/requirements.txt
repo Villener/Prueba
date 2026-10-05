@@ -9,3 +9,6 @@ pydantic[email]>=2.9
 # El importador tambien lo usa, pero ese se ejecuta a mano y por eso falto aqui
 # hasta que el contenedor se nego a arrancar.
 openpyxl>=3.1
+# Avisos al celular (Web Push): cifra el aviso y firma la peticion a Google,
+# Apple, Mozilla o Microsoft. Ver app/modules/sistema/push_service.py.
+pywebpush>=2.0

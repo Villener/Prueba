@@ -62,6 +62,7 @@ from .modules.emergencias import (  # noqa: F401
 # Paquete H - Transversales: avisos, bitacora y configuracion
 from .modules.sistema import (  # noqa: F401
     Notificacion, AlertaGerencia, BitacoraAuditoria, Configuracion,
+    SuscripcionPush,
 )
 
 # Libro de bitacora de mantenimiento (PROY-NOM-030-ASEA-2026, 7.1.10)

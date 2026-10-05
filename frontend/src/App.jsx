@@ -5,7 +5,12 @@ import {
   leerAvisoSesion, mismaPersona, rolPrincipal, setSession, telefonoValido,
 } from './core/sesion.js'
 import { api } from './core/api.js'
+import {
+  activarAvisos, avisosApagadosAqui, escucharServiceWorker, estadoAvisos, sincronizarAvisos,
+  soltarAvisosDeEstaCuenta, vigilarVersion,
+} from './core/pwa.js'
 import { Aviso } from './ui/Feedback.jsx'
+import { useToast } from './ui/Toast.jsx'
 import { alternarTema, temaActual } from './core/tema.js'
 import Login from './modules/acceso/LoginPage.jsx'
 import Chofer from './modules/chofer/ChoferPage.jsx'
@@ -158,14 +163,80 @@ function AvisoSesion({ texto, onCerrar }) {
  *  avisarle de sus citas por WhatsApp. Se puede posponer en esta ventana. Las
  *  cuentas de carga de datos son de un area, no de una persona: a esas no. */
 const LUEGO_KEY = 'bg_tel_luego'
+const pideTelefono = (usuario) => !telefonoValido(usuario.telefono)
+  && !(usuario.roles || []).every((r) => r.startsWith('datos_'))
 function PideTelefono({ usuario, onLuego }) {
-  if (telefonoValido(usuario.telefono)) return null
-  if ((usuario.roles || []).every((r) => r.startsWith('datos_'))) return null
+  if (!pideTelefono(usuario)) return null
   return (
     <Aviso tipo="info">
       Agrega tu celular para que el taller te pueda avisar de tus citas.{' '}
       <NavLink to="/mis-datos" className="btn sm primary">Agregar celular</NavLink>{' '}
       <button className="btn sm" onClick={onLuego}>Ahora no</button>
+    </Aviso>
+  )
+}
+
+/** Invitacion a recibir los avisos en este celular. Solo sale cuando se pueden
+ *  activar con un toque (navegador compatible y permiso sin pedir todavia); el
+ *  caso del iPhone, que primero hay que instalar, se explica en Mis datos.
+ *  "Ahora no" la guarda una semana: el permiso del navegador se pide UNA vez y
+ *  conviene pedirlo cuando la persona dijo que si, no a la fuerza. */
+const AVISOS_LUEGO_KEY = 'bg_avisos_luego'
+const SEMANA_MS = 7 * 24 * 3600 * 1000
+function avisosPospuestos() {
+  try { return Date.now() - Number(localStorage.getItem(AVISOS_LUEGO_KEY) || 0) < SEMANA_MS } catch { return false }
+}
+function PideAvisos({ usuario }) {
+  const [mostrar, setMostrar] = useState(false)
+  const [activando, setActivando] = useState(false)
+  const toast = useToast()
+  const deArea = (usuario.roles || []).every((r) => r.startsWith('datos_'))
+
+  useEffect(() => {
+    if (deArea || avisosPospuestos() || avisosApagadosAqui()) return
+    let vivo = true
+    estadoAvisos().then((e) => { if (vivo) setMostrar(e === 'inactivo') })
+    return () => { vivo = false }
+  }, [deArea])
+
+  if (!mostrar) return null
+  const luego = () => {
+    try { localStorage.setItem(AVISOS_LUEGO_KEY, String(Date.now())) } catch { /* solo esta vez */ }
+    setMostrar(false)
+  }
+  const activar = async () => {
+    setActivando(true)
+    try {
+      await activarAvisos()
+      toast('Listo: los avisos del taller te llegarán a este celular')
+      setMostrar(false)
+    } catch (e) {
+      toast(e.message, 'err')
+      if (typeof Notification !== 'undefined' && Notification.permission === 'denied') setMostrar(false)
+    } finally {
+      setActivando(false)
+    }
+  }
+  return (
+    <Aviso tipo="info">
+      Activa los avisos para enterarte al momento de tus citas y cambios, aunque la app esté cerrada.{' '}
+      <button className="btn sm primary" onClick={activar} disabled={activando}>
+        {activando ? 'Activando…' : 'Activar avisos'}
+      </button>{' '}
+      <button className="btn sm" onClick={luego}>Ahora no</button>
+    </Aviso>
+  )
+}
+
+/** Ya hay otra version en el servidor y esta ventana sigue con la anterior. */
+function NuevaVersion() {
+  const [hay, setHay] = useState(false)
+  useEffect(() => vigilarVersion(() => setHay(true)), [])
+  if (!hay) return null
+  return (
+    <Aviso tipo="info">
+      Hay una versión nueva de la app.{' '}
+      <button className="btn sm primary" onClick={() => window.location.reload()}>Actualizar</button>
     </Aviso>
   )
 }
@@ -178,6 +249,24 @@ export default function App() {
 
   // Se lee una vez y se borra: si la persona vuelve a recargar, ya no sale.
   useEffect(() => { borrarAvisoSesion() }, [])
+
+  // El service worker avisa dos cosas: que tocaron un aviso (se abre donde
+  // diga) y que llego uno con la app abierta (las pantallas que lo muestran
+  // se recargan solas escuchando 'bg:aviso').
+  useEffect(() => escucharServiceWorker((m) => {
+    if (m.tipo === 'abrir' && m.url) {
+      const h = new URL(m.url).hash
+      if (h) window.location.hash = h
+    } else if (m.tipo === 'aviso') {
+      window.dispatchEvent(new CustomEvent('bg:aviso', { detail: m.datos }))
+    }
+  }), [])
+
+  // Con sesion: si este celular ya tenia los avisos, quedan a nombre de quien
+  // esta adentro ahora.
+  useEffect(() => {
+    if (usuario?.id) sincronizarAvisos()
+  }, [usuario?.id])
 
   // Otra ventana entro con otra cuenta o salio: esta se recarga entera con la
   // sesion que quedo, para que ningun componente se quede con datos de la
@@ -230,7 +319,10 @@ export default function App() {
   }
 
   const modulo = MODULOS[rol]
-  const salir = () => {
+  const salir = async () => {
+    // ANTES de borrar la sesion: sin token el servidor no deja quitarla, y los
+    // avisos de esta cuenta le seguirian llegando a quien use el celular despues.
+    await soltarAvisosDeEstaCuenta()
     clearSession()
     setUsuario(null)
     navigate('/login')
@@ -267,8 +359,13 @@ export default function App() {
 
         <main className="content">
           <AvisoSesion texto={avisoSesion} onCerrar={cerrarAviso} />
-          {!telLuego && ubicacion.pathname !== '/mis-datos' && (
-            <PideTelefono usuario={usuario} onLuego={posponerTelefono} />
+          <NuevaVersion />
+          {/* Una invitacion a la vez: primero el celular, que sirve aunque la
+              persona nunca abra la app; luego los avisos en este telefono. */}
+          {ubicacion.pathname !== '/mis-datos' && (
+            !telLuego && pideTelefono(usuario)
+              ? <PideTelefono usuario={usuario} onLuego={posponerTelefono} />
+              : <PideAvisos usuario={usuario} />
           )}
           <Routes>
             <Route path="/notificaciones" element={<Notificaciones />} />

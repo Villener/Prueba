@@ -1,0 +1,17 @@
+{
+  "id": "/",
+  "name": "Baja Gas · Flota y Taller",
+  "short_name": "Taller BG",
+  "description": "Citas de mantenimiento, unidades y taller de Baja Gas.",
+  "lang": "es-MX",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#EDF0F3",
+  "theme_color": "#0E5F8F",
+  "icons": [
+    { "src": "/icono-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icono-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

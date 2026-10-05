@@ -8,6 +8,13 @@
     <!-- Azul acero de la identidad, no un gris genérico: es el color de la
          barra del navegador en el teléfono, que es donde más se ve. -->
     <meta name="theme-color" content="#0E5F8F" />
+    <!-- App instalable (PWA): nombre, iconos y como abre. El iPhone no lee el
+         manifest para el icono ni acepta SVG: necesita su PNG cuadrado. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Taller BG" />
     <title>Baja Gas · Flota y Taller</title>
   </head>
   <body>

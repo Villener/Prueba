@@ -22,3 +22,7 @@ datos/
 # .db sino en .db.algo, y ese descuido los dejaba listos para subirse con
 # toda la plantilla dentro.
 *.db.*
+
+# Claves VAPID de los avisos al celular: la privada firma como el servidor.
+# Se generan solas junto a la base (backend/vapid.json en local).
+vapid*.json
