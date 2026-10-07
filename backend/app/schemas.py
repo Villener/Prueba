@@ -116,6 +116,9 @@ class SolicitudOut(ORMModel):
     orden_folio: Optional[str] = None
     reporte_id: Optional[int] = None
     reporte_folio: Optional[str] = None
+    # Quien la acepto, la dejo en cola o la rechazo, y cuando.
+    atendida_por: Optional[str] = None
+    fecha_respuesta: Optional[datetime] = None
 
 
 class ResolucionSolicitudIn(BaseModel):
@@ -268,6 +271,8 @@ class FirmaReporteIn(BaseModel):
     # El nombre es obligatorio: una firma sin nombre no es constancia de nada.
     nombre: str = Field(min_length=2, max_length=120)
     usuario_id: Optional[int] = None
+    # La firma dibujada en la pantalla: obligatoria. Ver FirmaReporte.trazo.
+    trazo: str = Field(min_length=10, max_length=60000)
 
 
 class FirmaReporteOut(ORMModel):
@@ -277,6 +282,8 @@ class FirmaReporteOut(ORMModel):
     nombre: Optional[str] = None
     fecha: Optional[datetime] = None
     registrada_por: Optional[str] = None
+    trazo: Optional[str] = None
+    trazo_sha256: Optional[str] = None
 
 
 class ReporteMantenimientoIn(BaseModel):

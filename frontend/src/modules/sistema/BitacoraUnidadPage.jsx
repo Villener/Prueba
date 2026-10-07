@@ -356,6 +356,11 @@ function ModalIdentificacion({ unidadId, cabecera, onCerrar, onListo }) {
           <label>Número de permiso (autoridad del Sector Hidrocarburos)</label>
           <input value={general.permiso} placeholder="Tal como viene en el permiso"
                  onChange={(e) => setGeneral({ ...general, permiso: e.target.value })} />
+          <p className="hint" style={{ marginTop: 4 }}>
+            Es el número del permiso que la autoridad de energía (CRE / ASEA) le dio a la
+            empresa para distribuir gas LP con pipas y vehículos de reparto. Viene en el
+            título de permiso; lo tiene el área de seguridad o la gerencia. Se captura una vez.
+          </p>
         </div>
 
         <h3 style={{ margin: '14px 0 8px' }}>De esta unidad</h3>
@@ -367,6 +372,10 @@ function ModalIdentificacion({ unidadId, cabecera, onCerrar, onListo }) {
           <datalist id="lista-ayudantes">
             {(ayudantes.data || []).map((n) => <option key={n} value={n} />)}
           </datalist>
+          <p className="hint" style={{ marginTop: 4 }}>
+            Quien acompaña o apoya al chofer en esta unidad: el ayudante o despachador
+            (en los Excel aparece como «AYTE»). La NOM-030 lo pide junto con los operadores.
+          </p>
         </div>
         <div className="field">
           <label>Permiso propio (solo si NO es el de la empresa)</label>

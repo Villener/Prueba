@@ -54,12 +54,47 @@ solo_admin = require_roles("administrador")
 # dependencia aparece en un endpoint que ESCRIBE, es un error, no una mejora.
 admin_o_gerente = require_roles("administrador", "gerente")
 
+# EL MECANICO DE PLANTA opera SU planta con las mismas pantallas: el plano, las
+# casillas y las solicitudes de ingreso (Martin, 2026-10-07). En Tecate, Rosarito,
+# Guaycura, Carranza y Valle Redondo no hay administrador al lado; el mecanico es
+# el unico que esta ahi para meter y sacar unidades. Pero SOLO la suya: ver o
+# mover las de otra planta no le toca, salvo que el administrador lo cambie de
+# planta (PUT /tecnicos/{id}/taller). El candado esta aqui, en el servidor; la
+# pantalla solo deja de ofrecer lo que de todos modos se le negaria.
+admin_o_mecanico = require_roles("administrador", "mecanico")
+admin_gerente_o_mecanico = require_roles("administrador", "gerente", "mecanico")
+
+
+def _planta_del_mecanico(db: Session, usuario) -> int | None:
+    """None si quien pregunta ve todas las plantas (administrador o gerente).
+    El taller del mecanico, si es mecanico."""
+    roles = usuario.lista_roles
+    if "administrador" in roles or "gerente" in roles:
+        return None
+    t = (db.query(m.Tecnico)
+         .filter(m.Tecnico.usuario_id == usuario.id, m.Tecnico.activo.is_(True)).first())
+    if not t or not t.taller_id:
+        raise HTTPException(403, "Tu cuenta no tiene planta asignada. Pidele al administrador "
+                                 "del taller que te asigne una.")
+    return t.taller_id
+
+
+def _exigir_planta(db: Session, usuario, taller_id: int | None):
+    propia = _planta_del_mecanico(db, usuario)
+    if propia is not None and propia != taller_id:
+        raise HTTPException(403, "Solo puedes ver y trabajar la planta que tienes asignada. "
+                                 "Si te mandaron a otra, pidele al administrador del taller "
+                                 "que te cambie de planta.")
+
 
 # ---------------------------------------------------------------- CU-ADM-01 -- #
 @router.get("/solicitudes", response_model=list[SolicitudOut])
-def bandeja(estado: str | None = None, usuario=Depends(solo_admin),
+def bandeja(estado: str | None = None, usuario=Depends(admin_o_mecanico),
             db: Session = Depends(get_db)):
     q = db.query(m.SolicitudIngreso)
+    planta = _planta_del_mecanico(db, usuario)
+    if planta is not None:
+        q = q.filter(m.SolicitudIngreso.taller_id == planta)
     if estado:
         q = q.filter(m.SolicitudIngreso.estado == estado)
     orden = {"critica": 0, "alta": 1, "media": 2, "baja": 3}
@@ -69,12 +104,13 @@ def bandeja(estado: str | None = None, usuario=Depends(solo_admin),
 
 
 @router.post("/solicitudes/{sol_id}/resolver", response_model=SolicitudOut)
-def resolver_solicitud(sol_id: int, datos: ResolucionSolicitudIn, usuario=Depends(solo_admin),
-                       db: Session = Depends(get_db)):
+def resolver_solicitud(sol_id: int, datos: ResolucionSolicitudIn,
+                       usuario=Depends(admin_o_mecanico), db: Session = Depends(get_db)):
     """CU-ADM-01 con «include» CU-ADM-02: nunca se decide sin verificar espacios (RN-06)."""
     s = db.query(m.SolicitudIngreso).filter(m.SolicitudIngreso.id == sol_id).first()
     if not s:
         raise HTTPException(404, "Solicitud no encontrada")
+    _exigir_planta(db, usuario, s.taller_id)
     if s.estado not in ("pendiente", "en_cola"):
         raise HTTPException(409, f"La solicitud ya esta '{s.estado}'")
 
@@ -88,12 +124,16 @@ def resolver_solicitud(sol_id: int, datos: ResolucionSolicitudIn, usuario=Depend
                       f"No hay espacio libre compatible. Unidad {s.unidad.num_economico} "
                       "queda en cola.", "solicitud", "solicitud_ingreso", s.id)
         else:
-            if not datos.motivo_rechazo:
+            motivo = (datos.motivo_rechazo or "").strip()
+            if not motivo:
                 raise HTTPException(400, "RN-06: el rechazo exige motivo")
             s.estado = "rechazada"
-            s.motivo_rechazo = datos.motivo_rechazo
-            notificar(db, s.chofer_id, "Solicitud rechazada", datos.motivo_rechazo,
+            s.motivo_rechazo = motivo
+            notificar(db, s.chofer_id, "Solicitud rechazada",
+                      f"Unidad {s.unidad.num_economico}: {motivo}",
                       "solicitud", "solicitud_ingreso", s.id)
+            registrar_bitacora(db, usuario.id, "solicitud_rechazada", "solicitud_ingreso",
+                               s.id, datos_despues=motivo)
         db.commit()
         db.refresh(s)
         return svc.solicitud_out(db, s)
@@ -233,9 +273,11 @@ def resolver_solicitud(sol_id: int, datos: ResolucionSolicitudIn, usuario=Depend
 
 # ------------------------------------------------------------- CU-ADM-02/03 -- #
 @router.get("/taller/{taller_id}", response_model=TallerOut)
-def plano_taller(taller_id: int, usuario=Depends(admin_o_gerente), db: Session = Depends(get_db)):
-    """El croquis. Lo lee tambien el gerente, de solo lectura, en Taller > Patios:
-    mover o sacar unidades sigue siendo solo del administrador (los POST)."""
+def plano_taller(taller_id: int, usuario=Depends(admin_gerente_o_mecanico),
+                 db: Session = Depends(get_db)):
+    """El croquis. Lo lee tambien el gerente, de solo lectura, en Taller > Patios,
+    y el mecanico de planta, solo el de la suya."""
+    _exigir_planta(db, usuario, taller_id)
     t = db.query(m.Taller).filter(m.Taller.id == taller_id).first()
     if not t:
         raise HTTPException(404, "Taller no encontrado")
@@ -263,7 +305,7 @@ def plano_taller(taller_id: int, usuario=Depends(admin_o_gerente), db: Session =
 
 
 @router.get("/talleres")
-def talleres(usuario=Depends(admin_o_gerente), db: Session = Depends(get_db)):
+def talleres(usuario=Depends(admin_gerente_o_mecanico), db: Session = Depends(get_db)):
     """El catalogo de talleres, que es el filtro de la pantalla de Indicadores.
 
     Lo lee tambien el gerente (ver admin_o_gerente arriba): sin esta lista su
@@ -271,15 +313,22 @@ def talleres(usuario=Depends(admin_o_gerente), db: Session = Depends(get_db)):
     que abrir los otros tres GET y dejar este cerrado le habria entregado media
     pantalla. Son un id y un nombre, nada mas.
     """
-    return [{"id": t.id, "nombre": t.nombre} for t in db.query(m.Taller).all()]
+    q = db.query(m.Taller)
+    planta = _planta_del_mecanico(db, usuario)
+    if planta is not None:
+        # Al mecanico, solo la suya: el selector de taller ni siquiera aparece.
+        q = q.filter(m.Taller.id == planta)
+    return [{"id": t.id, "nombre": t.nombre} for t in q.all()]
 
 
 # ---------------------------------------------------------------- CU-ADM-04 -- #
 @router.post("/espacios/{espacio_id}/retirar", response_model=MensajeOut)
-def retirar_unidad(espacio_id: int, usuario=Depends(solo_admin), db: Session = Depends(get_db)):
+def retirar_unidad(espacio_id: int, usuario=Depends(admin_o_mecanico),
+                   db: Session = Depends(get_db)):
     ocup = svc.ocupacion_abierta_de_espacio(db, espacio_id)
     if not ocup:
         raise HTTPException(404, "Ese espacio no tiene una unidad")
+    _exigir_planta(db, usuario, ocup.espacio.zona.taller_id)
     ocup.fecha_salida = ahora_utc()
     ocup.retirado_por_admin_id = usuario.id
     ocup.espacio.estado = "libre"
@@ -289,13 +338,25 @@ def retirar_unidad(espacio_id: int, usuario=Depends(solo_admin), db: Session = D
 
 
 @router.post("/espacios/{espacio_id}/mover/{orden_id}", response_model=MensajeOut)
-def mover_unidad(espacio_id: int, orden_id: int, usuario=Depends(solo_admin),
+def mover_unidad(espacio_id: int, orden_id: int, usuario=Depends(admin_o_mecanico),
                  db: Session = Depends(get_db)):
     """Mueve la unidad de una orden abierta a otro espacio (RI-02, RI-03, RI-04)."""
     orden = db.query(m.OrdenServicio).filter(m.OrdenServicio.id == orden_id).first()
     espacio = db.query(m.Espacio).filter(m.Espacio.id == espacio_id).first()
     if not orden or not espacio:
         raise HTTPException(404, "Orden o espacio no encontrado")
+    # Las dos cosas tienen que ser de su planta: la casilla y la orden.
+    _exigir_planta(db, usuario, espacio.zona.taller_id)
+    _exigir_planta(db, usuario, orden.taller_id)
+    # Y para cualquiera: una orden CERRADA ya no mueve nada, y una orden de una
+    # planta no se estaciona en otra. Con una orden vieja de Tecate se podia
+    # «traer» a Tecate una unidad que hoy esta en un cajon de Alamos, y ese
+    # cajon quedaba libre en el plano con la unidad fisicamente adentro.
+    if orden.fecha_salida is not None or orden.estado == "cerrada":
+        raise HTTPException(409, f"La orden {orden.folio} ya esta cerrada: no mueve unidades.")
+    if espacio.zona.taller_id != orden.taller_id:
+        raise HTTPException(409, "Esa casilla es de otra planta que la de la orden. Para "
+                                 "cambiar de planta, la unidad se traslada.")
     if espacio.estado != "libre":
         raise HTTPException(409, "El espacio destino esta ocupado")
     if (espacio.tipo_unidad_permitido_id
@@ -303,6 +364,8 @@ def mover_unidad(espacio_id: int, orden_id: int, usuario=Depends(solo_admin),
         raise HTTPException(409, "RI-04: ese espacio no admite este tipo de unidad")
     actual = svc.ocupacion_abierta_de_unidad(db, orden.unidad_id)
     if actual:
+        # El cajon de donde sale tambien tiene que ser suyo.
+        _exigir_planta(db, usuario, actual.espacio.zona.taller_id)
         actual.fecha_salida = ahora_utc()
         actual.retirado_por_admin_id = usuario.id
         actual.espacio.estado = "libre"
@@ -1197,6 +1260,7 @@ def registrar_firma(reporte_id: int, datos: FirmaReporteIn,
     if datos.usuario_id and not db.query(m.Usuario).filter(
             m.Usuario.id == datos.usuario_id).first():
         raise HTTPException(404, "Usuario no encontrado")
+    trazo, huella = bit.validar_trazo(datos.trazo)
     if not f:
         f = m.FirmaReporte(reporte_id=r.id, rol_firma=datos.rol_firma)
         db.add(f)
@@ -1204,6 +1268,7 @@ def registrar_firma(reporte_id: int, datos: FirmaReporteIn,
     f.usuario_id = datos.usuario_id
     f.fecha = ahora_utc()
     f.registrada_por_admin_id = usuario.id
+    f.trazo, f.trazo_sha256 = trazo, huella
     db.flush()
     bit.asentar_firma(db, r, f, usuario.id)
 
@@ -1300,6 +1365,43 @@ def buscar_unidades(q: str = "", limite: int = 10, usuario=Depends(solo_admin),
         })
     out.sort(key=lambda x: (not x["exacto"], len(x["num_economico"])))
     return out[:tope]
+
+
+@router.get("/tecnicos/de-planta")
+def mecanicos_de_planta(usuario=Depends(solo_admin), db: Session = Depends(get_db)):
+    """Los mecanicos con cuenta (los de las plantas satelite) y la planta que
+    tiene cada uno: es lo unico que pueden ver y trabajar en la aplicacion."""
+    talleres = {t.id: t.nombre for t in db.query(m.Taller).all()}
+    fuera = []
+    for t in (db.query(m.Tecnico)
+              .filter(m.Tecnico.usuario_id.isnot(None), m.Tecnico.activo.is_(True))
+              .order_by(m.Tecnico.nombre).all()):
+        fuera.append({"id": t.id, "nombre": t.nombre_completo, "especialidad": t.especialidad,
+                      "taller_id": t.taller_id, "taller": talleres.get(t.taller_id)})
+    return fuera
+
+
+@router.put("/tecnicos/{tecnico_id}/taller")
+def cambiar_planta(tecnico_id: int, taller_id: int, usuario=Depends(solo_admin),
+                   db: Session = Depends(get_db)):
+    """El administrador manda al mecanico a otra planta. Desde ese momento ve y
+    trabaja solo esa; la anterior deja de aparecerle."""
+    t = db.query(m.Tecnico).filter(m.Tecnico.id == tecnico_id).first()
+    taller = db.query(m.Taller).filter(m.Taller.id == taller_id).first()
+    if not t or not taller:
+        raise HTTPException(404, "Tecnico o taller no encontrado")
+    if t.taller_id == taller.id:
+        return {"id": t.id, "taller_id": taller.id, "taller": taller.nombre}
+    antes = db.query(m.Taller).filter(m.Taller.id == t.taller_id).first()
+    t.taller_id = taller.id
+    registrar_bitacora(db, usuario.id, "tecnico_cambio_de_planta", "tecnico", t.id,
+                       datos_antes=antes.nombre if antes else None, datos_despues=taller.nombre)
+    if t.usuario_id:
+        notificar(db, t.usuario_id, "Cambiaste de planta",
+                  f"Desde ahora trabajas en {taller.nombre}. Te asigno "
+                  f"{svc.nombre_usuario(db, usuario.id)}.", "info", "tecnico", t.id)
+    db.commit()
+    return {"id": t.id, "taller_id": taller.id, "taller": taller.nombre}
 
 
 @router.get("/tecnicos")
@@ -1452,12 +1554,13 @@ def piezas(q: str = "", taller_id: int | None = None, limite: int = 30,
 
 # ---------------------------------------------------- CU-ADM-04: menu del plano -- #
 @router.get("/espacios/{espacio_id}")
-def detalle_espacio(espacio_id: int, usuario=Depends(solo_admin),
+def detalle_espacio(espacio_id: int, usuario=Depends(admin_o_mecanico),
                     db: Session = Depends(get_db)):
     """Lo que necesita el menu que se despliega al tocar una casilla del plano."""
     esp = db.query(m.Espacio).filter(m.Espacio.id == espacio_id).first()
     if not esp:
         raise HTTPException(404, "Espacio no encontrado")
+    _exigir_planta(db, usuario, esp.zona.taller_id if esp.zona else None)
 
     ocup = svc.ocupacion_abierta_de_espacio(db, espacio_id)
     zona = esp.zona
@@ -1527,7 +1630,7 @@ def detalle_espacio(espacio_id: int, usuario=Depends(solo_admin),
 
 
 @router.post("/espacios/{espacio_id}/colocar/{orden_id}", response_model=MensajeOut)
-def colocar_unidad(espacio_id: int, orden_id: int, usuario=Depends(solo_admin),
+def colocar_unidad(espacio_id: int, orden_id: int, usuario=Depends(admin_o_mecanico),
                    db: Session = Depends(get_db)):
     """Mete una unidad con orden abierta en un espacio libre (CU-ADM-04)."""
     return mover_unidad(espacio_id, orden_id, usuario, db)

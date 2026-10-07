@@ -191,9 +191,12 @@ def crear_solicitud(datos: SolicitudIn, usuario=Depends(solo_chofer),
                            urgencia=datos.urgencia)
     db.add(s)
     db.flush()
-    for admin in db.query(m.Usuario).join(m.UsuarioRol).join(m.Rol).filter(
-            m.Rol.nombre == "administrador").all():
-        notificar(db, admin.id, "Nueva solicitud de ingreso",
+    destinatarios = {a.id for a in db.query(m.Usuario).join(m.UsuarioRol).join(m.Rol).filter(
+        m.Rol.nombre == "administrador").all()}
+    # Y el mecanico de esa planta, que en las satelite es quien la atiende.
+    destinatarios |= set(svc.mecanicos_de_planta(db, datos.taller_id))
+    for uid in destinatarios:
+        notificar(db, uid, "Nueva solicitud de ingreso",
                   f"Unidad {unidad.num_economico} - urgencia {datos.urgencia}",
                   "solicitud", "solicitud_ingreso", s.id)
     registrar_bitacora(db, usuario.id, "solicitud_creada", "solicitud_ingreso", s.id)

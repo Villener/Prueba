@@ -863,8 +863,11 @@ def _importar_requisiciones(db: Session, carpeta: str, res: dict) -> dict:
     # El capturista de Alamos es quien tecleo todo esto. Si todavia no tiene
     # cuenta, la requisicion se guarda igual pero sin responsable de captura:
     # es un dato faltante, no una razon para perder el documento.
+    # Solo una cuenta ACTIVA: si no, las hojas nuevas quedaban a nombre de quien
+    # ya renuncio (Jaime Yair, 2026-10-07). Y por id, para que sea siempre la misma.
     cap = (db.query(m.Usuario).join(m.UsuarioRol).join(m.Rol)
-           .filter(m.Rol.nombre == "capturista").first())
+           .filter(m.Rol.nombre == "capturista", m.Usuario.activo.is_(True))
+           .order_by(m.Usuario.id).first())
 
     # La firma incluye LOS MATERIALES, no solo folio+fecha+unidad. Con la llave
     # corta se descartaban tres requisiciones buenas: J331 y J332 se repiten el

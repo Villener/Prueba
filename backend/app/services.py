@@ -15,7 +15,7 @@ from .modules.taller.taller_service import (  # noqa: F401
     espacios_libres_compatibles, ocupacion_abierta_de_unidad, ocupacion_abierta_de_espacio,
     solicitud_out, asignacion_out, orden_out, reporte_out, atendido_por,
     crear_reporte_mantenimiento, reporte_abierto_de_unidad,
-    orden_abierta_de_unidad, sacar_del_taller,
+    orden_abierta_de_unidad, sacar_del_taller, mecanicos_de_planta,
 )
 from .modules.mantenimiento.mantenimiento_service import (  # noqa: F401
     mantenimiento_out,

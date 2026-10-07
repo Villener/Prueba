@@ -221,5 +221,17 @@ class FirmaReporte(Base):
     # Quien tecleo que esa firma existe en el papel. La firma es de tinta; esto
     # es la constancia de que alguien la vio.
     registrada_por_admin_id = Column(Integer, ForeignKey("usuario.id"))
+    # LA FIRMA DIBUJADA (Martin, 2026-10-07). Antes bastaba teclear un nombre y
+    # el sistema lo aceptaba; ahora la persona firma con el dedo en la pantalla.
+    # Se guarda el TRAZO, no una imagen: un camino SVG ("M x y L x y ...") en un
+    # lienzo de 600x200, que pesa poco, se imprime nitido a cualquier tamano y
+    # se puede volver a dibujar igual. La huella (SHA-256) va tambien al asiento
+    # del libro: si alguien cambiara el trazo en la base, ya no cuadraria.
+    #
+    # Ojo con lo que NO es: un dibujo no identifica a nadie por si solo --
+    # cualquiera puede garabatear por otro--. Lo que da certeza es el resto del
+    # registro: quien estaba en sesion, cuando, y el nombre de quien firmo.
+    trazo = Column(Text)
+    trazo_sha256 = Column(String(64))
 
     reporte = relationship("ReporteMantenimiento", back_populates="firmas")

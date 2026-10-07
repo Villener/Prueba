@@ -22,6 +22,8 @@ import {
   IcoTecnico, IcoUbicacion, IcoVolver, Modal, Regla, Spinner, TiraFotos, useApi, useToast,
 } from '../../ui/index.js'
 import { Logo } from '../../ui/Logo.jsx'
+import { FirmaTrazo, LienzoFirma } from '../../ui/Firma.jsx'
+import { getUser } from '../../core/sesion.js'
 import { SelectorTaller } from './PlanoTaller.jsx'
 
 /* La casilla del papel. Tres estados y no un ✔/✗ porque la casilla en blanco
@@ -1146,6 +1148,10 @@ function Firmas({ r, catalogo, editable, onFirmar }) {
           const obligatoria = r.firmas_faltantes.includes(c.clave)
           return (
             <div key={c.clave} className={`fmt-firma ${f?.nombre ? 'puesta' : ''}`}>
+              {/* La firma dibujada va ENCIMA de la raya, como en el papel. Las
+                  que se registraron antes de la firma en pantalla no traen
+                  dibujo: son constancia de una firma de tinta. */}
+              {f?.trazo && <FirmaTrazo trazo={f.trazo} titulo={`Firma de ${f.nombre}`} />}
               <div className="raya">{f?.nombre || ''}</div>
               <div className="pie">{c.etiqueta}</div>
               <div className="quien">{c.quien}</div>
@@ -1156,7 +1162,7 @@ function Firmas({ r, catalogo, editable, onFirmar }) {
                 </div>
               ) : editable ? (
                 <button className="btn sm no-print" onClick={() => onFirmar(c)}>
-                  Registrar firma{obligatoria ? ' *' : ''}
+                  Firmar{obligatoria ? ' *' : ''}
                 </button>
               ) : <div className="s">Sin firma</div>}
             </div>
@@ -1175,16 +1181,32 @@ function Firmas({ r, catalogo, editable, onFirmar }) {
   )
 }
 
+/** Quien firma normalmente cada recuadro, para no teclearlo: el chofer del
+ *  formato, su supervisor, o quien esta en sesion para el Vo. Bo. Se puede
+ *  cambiar si firmo otra persona. */
+function nombreSugerido(reporte, firma) {
+  const quien = (firma.quien || '').toLowerCase()
+  if (quien.includes('chofer')) return reporte.chofer_nombre || ''
+  if (quien.includes('supervisor')) return reporte.supervisor_nombre || ''
+  if (quien.includes('jefe')) {
+    const yo = getUser()
+    return yo ? `${yo.nombre} ${yo.apellidos || ''}`.trim() : ''
+  }
+  return ''
+}
+
 function ModalFirma({ reporte, firma, onCerrar, onListo }) {
   const toast = useToast()
-  const [nombre, setNombre] = useState('')
+  const [nombre, setNombre] = useState(() => nombreSugerido(reporte, firma))
+  const [trazo, setTrazo] = useState(null)
   const [enviando, setEnviando] = useState(false)
   const enviar = async (e) => {
     e.preventDefault()
+    if (!trazo) return
     setEnviando(true)
     try {
       await api.post(`/admin/reportes/${reporte.id}/firmar`,
-                     { rol_firma: firma.clave, nombre: nombre.trim() })
+                     { rol_firma: firma.clave, nombre: nombre.trim(), trazo })
       onListo()
     } catch (err) {
       toast(err.message, 'err')
@@ -1201,16 +1223,27 @@ function ModalFirma({ reporte, firma, onCerrar, onListo }) {
           <span className="s">{reporte.folio}</span>
         </div>
         <div className="field">
-          <label>Nombre de quien firmó ({firma.quien.toLowerCase()})</label>
+          <label>Quién firma ({firma.quien.toLowerCase()})</label>
           <input required minLength={2} value={nombre}
-                 onChange={(e) => setNombre(e.target.value)} autoFocus />
+                 onChange={(e) => setNombre(e.target.value)} />
         </div>
-        <button className="btn primary block" disabled={enviando || nombre.trim().length < 2}>
-          {enviando ? 'Registrando…' : 'Registrar firma'}
+        <div className="field">
+          <label>Firma</label>
+          <LienzoFirma onCambio={setTrazo} />
+          {!trazo && (
+            <p className="hint" style={{ marginTop: 4 }}>
+              Pásale el teléfono o la tableta a quien firma: que firme completo, como en el papel.
+            </p>
+          )}
+        </div>
+        <button className="btn primary block"
+                disabled={enviando || !trazo || nombre.trim().length < 2}>
+          {enviando ? 'Guardando…' : 'Guardar firma'}
         </button>
         <Regla>
-          El sistema no firma nada: la firma es de tinta y está en el papel. Esto deja
-          constancia de que alguien la vio, de quién la dio y de cuándo.
+          Queda guardado el dibujo de la firma, el nombre, la hora y quién estaba en sesión.
+          La firma entra al libro de bitácora de la unidad con su huella: si alguien la
+          cambiara después, el libro dejaría de salir íntegro.
         </Regla>
       </form>
     </Modal>

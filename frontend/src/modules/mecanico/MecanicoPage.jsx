@@ -16,6 +16,8 @@
  */
 import { useEffect, useState } from 'react'
 import { Link, Route, Routes } from 'react-router-dom'
+import { Plano } from '../administrador/PlanoPage.jsx'
+import { Solicitudes } from '../administrador/SolicitudesPage.jsx'
 import { api, diaTijuana, fmtFecha, fmtFechaHora, hoyTijuana } from '../../core/api.js'
 import {
   Aviso, Badge, BuscadorPieza, BuscadorUnidad, Card, Empty, EstadoBadge, IcoAlmacen,
@@ -26,6 +28,10 @@ export default function Mecanico() {
   return (
     <Routes>
       <Route path="/" element={<MiTrabajo />} />
+      {/* SU planta: el plano y las solicitudes de ingreso de ahi. El servidor
+          no le da ninguna otra (Martin, 2026-10-07). */}
+      <Route path="/planta" element={<Plano esMecanico />} />
+      <Route path="/solicitudes" element={<Solicitudes esMecanico />} />
       <Route path="/auxilios" element={<Auxilios />} />
       <Route path="/piezas" element={<Piezas />} />
       <Route path="/traslados" element={<Traslados />} />

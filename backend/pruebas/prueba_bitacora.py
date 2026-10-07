@@ -45,6 +45,9 @@ from app.modules.emergencias import mecanico_controller as mc  # noqa: E402
 from app.modules.taller import administrador_controller as ac  # noqa: E402
 from app.seed import asegurar_asientos_de_reportes, asegurar_parametros  # noqa: E402
 
+# Una firma dibujada valida: un zigzag de lado a lado del lienzo de 600x200.
+FIRMA = "M 20 150 " + " ".join(f"L {40 + 40 * k} {60 if k % 2 else 150}" for k in range(13))
+
 CASOS = []
 
 
@@ -234,7 +237,7 @@ def c6():
         completa("frenos", w.tecnico.id), fila("llantas", a_realizar="Rotar")]),
         usuario=w.admin, db=db)
     for rol in ("vobo_mantenimiento", "recibe_salida"):
-        ac.registrar_firma(r.id, sc.FirmaReporteIn(rol_firma=rol, nombre="Fulano Tal"),
+        ac.registrar_firma(r.id, sc.FirmaReporteIn(rol_firma=rol, nombre="Fulano Tal", trazo=FIRMA),
                            usuario=w.admin, db=db)
     out = ac.cerrar_reporte(r.id, sc.CierreReporteIn(unidad_operativa=False,
                                                      comentarios_adicionales="Sale sin llantas"),
@@ -262,7 +265,7 @@ def c7():
     a = next(x for x in r.actividades if x.sistema == "motor")
     a.realizada = "Hecho antes de la NOM"; a.fecha_realizada = ahora_utc(); db.commit()
     for rol in ("vobo_mantenimiento", "recibe_salida"):
-        ac.registrar_firma(r.id, sc.FirmaReporteIn(rol_firma=rol, nombre="Fulano Tal"),
+        ac.registrar_firma(r.id, sc.FirmaReporteIn(rol_firma=rol, nombre="Fulano Tal", trazo=FIRMA),
                            usuario=w.admin, db=db)
     e = espera_http(lambda: ac.cerrar_reporte(r.id, sc.CierreReporteIn(), usuario=w.admin,
                                               db=db), 409)
@@ -279,7 +282,7 @@ def c8():
                                         admin_id=w.admin.id, orden=o)
     db.commit()
     for rol in ("vobo_mantenimiento", "recibe_salida"):
-        ac.registrar_firma(r.id, sc.FirmaReporteIn(rol_firma=rol, nombre="Fulano Tal"),
+        ac.registrar_firma(r.id, sc.FirmaReporteIn(rol_firma=rol, nombre="Fulano Tal", trazo=FIRMA),
                            usuario=w.admin, db=db)
     ac.emitir_salida(o.id, sc.FormatoSalidaIn(operacion_a_realizar="Reparto"),
                      usuario=w.admin, db=db)
@@ -295,7 +298,7 @@ def c9():
     ac.capturar_actividades(r.id, sc.ActividadesIn(actividades=[
         completa("frenos", w.tecnico.id)]), usuario=w.admin, db=db)
     for rol in ("vobo_mantenimiento", "recibe_salida"):
-        ac.registrar_firma(r.id, sc.FirmaReporteIn(rol_firma=rol, nombre="Fulano Tal"),
+        ac.registrar_firma(r.id, sc.FirmaReporteIn(rol_firma=rol, nombre="Fulano Tal", trazo=FIRMA),
                            usuario=w.admin, db=db)
     ac.cerrar_reporte(r.id, sc.CierreReporteIn(), usuario=w.admin, db=db)
     frenos = next(a for a in libro(db, w.unidad.id) if a.sistema == "frenos")
@@ -454,7 +457,7 @@ def c16():
 
 def firmar_salida(w, r):
     for rol in ("vobo_mantenimiento", "recibe_salida"):
-        ac.registrar_firma(r.id, sc.FirmaReporteIn(rol_firma=rol, nombre="Fulano Tal"),
+        ac.registrar_firma(r.id, sc.FirmaReporteIn(rol_firma=rol, nombre="Fulano Tal", trazo=FIRMA),
                            usuario=w.admin, db=w.db)
 
 
@@ -663,6 +666,20 @@ def main():
     print("=" * 78)
     print("%d pasaron, %d fallaron, de %d casos" % (ok, fallo, len(CASOS)))
     return 1 if fallo else 0
+
+
+@caso("28. Si alguien cambia el dibujo de una firma, el libro deja de salir integro")
+def c28():
+    db = nueva_db(); w = Mundo(db); r = w.reporte()
+    firmar_salida(w, r)
+    v = bs.verificar_libro(db, w.unidad.id, libro(db, w.unidad.id))
+    assert v["integra"], v
+    f = db.query(m.FirmaReporte).filter_by(reporte_id=r.id, rol_firma="recibe_salida").one()
+    f.trazo = "M 10 10 L 590 190 L 10 190 L 590 10"   # otra firma, puesta a mano
+    db.commit()
+    v = bs.verificar_libro(db, w.unidad.id, libro(db, w.unidad.id))
+    assert not v["integra"] and "firma" in v["motivo"], v
+    return v["motivo"]
 
 
 if __name__ == "__main__":

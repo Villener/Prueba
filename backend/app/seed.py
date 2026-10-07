@@ -92,8 +92,9 @@ LAYOUT_TALLER = [
 # De donde sale cada uno:
 #   925    AVALOS GOMEZ, ERICK          INFO CHOFERES/TALLER "SUP. DE MANT AUTOMOTRIZ"
 #   10853  MONTAÑO LOPEZ, PEDRO         INFO CHOFERES/TALLER "MECANICO"
-#   647    SALLAS MOLINA, VICTOR        INFO CHOFERES/TALLER "MECANICO AUTOMOTRIZ"
-#   11807  REYES PABLO ARTURO           REQUIS 2026/EMPLEADO
+#   647    (ver abajo: es el usuario de entrada de Victor Resendiz)
+#   11807  REYES PABLO ARTURO           REQUIS 2026/EMPLEADO; el segundo apellido
+#          (Gonzalez) lo dio Martin el 2026-10-07, no viene en ningun archivo
 #   4932   ESPEJO HERNANDEZ, RUBEN      INFO CHOFERES/TALLER "CHOFER DE GRUA"
 #   13624  ESPINOZA HERRERA, JOSE R.    INFO CHOFERES/TALLER "CHOFER DE GRUA"
 #   13924  MUÑIZ ESTRADA, RICARDO D.    INFO CHOFERES/TALLER "CHOFER GRUA"
@@ -114,12 +115,17 @@ USUARIOS_REALES = [
     ("Luis",   "Tiscareno",              None,   "gerente",        "bajagas2026"),
     ("Erick",  "Avalos Gomez",           925,    "administrador",  "bajagas2026"),
     ("Pedro",  "Montano Lopez",          10853,  "administrador",  "bajagas2026"),
-    ("Victor", "Sallas Molina",          647,    "administrador",  "bajagas2026"),
-    ("Pablo",  "Reyes Arturo",           11807,  "administrador",  "bajagas2026"),
-    # CAPTURISTA DE DATOS de Alamos, hoja TALLER de "INFO CHOFERES 2026".
-    # Es quien teclea el libro REQUIS todos los dias; el puesto viene escrito
-    # con ese nombre en el archivo, no es una etiqueta que inventamos.
-    ("Jaime Yair", "Dominguez Sanchez",  13905,  "capturista",     "bajagas2026"),
+    # VICTOR, el administrador, es Victor Manuel Resendiz Martinez (Martin,
+    # 2026-10-07). La cuenta se armo con el 647 cruzando "Victor" contra la
+    # hoja TALLER, y ese numero es de Victor Sallas Molina, MECANICO: la cuenta
+    # salia a nombre de otra persona. Resendiz no aparece en ningun archivo
+    # entregado, asi que se queda con el usuario e647 que ya usa para entrar.
+    # PENDIENTE: su numero de empleado real, para cambiarle el usuario.
+    ("Víctor Manuel", "Reséndiz Martínez", 647, "administrador", "bajagas2026"),
+    ("Pablo Arturo", "Reyes González",   11807,  "administrador",  "bajagas2026"),
+    # Jaime Yair Dominguez Sanchez (13905), el capturista, RENUNCIO (Martin,
+    # 2026-10-07). Se quita de aqui para que una base nueva no lo cree, y su
+    # cuenta existente se desactiva en corregir_cuentas_de_staff().
     ("Ruben",  "Espejo Hernandez",       4932,   "chofer_grua",    "bajagas2026"),
     ("Jose",   "Espinoza Herrera",       13624,  "chofer_grua",    "bajagas2026"),
     ("Ricardo", "Muniz Estrada",         13924,  "chofer_grua",    "bajagas2026"),
@@ -380,6 +386,48 @@ def reconciliar_cuentas(db: Session) -> dict:
                 u.password_hash = hash_password(PASSWORD_REAL)
                 hecho["claves_repuestas"] = hecho.get("claves_repuestas", 0) + 1
             hecho["renombradas"] += 1
+    db.commit()
+    return hecho
+
+
+# Correcciones a cuentas que YA existen. reconciliar_cuentas solo mira los
+# correos inventados de antes, y asegurar_usuarios_demo solo agrega: ninguna
+# de las dos corrige el nombre de una cuenta real que nacio mal.
+#   correo -> (como esta mal, como debe quedar)
+# Se aplica SOLO si la cuenta sigue con el nombre equivocado: si alguien ya lo
+# corrigio a mano, o la persona lo cambia despues, no se le pisa.
+NOMBRES_CORREGIDOS = {
+    "e647@bajagas.mx": (("Victor", "Sallas Molina"), ("Víctor Manuel", "Reséndiz Martínez")),
+    "e11807@bajagas.mx": (("Pablo", "Reyes Arturo"), ("Pablo Arturo", "Reyes González")),
+}
+# Quien ya no trabaja aqui: la cuenta deja de entrar (no se borra: lo que hizo
+# sigue a su nombre) y sale del catalogo de tecnicos.
+BAJAS = {
+    "e13905@bajagas.mx": ("13905", "Renuncio (aviso de Martin, 2026-10-07)"),
+}
+
+
+def corregir_cuentas_de_staff(db: Session) -> dict:
+    """Nombres mal puestos y bajas de personal. Idempotente."""
+    from .core.security import registrar_bitacora
+    hecho = {"renombradas": 0, "dadas_de_baja": 0}
+    for correo, (mal, bien) in NOMBRES_CORREGIDOS.items():
+        u = db.query(m.Usuario).filter(m.Usuario.email == correo).first()
+        if u and (u.nombre, u.apellidos) == mal:
+            u.nombre, u.apellidos = bien
+            registrar_bitacora(db, None, "cuenta_nombre_corregido", "usuario", u.id,
+                               datos_antes=" ".join(mal), datos_despues=" ".join(bien))
+            hecho["renombradas"] += 1
+    for correo, (num, motivo) in BAJAS.items():
+        u = db.query(m.Usuario).filter(m.Usuario.email == correo).first()
+        if u and u.activo:
+            u.activo = False
+            registrar_bitacora(db, None, "cuenta_dada_de_baja", "usuario", u.id,
+                               datos_despues=motivo)
+            hecho["dadas_de_baja"] += 1
+        for t in db.query(m.Tecnico).filter(m.Tecnico.num_empleado == num,
+                                            m.Tecnico.activo.is_(True)).all():
+            t.activo = False
     db.commit()
     return hecho
 

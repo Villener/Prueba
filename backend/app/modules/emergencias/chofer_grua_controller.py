@@ -128,9 +128,11 @@ def cerrar_arrastre(arrastre_id: int, datos: CierreArrastreIn, usuario=Depends(s
                            urgencia="alta", estado="pendiente")
     db.add(s)
     db.flush()
-    for admin in db.query(m.Usuario).join(m.UsuarioRol).join(m.Rol).filter(
-            m.Rol.nombre == "administrador").all():
-        notificar(db, admin.id, "Unidad llego por arrastre",
+    destinatarios = {a.id for a in db.query(m.Usuario).join(m.UsuarioRol).join(m.Rol).filter(
+        m.Rol.nombre == "administrador").all()}
+    destinatarios |= set(svc.mecanicos_de_planta(db, taller.id))
+    for uid in destinatarios:
+        notificar(db, uid, "Unidad llego por arrastre",
                   f"{a.unidad.num_economico} en {taller.nombre}. Responsable: "
                   f"{svc.nombre_chofer(db, a.chofer_responsable_id)}",
                   "arrastre", "solicitud_ingreso", s.id)

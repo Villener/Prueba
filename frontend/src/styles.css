@@ -817,6 +817,32 @@ tbody tr:hover { background: var(--surface-2); }
   text-transform: uppercase; color: var(--muted); font-weight: 700;
 }
 .fmt-firma .s { font-size: .68rem; color: var(--muted); }
+/* La firma dibujada, encima de la raya. Tinta azul oscuro en los dos temas:
+   es tinta, no texto de la interfaz. */
+.fmt-firma .firma-trazo { width: 100%; max-width: 230px; height: 64px; color: #13233D;
+                          margin-bottom: -6px; }
+[data-theme="dark"] .fmt-firma .firma-trazo { color: #DCE6F2; }
+@media print { .fmt-firma .firma-trazo { color: #000 !important; } }
+
+/* El recuadro para firmar. Siempre blanco, como el papel, aunque la app este en
+   tema oscuro: quien firma tiene que ver su firma como la veria impresa. */
+.lienzo-firma {
+  position: relative; width: 100%; aspect-ratio: 3 / 1;
+  background: #fff; border: 1.5px dashed var(--border); border-radius: var(--radius-sm);
+}
+.lienzo-firma canvas {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  touch-action: none; cursor: crosshair; border-radius: inherit;
+}
+.lienzo-guia {
+  position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none;
+  color: #8A96A3; font-size: .85rem;
+}
+.lienzo-linea {
+  position: absolute; left: 6%; right: 6%; bottom: 24%; border-bottom: 1px solid #C9D1D9;
+  pointer-events: none;
+}
+.lienzo-borrar { position: absolute; right: 6px; top: 6px; }
 .fmt-firma.puesta { border-color: var(--ok); }
 .fmt-firma .btn { margin-top: 6px; }
 

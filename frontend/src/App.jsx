@@ -79,6 +79,8 @@ const MODULOS = {
   // faltaba. Los 34 de Álamos son ASISTIDO, no tienen cuenta y no la necesitan.
   mecanico: { titulo: 'Mecánico', Componente: Mecanico, tabs: [
     { to: '/', Ico: IcoTecnico, txt: 'Mi trabajo' },
+    { to: '/planta', Ico: IcoPlano, txt: 'Mi planta' },
+    { to: '/solicitudes', Ico: IcoSolicitudes, txt: 'Solicitudes' },
     { to: '/auxilios', Ico: IcoAverias, txt: 'Carretera' },
     { to: '/piezas', Ico: IcoAlmacen, txt: 'Piezas' },
     { to: '/traslados', Ico: IcoArrastres, txt: 'Traslados' },

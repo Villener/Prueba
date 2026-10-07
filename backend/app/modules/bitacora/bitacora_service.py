@@ -225,6 +225,29 @@ def verificar_libro(db: Session, unidad_id: int, asientos: list) -> dict:
         if cerro_con_libro and "cierre" not in t:
             return {**v, "integra": False, "falla_en": None,
                     "motivo": f"El formato {r.folio} está cerrado y no tiene asiento de cierre."}
+    # LA FIRMA DIBUJADA vive en firma_reporte, fuera de la cadena; su huella si
+    # quedo dentro, en el asiento. Si el trazo de hoy ya no da esa huella,
+    # alguien cambio el dibujo despues de firmar.
+    import hashlib
+    import json
+    for a in asientos:
+        if a.tipo != "firma" or not a.reporte_id or not a.datos:
+            continue
+        try:
+            d = json.loads(a.datos)
+        except ValueError:
+            continue
+        huella = d.get("trazo_sha256")
+        if not huella:
+            continue
+        f = (db.query(m.FirmaReporte)
+             .filter(m.FirmaReporte.reporte_id == a.reporte_id,
+                     m.FirmaReporte.rol_firma == d.get("rol_firma")).first())
+        actual = hashlib.sha256((f.trazo or "").encode()).hexdigest() if f else None
+        if actual != huella:
+            return {**v, "integra": False, "falla_en": a.numero,
+                    "motivo": f"La firma del asiento {a.numero} ({d.get('folio')}) cambió "
+                              "después de registrarse."}
     return v
 
 

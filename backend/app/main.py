@@ -134,6 +134,10 @@ def startup():
         # --se renombran a la persona real o se desactivan-- y luego se crean
         # las que falten. Al reves, quedarian dos cuentas para la misma persona.
         log.info("reconciliacion: %s", reconciliar_cuentas(db))
+        # Despues de reconciliar: corrige nombres que nacieron mal y da de baja a
+        # quien ya se fue. Solo toca lo que sigue mal (ver NOMBRES_CORREGIDOS).
+        from .seed import corregir_cuentas_de_staff
+        log.info("cuentas corregidas: %s", corregir_cuentas_de_staff(db))
         log.info("cuentas reales: %s", asegurar_usuarios_demo(db))
         # Despues de los roles Y de las cuentas: necesita las dos cosas.
         log.info("rol mecanico: %s", asegurar_rol_mecanicos(db))

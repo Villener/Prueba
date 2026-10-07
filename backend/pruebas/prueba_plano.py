@@ -26,6 +26,13 @@ from app.modules.taller.taller_service import reconciliar_espacios  # noqa: E402
 CASOS = []
 
 
+class Admin:
+    """Quien mira el plano: el servidor ahora pregunta quien es (el mecanico solo
+    ve su planta)."""
+    id = 0
+    lista_roles = ["administrador"]
+
+
 def caso(nombre):
     def deco(fn):
         CASOS.append((nombre, fn))
@@ -97,11 +104,11 @@ def _():
 @caso("despues de cuadrar, el contador del plano dice lo mismo que las casillas")
 def _():
     db, t, _esp = escenario()
-    antes = ac.plano_taller(t.id, usuario=None, db=db)
+    antes = ac.plano_taller(t.id, usuario=Admin(), db=db)
     assert antes["ocupados"] == 2  # lo que veia Martin: 2 ocupados sin nadie adentro
     reconciliar_espacios(db)
     db.commit()
-    p = ac.plano_taller(t.id, usuario=None, db=db)
+    p = ac.plano_taller(t.id, usuario=Admin(), db=db)
     casillas = {e["numero"]: e for z in p["zonas"] for e in z["espacios"]}
     assert p["ocupados"] == 1 and casillas["T-03"]["unidad"] == "1009"
     for n in ("T-01", "T-02"):

@@ -5,6 +5,7 @@ texto del libro por su cuenta. Asi el mismo hecho --"se capturo lo realizado en
 frenos"-- se lee igual en el libro venga de quien venga.
 """
 import hashlib
+import re
 from datetime import date, datetime
 
 from sqlalchemy.orm import Session
@@ -366,15 +367,59 @@ def asentar_comentarios(db: Session, r: m.ReporteMantenimiento, antes, usuario_i
         datos={"folio": r.folio, "antes": antes, "despues": despues})
 
 
+# El lienzo de la firma en la pantalla. El trazo llega en estas coordenadas.
+LIENZO_FIRMA = (600, 200)
+_TRAZO_OK = re.compile(r"^[ML0-9 .\-]+$")
+_TRAZO_TOKEN = re.compile(r"[ML]|-?\d+(?:\.\d+)?")
+# Lo minimo para que sea una firma y no un toque accidental o una raya: puntos
+# capturados y largo del trazo, en unidades del lienzo (600 de ancho).
+FIRMA_MIN_PUNTOS = 8
+FIRMA_MIN_TINTA = 150
+
+
+def validar_trazo(trazo: str) -> tuple[str, str]:
+    """Revisa el trazo de una firma dibujada. Devuelve (trazo limpio, huella).
+
+    Solo se aceptan caminos "M x y L x y ..." dentro del lienzo: nada de otros
+    comandos SVG, que es como se colaria algo que no es una firma al imprimirla.
+    """
+    from fastapi import HTTPException
+    t = " ".join((trazo or "").split())
+    if not t or not _TRAZO_OK.match(t):
+        raise HTTPException(422, "No se pudo leer la firma. Borrala y vuelve a dibujarla.")
+    tokens = _TRAZO_TOKEN.findall(t)
+    w, h = LIENZO_FIRMA
+    puntos, tinta, previo, i = 0, 0.0, None, 0
+    try:
+        while i < len(tokens):
+            cmd = tokens[i]
+            if cmd not in ("M", "L"):
+                raise ValueError
+            x, y = float(tokens[i + 1]), float(tokens[i + 2])
+            i += 3
+            if not (-2 <= x <= w + 2 and -2 <= y <= h + 2):
+                raise ValueError
+            if cmd == "L" and previo:
+                tinta += ((x - previo[0]) ** 2 + (y - previo[1]) ** 2) ** 0.5
+            previo = (x, y)
+            puntos += 1
+    except (ValueError, IndexError):
+        raise HTTPException(422, "No se pudo leer la firma. Borrala y vuelve a dibujarla.")
+    if puntos < FIRMA_MIN_PUNTOS or tinta < FIRMA_MIN_TINTA:
+        raise HTTPException(422, "La firma esta muy corta: dibujala completa, como en el papel.")
+    return t, hashlib.sha256(t.encode()).hexdigest()
+
+
 def asentar_firma(db: Session, r: m.ReporteMantenimiento, f: m.FirmaReporte, usuario_id):
     etiqueta, quien = _FIRMA_TEXTO.get(f.rol_firma, (f.rol_firma, ""))
+    como = (f"Firma dibujada en la pantalla (huella {f.trazo_sha256[:12]})."
+            if f.trazo_sha256 else "Se registra la firma de tinta que consta en el formato.")
     bs.asentar(
         db, unidad_id=r.unidad_id, reporte_id=r.id, tipo="firma",
-        descripcion=f"{etiqueta} ({quien}): firmó {f.nombre}. Se registra la firma "
-                    "de tinta que consta en el formato.",
+        descripcion=f"{etiqueta} ({quien}): firmó {f.nombre}. {como}",
         registrado_por_id=usuario_id,
         datos={"folio": r.folio, "rol_firma": f.rol_firma, "nombre": f.nombre,
-               "usuario_id": f.usuario_id})
+               "usuario_id": f.usuario_id, "trazo_sha256": f.trazo_sha256})
 
 
 def huella_archivo(ruta) -> str | None:

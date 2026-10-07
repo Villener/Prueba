@@ -11,7 +11,7 @@ import {
   Aviso, Badge, Empty, IcoPlano, IcoTecnico, Modal, Regla, Spinner, useApi, useToast,
 } from '../../ui/index.js'
 
-export function ModalEspacio({ espacioId, onCerrar, onCambio }) {
+export function ModalEspacio({ espacioId, esMecanico = false, onCerrar, onCambio }) {
   const toast = useToast()
   const navegar = useNavigate()
   const { data, cargando, recargar } = useApi(
@@ -92,10 +92,14 @@ export function ModalEspacio({ espacioId, onCerrar, onCambio }) {
                 </p>
               )}
 
-              <button className="btn primary block" style={{ marginTop: 8 }}
-                      onClick={() => { onCerrar(); navegar(`/reportes/${rep.id}`) }}>
-                Abrir el formato de mantenimiento
-              </button>
+              {/* El formato lo llena el administrador: el mecanico no tiene esa
+                  pantalla, lo suyo le llega a «Mi trabajo». */}
+              {!esMecanico && (
+                <button className="btn primary block" style={{ marginTop: 8 }}
+                        onClick={() => { onCerrar(); navegar(`/reportes/${rep.id}`) }}>
+                  Abrir el formato de mantenimiento
+                </button>
+              )}
             </div>
           ) : (
             <Aviso tipo="warn">

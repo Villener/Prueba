@@ -106,7 +106,19 @@ def solicitud_out(db: Session, s: m.SolicitudIngreso) -> dict:
         "urgencia": s.urgencia, "estado": s.estado,
         "fecha_solicitud": s.fecha_solicitud, "motivo_rechazo": s.motivo_rechazo,
         "espacios_libres_compatibles": libres,
+        "atendida_por": (nombre_usuario(db, s.atendida_por_admin_id)
+                         if s.atendida_por_admin_id else None),
+        "fecha_respuesta": s.fecha_respuesta,
     }
+
+
+def mecanicos_de_planta(db: Session, taller_id: int) -> list[int]:
+    """Las cuentas de los mecanicos que trabajan esa planta. A ellos tambien les
+    llega la solicitud de ingreso: en una planta satelite son quienes la atienden."""
+    return [u for (u,) in db.query(m.Tecnico.usuario_id)
+            .join(m.Usuario, m.Usuario.id == m.Tecnico.usuario_id)
+            .filter(m.Tecnico.taller_id == taller_id, m.Tecnico.activo.is_(True),
+                    m.Usuario.activo.is_(True))]
 
 def asignacion_out(db: Session, a: m.AsignacionTecnico) -> dict:
     return {
@@ -391,7 +403,8 @@ def reporte_out(db: Session, r: m.ReporteMantenimiento) -> dict:
              "etiqueta": _FIRMA_TEXTO.get(f.rol_firma, (f.rol_firma, ""))[0],
              "quien": _FIRMA_TEXTO.get(f.rol_firma, ("", ""))[1],
              "nombre": f.nombre, "fecha": f.fecha,
-             "registrada_por": nombre_usuario(db, f.registrada_por_admin_id)}
+             "registrada_por": nombre_usuario(db, f.registrada_por_admin_id),
+             "trazo": f.trazo, "trazo_sha256": f.trazo_sha256}
             for f in sorted(r.firmas, key=lambda x: _ORDEN_FIRMA.get(x.rol_firma, 99))
         ],
         "razon_social": ident.get("razon_social"),

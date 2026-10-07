@@ -9,10 +9,24 @@ import {
 import { PlanoTaller } from './PlanoTaller.jsx'
 
 /* -------------------------------------------------- CU-ADM-01/02 ----------- */
-export function Solicitudes() {
+/** Motivos de rechazo de un toque. Le llegan al chofer tal cual, asi que van en
+ *  su idioma; si ninguno queda, se escribe el propio. */
+const MOTIVOS_RECHAZO = [
+  'No es falla para taller',
+  'Solicitud repetida',
+  'Falta describir la falla',
+  'Se atiende en otra planta',
+  'La unidad está dada de baja',
+]
+
+/** `esMecanico`: la misma bandeja, para el mecanico de una planta satelite. El
+ *  servidor ya le manda solo las de su planta; aqui solo cambia a donde lleva
+ *  aceptar (el formato lo llena el administrador, no el). */
+export function Solicitudes({ esMecanico = false }) {
   const toast = useToast()
   const { data, cargando, recargar } = useApi(() => api.get('/admin/solicitudes'))
   const [resolver, setResolver] = useState(null)
+  const [rechazar, setRechazar] = useState(null)
 
   if (cargando) return <Spinner />
   const pendientes = (data || []).filter((s) => ['pendiente', 'en_cola'].includes(s.estado))
@@ -44,9 +58,12 @@ export function Solicitudes() {
                     : <span style={{ color: 'var(--danger)' }}>Sin espacio compatible</span>}
                 </div>
               </div>
+              {/* Rechazar a la vista, junto a Atender. Antes vivia al final de la
+                  ventana de Atender, debajo del plano, y no lo encontraba nadie. */}
               <div style={{ display: 'grid', gap: 6, justifyItems: 'end' }}>
                 <EstadoBadge estado={s.estado} />
                 <button className="btn sm primary" onClick={() => setResolver(s)}>Atender</button>
+                <button className="btn sm danger" onClick={() => setRechazar(s)}>Rechazar</button>
               </div>
             </div>
           ))
@@ -62,19 +79,69 @@ export function Solicitudes() {
             { k: 'tipo', t: 'Tipo' },
             { k: 'estado', t: 'Estado', r: (f) => <EstadoBadge estado={f.estado} /> },
             { k: 'fecha_solicitud', t: 'Fecha', r: (f) => fmtFecha(f.fecha_solicitud) },
+            { k: 'atendida_por', t: 'Atendió', r: (f) => f.atendida_por || '—' },
+            { k: 'motivo_rechazo', t: 'Motivo', r: (f) => f.motivo_rechazo || '—' },
           ]}
           filas={(data || []).filter((s) => !['pendiente', 'en_cola'].includes(s.estado))} />
       </Card>
 
       {resolver && (
-        <ModalResolver solicitud={resolver} onCerrar={() => setResolver(null)}
+        <ModalResolver solicitud={resolver} esMecanico={esMecanico}
+                       onCerrar={() => setResolver(null)}
                        onListo={() => { setResolver(null); recargar() }} />
+      )}
+      {rechazar && (
+        <ModalRechazo solicitud={rechazar} onCerrar={() => setRechazar(null)}
+                      onListo={() => { setRechazar(null); recargar(); toast('Solicitud rechazada') }} />
       )}
     </>
   )
 }
 
-function ModalResolver({ solicitud, onCerrar, onListo }) {
+/** Rechazar con motivo. El motivo le llega al chofer por aviso (y al celular si
+ *  los activo), y queda en el historial y en la bitacora. */
+function ModalRechazo({ solicitud, onCerrar, onListo }) {
+  const toast = useToast()
+  const [motivo, setMotivo] = useState('')
+  const [enviando, setEnviando] = useState(false)
+  const enviar = async (e) => {
+    e.preventDefault()
+    setEnviando(true)
+    try {
+      await api.post(`/admin/solicitudes/${solicitud.id}/resolver`,
+                     { aceptar: false, motivo_rechazo: motivo.trim() })
+      onListo()
+    } catch (err) {
+      toast(err.message, 'err')
+    } finally {
+      setEnviando(false)
+    }
+  }
+  return (
+    <Modal titulo={`Rechazar · ${solicitud.unidad}`} onClose={onCerrar}>
+      <p className="sub">{solicitud.chofer} · {solicitud.tipo} · urgencia {solicitud.urgencia}</p>
+      <p>{solicitud.descripcion_falla}</p>
+      <form onSubmit={enviar}>
+        <div className="field">
+          <label>Motivo (se le avisa al chofer)</label>
+          <div className="btn-row" style={{ marginBottom: 8 }}>
+            {MOTIVOS_RECHAZO.map((m) => (
+              <button type="button" key={m} className={`btn sm${motivo === m ? ' primary' : ''}`}
+                      onClick={() => setMotivo(m)}>{m}</button>
+            ))}
+          </div>
+          <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)}
+                    placeholder="O escribe el motivo" maxLength={240} />
+        </div>
+        <button className="btn danger block" disabled={enviando || !motivo.trim()}>
+          {enviando ? 'Rechazando…' : 'Rechazar solicitud'}
+        </button>
+      </form>
+    </Modal>
+  )
+}
+
+function ModalResolver({ solicitud, esMecanico, onCerrar, onListo }) {
   const toast = useToast()
   const navegar = useNavigate()
   const [motivo, setMotivo] = useState('')
@@ -94,7 +161,7 @@ function ModalResolver({ solicitud, onCerrar, onListo }) {
       // ahi al administrador en el mismo movimiento es lo que hace que el
       // formato se empiece: dejarlo en la bandeja significaba que alguien
       // tenia que acordarse de ir a Reportes a buscarlo.
-      if (payload.aceptar && res?.reporte_id) navegar(`/reportes/${res.reporte_id}`)
+      if (payload.aceptar && res?.reporte_id && !esMecanico) navegar(`/reportes/${res.reporte_id}`)
     } catch (e) { toast(e.message, 'err') }
   }
 
@@ -143,7 +210,9 @@ function ModalResolver({ solicitud, onCerrar, onListo }) {
           : 'Asignar espacio y abrir el formato'}
       </button>
       <p className="hint" style={{ marginTop: 6 }}>
-        Al aceptar se abre solo el reporte de mantenimiento de esta unidad y te lleva a él.
+        {esMecanico
+          ? 'Al aceptar se abre el reporte de mantenimiento de esta unidad; el administrador del taller te asigna el trabajo.'
+          : 'Al aceptar se abre solo el reporte de mantenimiento de esta unidad y te lleva a él.'}
       </p>
 
       <div style={{ height: 10 }} />
