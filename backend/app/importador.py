@@ -54,8 +54,9 @@ SUCURSAL_A_PLANTA = {
     "CARRANZA": "CARRANZA", "VALLEREDONDO": "VALLEREDONDO",
     "GUAYCURA": "GUAYCURA", "LIBERTAD": "LIBERTAD",
 }
-# Sucursales sin taller propio: a donde va su unidad si se vara.
-TALLER_SUSTITUTO = {"LIBERTAD": "ALAMOS"}
+# Ya no hay sucursales sin taller: LIBERTAD tiene el suyo desde 2026-10-08 y
+# sus unidades se asignan a el. Que a veces la atienda otra planta con lugar no
+# cambia de quien es (ver seed.PLANTAS).
 
 # El puesto del Excel -> la especialidad del modelo.
 PUESTO_A_ESPECIALIDAD = [
@@ -376,7 +377,6 @@ def importar(db: Session, carpeta: str, con_partes: bool = True,
         clave = SUCURSAL_A_PLANTA.get(sucursal_norm)
         if not clave:
             return None
-        clave = TALLER_SUSTITUTO.get(clave, clave)
         pl = plantas.get(clave)
         return talleres.get(pl.id) if pl else None
 
@@ -907,7 +907,9 @@ def _importar_requisiciones(db: Session, carpeta: str, res: dict) -> dict:
             folio=d["folio"], fecha=d["fecha"],
             unidad_id=unidad_id, unidad_texto=d["unidad"],
             equipo_sap=d["equipo_sap"], centro_gestion=d["cege"],
-            taller_id=talleres_unidad.get(unidad_id) or tec_taller,
+            # Donde se hizo el trabajo (el taller de quien pidio las piezas); la
+            # planta madre de la unidad solo de respaldo. Ver capturista_controller.
+            taller_id=tec_taller or talleres_unidad.get(unidad_id),
             tecnico_id=tec_id, solicitante_num_empleado=d["num_empleado"],
             solicitante_nombre=d["nombre"],
             capturada_por_usuario_id=cap.id if cap else None,

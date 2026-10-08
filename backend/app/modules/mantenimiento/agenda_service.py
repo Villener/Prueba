@@ -256,10 +256,11 @@ def score_prioridad(clave: tuple) -> int:
 def taller_de(db: Session, unidad: m.Unidad) -> int | None:
     """A que taller le toca esta unidad.
 
-    Si no tiene taller asignado cae a la CENTRAL, que es la regla real de Baja
-    Gas: Libertad es sucursal sin taller y sus unidades se atienden en Alamos.
-    Sin este respaldo, una unidad sin el campo lleno queda invisible para la
-    agenda para siempre -- y ninguna de las unidades importadas lo trae.
+    Es su planta madre (`taller_asignado_id`): ahi se le agenda el preventivo,
+    aunque a veces la atienda otra planta que tenga lugar en ese momento.
+    Si no tiene taller asignado cae a la CENTRAL. Sin este respaldo, una unidad
+    sin el campo lleno queda invisible para la agenda para siempre -- y ninguna
+    de las unidades importadas lo trae.
     """
     if unidad is None:
         return None
@@ -347,6 +348,14 @@ def _pendientes(db: Session, taller: m.Taller, hoy: date | None = None):
                 p.estado = "pendiente"
             continue
         p.cita_actual = cita          # atributo de trabajo, no columna
+        if cita and cita.taller_id != taller.id and cita.estado not in ESTADOS_MOVIBLES:
+            # Su cita viva es de OTRA planta y el chofer ya la confirmo: se
+            # atiende alla y la unidad sigue siendo de esta (le cambiaron la
+            # planta madre, como a las de Libertad el 2026-10-08, o la atiende
+            # otra planta con lugar). Se respeta donde esta; si entrara a esta
+            # cola, la fecha se calcularia contra esta planta y el lugar se
+            # seguiria contando en la otra.
+            continue
         if cita and cita.estado not in ESTADOS_MOVIBLES and not _movible(cita):
             continue                  # compromiso firme con el chofer: no se toca
         salida.append(p)
@@ -471,6 +480,15 @@ def recalcular(db: Session, taller: m.Taller, hoy: date | None = None) -> dict:
         elif tipo and cita.tipo_servicio_id != tipo.id:
             cita.tipo_servicio_id = tipo.id
             cita.duracion_estimada_dias = dura
+
+        # Una propuesta que nacio en otra planta (la unidad cambio de planta
+        # madre) se queda en ESTA: la fecha que se le acaba de dar es contra el
+        # lugar de esta planta. Sin esto la cita conservaba el taller viejo y
+        # le quitaba un lugar alla que nadie iba a usar. Solo llega aqui en
+        # `propuesta`: las confirmadas de otra planta no entran a la cola.
+        if cita.taller_id != taller.id:
+            cita.taller_id = taller.id
+            res["cambio_de_planta"] = res.get("cambio_de_planta", 0) + 1
 
         if cita is not None and cita.fecha_cita != colocada:
             # Una cita confirmada (o ya reprogramada) es un compromiso que el

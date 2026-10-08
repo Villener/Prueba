@@ -23,7 +23,7 @@ class Planta(Base, TimestampMixin):
     latitud = Column(Float)
     longitud = Column(Float)
     es_central = Column(Boolean, default=False, nullable=False)  # solo ALAMOS
-    tiene_taller = Column(Boolean, default=True, nullable=False)  # LIBERTAD no
+    tiene_taller = Column(Boolean, default=True, nullable=False)  # las 7 (Libertad desde 2026-10-08)
     activo = Column(Boolean, default=True, nullable=False)
 
     taller = relationship("Taller", back_populates="planta", uselist=False)

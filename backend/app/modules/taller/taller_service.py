@@ -81,10 +81,34 @@ def ocupacion_abierta_de_espacio(db: Session, espacio_id: int):
                     m.OcupacionEspacio.fecha_salida.is_(None))
             .first())
 
-def solicitud_out(db: Session, s: m.SolicitudIngreso) -> dict:
+def otras_plantas_con_lugar(db: Session, s: m.SolicitudIngreso) -> list[dict]:
+    """Las otras plantas activas donde ESTA unidad cabe ahora mismo.
+
+    Es la regla de Baja Gas: una unidad de una planta sin lugar la atiende otra
+    que si tenga, y sigue siendo de la suya. Con esto el administrador ve donde
+    hay lugar sin tener que abrir el plano de cada una."""
+    if s.unidad is None:
+        return []
+    salida = []
+    for t in (db.query(m.Taller)
+              .filter(m.Taller.activo.is_(True), m.Taller.id != s.taller_id)
+              .order_by(m.Taller.id)):
+        libres = len(espacios_libres_compatibles(db, t.id, s.unidad.tipo_unidad_id))
+        if libres:
+            salida.append({"taller_id": t.id, "nombre": t.nombre, "libres": libres})
+    return salida
+
+
+def solicitud_out(db: Session, s: m.SolicitudIngreso, con_otras: bool = False) -> dict:
+    """`con_otras`: incluir el lugar libre de las demas plantas. Solo para el
+    administrador, que es quien decide mandarla a otra; ni el chofer ni el
+    mecanico de planta lo reciben (por eso apagado de origen)."""
     libres = 0
+    otras = []
     if s.estado in ("pendiente", "en_cola"):
         libres = len(espacios_libres_compatibles(db, s.taller_id, s.unidad.tipo_unidad_id))
+        if con_otras:
+            otras = otras_plantas_con_lugar(db, s)
     # La orden que nacio de esta solicitud, y el formato que nacio con ella.
     # Es lo que deja encadenar «acepte el ingreso» -> «empiezo el formato» sin
     # que el administrador tenga que ir a buscarlo a otra pantalla.
@@ -109,6 +133,9 @@ def solicitud_out(db: Session, s: m.SolicitudIngreso) -> dict:
         "atendida_por": (nombre_usuario(db, s.atendida_por_admin_id)
                          if s.atendida_por_admin_id else None),
         "fecha_respuesta": s.fecha_respuesta,
+        "planta_madre": (s.unidad.taller_asignado.nombre
+                         if s.unidad and s.unidad.taller_asignado else None),
+        "otras_plantas": otras,
     }
 
 

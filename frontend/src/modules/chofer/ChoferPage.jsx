@@ -1,5 +1,5 @@
 /** Modulo Chofer - CU-CHO-* de docs/casos-de-uso.md */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, Route, Routes } from 'react-router-dom'
 import { BotonEmergencia } from './BotonEmergencia.jsx'
 import { FotosAveria } from './FotosAveria.jsx'
@@ -359,6 +359,14 @@ function Taller() {
   const unidad = useApi(() => api.get('/chofer/mi-unidad'))
   const talleres = useApi(() => api.get('/chofer/talleres'))
   const [form, setForm] = useState({ taller_id: '', tipo: 'preventivo', urgencia: 'media', descripcion_falla: '' })
+  // Se propone la planta de la unidad. El chofer la puede cambiar: si en la
+  // suya no hay lugar, la atiende otra planta y la unidad sigue siendo de la suya.
+  const madre = unidad.data?.taller_asignado_id
+  useEffect(() => {
+    if (madre && (talleres.data || []).some((t) => t.id === madre)) {
+      setForm((f) => (f.taller_id ? f : { ...f, taller_id: String(madre) }))
+    }
+  }, [madre, talleres.data])
 
   const enviar = async (e) => {
     e.preventDefault()

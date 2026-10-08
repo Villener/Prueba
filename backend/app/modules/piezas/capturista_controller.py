@@ -183,8 +183,12 @@ def capturar(datos: RequisicionIn, usuario=Depends(solo_cap),
         folio=datos.folio.strip(), fecha=datos.fecha,
         unidad_id=unidad.id if unidad else None, unidad_texto=texto_unidad,
         equipo_sap=datos.equipo_sap, centro_gestion=datos.centro_gestion,
-        taller_id=(unidad.taller_asignado_id if unidad else None)
-                  or (tecnico.taller_id if tecnico else None),
+        # El taller del MECANICO que pidio las piezas: es donde se hizo el
+        # trabajo. La planta madre de la unidad no sirve para eso -- una unidad
+        # de Libertad que se repara en Alamos gasta piezas de Alamos -- y queda
+        # solo de respaldo cuando no se sabe quien las pidio.
+        taller_id=(tecnico.taller_id if tecnico else None)
+                  or (unidad.taller_asignado_id if unidad else None),
         tecnico_id=tecnico.id if tecnico else None,
         solicitante_num_empleado=datos.solicitante_num_empleado
                                  or (tecnico.num_empleado if tecnico else None),

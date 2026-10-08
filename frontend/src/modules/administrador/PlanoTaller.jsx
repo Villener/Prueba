@@ -6,7 +6,7 @@ import { useEffect } from 'react'
 import { api } from '../../core/api.js'
 import { Badge, Spinner, useApi } from '../../ui/index.js'
 
-/** Selector de taller. Ya son 6 plantas, no una sola. */
+/** Selector de taller. Ya son 7 plantas, no una sola. */
 export function SelectorTaller({ valor, onCambio }) {
   const { data } = useApi(() => api.get('/admin/talleres'))
   const talleres = data || []

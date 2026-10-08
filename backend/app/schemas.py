@@ -46,6 +46,8 @@ class UnidadOut(ORMModel):
     poseedor: Optional[str] = None
     es_prestada: bool = False
     taller_actual: Optional[str] = None
+    # Su planta madre: la pantalla del chofer la propone al pedir taller.
+    taller_asignado_id: Optional[int] = None
 
 
 class MantenimientoOut(ORMModel):
@@ -119,6 +121,12 @@ class SolicitudOut(ORMModel):
     # Quien la acepto, la dejo en cola o la rechazo, y cuando.
     atendida_por: Optional[str] = None
     fecha_respuesta: Optional[datetime] = None
+    # La planta de la que ES la unidad (taller_asignado). Puede no ser la que
+    # la atiende: una planta sin lugar manda sus unidades a otra que si tenga.
+    planta_madre: Optional[str] = None
+    # Solo en las vivas: las OTRAS plantas con espacio compatible libre ahora,
+    # [{taller_id, nombre, libres}], para atenderla alla si en esta no cabe.
+    otras_plantas: List[dict] = []
 
 
 class ResolucionSolicitudIn(BaseModel):
@@ -126,6 +134,10 @@ class ResolucionSolicitudIn(BaseModel):
     espacio_id: Optional[int] = None
     motivo_rechazo: Optional[str] = None
     dejar_en_cola: bool = False
+    # Atenderla en OTRA planta con lugar (solo el administrador). La unidad
+    # sigue siendo de su planta madre; cambia el taller de la solicitud y de la
+    # orden, que es el que la atiende.
+    taller_id: Optional[int] = None
 
 
 class EspacioOut(ORMModel):

@@ -100,7 +100,9 @@ def bandeja(estado: str | None = None, usuario=Depends(admin_o_mecanico),
     orden = {"critica": 0, "alta": 1, "media": 2, "baja": 3}
     ss = q.order_by(m.SolicitudIngreso.fecha_solicitud.desc()).all()
     ss.sort(key=lambda s: (orden.get(s.urgencia, 9), s.fecha_solicitud))
-    return [svc.solicitud_out(db, s) for s in ss]
+    # El lugar de las demas plantas, solo al administrador: el mecanico de
+    # planta no las opera, y mandar una unidad a otra lo decide el administrador.
+    return [svc.solicitud_out(db, s, con_otras=planta is None) for s in ss]
 
 
 @router.post("/solicitudes/{sol_id}/resolver", response_model=SolicitudOut)
@@ -136,7 +138,7 @@ def resolver_solicitud(sol_id: int, datos: ResolucionSolicitudIn,
                                s.id, datos_despues=motivo)
         db.commit()
         db.refresh(s)
-        return svc.solicitud_out(db, s)
+        return svc.solicitud_out(db, s, con_otras=_planta_del_mecanico(db, usuario) is None)
 
     # --- aceptar: la unidad no puede estar ya adentro (RI-D-32 / RI-B-23) ---
     # Hay un solo vehiculo fisico: si el chofer mando varias solicitudes y se
@@ -152,6 +154,25 @@ def resolver_solicitud(sol_id: int, datos: ResolucionSolicitudIn,
             409,
             f"La unidad {s.unidad.num_economico} ya esta en el taller de {taller_nombre} "
             f"con la orden {abierta.folio}. Cierrala antes de aceptar otro ingreso.")
+
+    # --- atenderla en OTRA planta (2026-10-08) ---
+    # Regla de Baja Gas: si en su planta no hay lugar, la atiende otra que si
+    # tenga, y la unidad SIGUE siendo de la suya (`taller_asignado_id` no se
+    # toca). Cambia el taller de la solicitud, y con el el de la orden, la
+    # casilla y el formato, que son de quien la atiende.
+    redirigida = None
+    if datos.taller_id and datos.taller_id != s.taller_id:
+        if _planta_del_mecanico(db, usuario) is not None:
+            raise HTTPException(403, "Mandar una unidad a otra planta lo decide el "
+                                     "administrador del taller.")
+        destino = (db.query(m.Taller)
+                   .filter(m.Taller.id == datos.taller_id, m.Taller.activo.is_(True))
+                   .first())
+        if not destino:
+            raise HTTPException(404, "Ese taller no existe o no esta activo")
+        redirigida = s.taller.nombre if s.taller else "-"
+        s.taller = destino
+        s.taller_id = destino.id
 
     # --- verificar espacio compatible (RN-06 / RI-04) ---
     libres = svc.espacios_libres_compatibles(db, s.taller_id, s.unidad.tipo_unidad_id)
@@ -258,17 +279,38 @@ def resolver_solicitud(sol_id: int, datos: ResolucionSolicitudIn,
     reporte = svc.crear_reporte_mantenimiento(
         db, unidad=s.unidad, taller_id=s.taller_id, admin_id=usuario.id, orden=orden,
         tipo_servicio="preventivo" if s.tipo == "preventivo" else "correctivo",
-        origen=s.taller.nombre if s.taller else None,
+        # ORIGEN es de donde viene la unidad («Planta, ruta…»): su planta madre.
+        # Antes era el taller pedido, que coincide casi siempre; con una unidad
+        # de Libertad atendida en Alamos el formato decia «origen: Alamos».
+        origen=(s.unidad.taller_asignado.nombre if s.unidad.taller_asignado
+                else (s.taller.nombre if s.taller else None)),
         chofer_id=s.chofer_id, notas_ingreso=s.descripcion_falla)
 
+    # El aviso dice la PLANTA: si se mando a otra, el chofer tiene que saber a
+    # donde llevar la unidad, no solo el numero de casilla.
+    donde = s.taller.nombre if s.taller else "el taller"
     notificar(db, s.chofer_id, "Solicitud aceptada",
-              f"Unidad {s.unidad.num_economico} en {espacio.zona.nombre} {espacio.numero}. "
-              f"Orden {orden.folio}", "solicitud", "orden_servicio", orden.id)
+              (f"Unidad {s.unidad.num_economico}: se atiende en {donde} (pediste "
+               f"{redirigida}), " if redirigida else
+               f"Unidad {s.unidad.num_economico} en {donde}, ")
+              + f"{espacio.zona.nombre} {espacio.numero}. Orden {orden.folio}",
+              "solicitud", "orden_servicio", orden.id)
+    if redirigida:
+        registrar_bitacora(db, usuario.id, "solicitud_otra_planta", "solicitud_ingreso", s.id,
+                           datos_antes=redirigida, datos_despues=donde)
+        # A los mecanicos de la planta que la recibe no les llego la solicitud
+        # (se mando a otra): se enteran aqui de que va para alla.
+        madre = s.unidad.taller_asignado.nombre if s.unidad.taller_asignado else redirigida
+        for mid in svc.mecanicos_de_planta(db, s.taller_id):
+            notificar(db, mid, "Unidad de otra planta",
+                      f"Unidad {s.unidad.num_economico} (de {madre}) entra a {donde}, "
+                      f"{espacio.zona.nombre} {espacio.numero}. Orden {orden.folio}",
+                      "solicitud", "orden_servicio", orden.id)
     registrar_bitacora(db, usuario.id, "solicitud_aceptada", "solicitud_ingreso", s.id,
                        f"orden={orden.folio} espacio={espacio.id} reporte={reporte.folio}")
     db.commit()
     db.refresh(s)
-    return svc.solicitud_out(db, s)
+    return svc.solicitud_out(db, s, con_otras=_planta_del_mecanico(db, usuario) is None)
 
 
 # ------------------------------------------------------------- CU-ADM-02/03 -- #

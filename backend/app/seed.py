@@ -14,8 +14,11 @@ from .core.security import hash_password
 
 # (nombre, proposito, cuenta_para_ocupacion, tipo_permitido, [numeros], fila)
 
-# Las 6 plantas con taller + LIBERTAD, que es sucursal pero NO tiene taller:
-# sus unidades se asignan a Alamos. Datos tomados de "INFO CHOFERES 2026".
+# Las 7 plantas, y las 7 con taller. Datos tomados de "INFO CHOFERES 2026".
+# LIBERTAD nacio como sucursal SIN taller, con sus unidades asignadas a Alamos;
+# Martin aviso que si tiene taller (2026-10-08). Sus unidades son de Libertad
+# aunque a veces las atienda otra planta que tenga lugar en ese momento: la
+# planta madre es `taller_asignado_id`, la que atiende es la de la orden.
 # (clave, nombre, es_central, tiene_taller, lat, lng)
 PLANTAS = [
     ("ALAMOS",        "Alamos",        True,  True,  32.5149, -117.0382),
@@ -24,16 +27,15 @@ PLANTAS = [
     ("CARRANZA",      "Carranza",      False, True,  32.5027, -116.9600),
     ("VALLEREDONDO",  "Valle Redondo", False, True,  32.4406, -116.8500),
     ("GUAYCURA",      "Guaycura",      False, True,  32.4700, -116.9800),
-    ("LIBERTAD",      "Libertad",      False, False, 32.5300, -116.9700),
+    ("LIBERTAD",      "Libertad",      False, True,  32.5300, -116.9700),
 ]
 
-# Los talleres satelite son chicos. Numeros a confirmar con cada planta.
+# Los talleres satelite son chicos. Numeros a confirmar con cada planta
+# (Libertad: 2 mientras Martin confirma cuantas tiene).
 ESPACIOS_SATELITE = {
     "TECATE": 3, "ROSARITO": 3, "CARRANZA": 2, "VALLEREDONDO": 2, "GUAYCURA": 4,
+    "LIBERTAD": 2,
 }
-
-# A donde va una unidad de una sucursal SIN taller.
-TALLER_POR_DEFECTO = {"LIBERTAD": "ALAMOS"}
 
 # (nombre, proposito, cuenta_para_ocupacion, tipo_permitido, [numeros], fila)
 # NUMERACION POR FILA, no por zona. En el croquis del cliente los numeros
@@ -635,8 +637,14 @@ def asegurar_plantas(db: Session) -> dict:
     Sirve para migrar una base que ya existia: el prototipo v1.1 tenia un solo
     taller sin planta. Ese taller ES Alamos, asi que se adopta en vez de crear
     uno nuevo, y con eso se conserva su plano (zonas y espacios ya cargados).
+
+    Y le da su taller a una planta que ya existia SIN el: asi le llego el suyo a
+    LIBERTAD (2026-10-08) en una base que la tenia como sucursal. Corre en cada
+    arranque (main.py) y cada noche con la carga de las areas.
     """
-    creadas = {"plantas": 0, "talleres": 0, "espacios": 0, "adoptado": None}
+    from .core.security import registrar_bitacora
+    creadas = {"plantas": 0, "talleres": 0, "espacios": 0, "adoptado": None,
+               "con_taller_nuevo": [], "no_se_pudo": []}
 
     for clave, nombre, central, con_taller, lat, lng in PLANTAS:
         pl = db.query(m.Planta).filter(m.Planta.clave == clave).first()
@@ -649,8 +657,28 @@ def asegurar_plantas(db: Session) -> dict:
             creadas["plantas"] += 1
         if not con_taller:
             continue
+        if not pl.tiene_taller:
+            # La bandera solo se escribia al CREAR la planta; una que ya existia
+            # se quedaba diciendo que no tiene taller aunque ya lo tuviera.
+            pl.tiene_taller = True
+            creadas["con_taller_nuevo"].append(pl.clave)
+            registrar_bitacora(db, None, "planta_con_taller", "planta", pl.id,
+                               datos_antes="tiene_taller=False",
+                               datos_despues="tiene_taller=True")
 
         t = db.query(m.Taller).filter(m.Taller.planta_id == pl.id).first()
+        if not t:
+            # `taller.nombre` es unico: si alguien ya dio de alta a mano un
+            # taller con ese nombre, insertar otro tumbaria el arranque. Suelto
+            # (sin planta) se adopta; si es de OTRA planta, se reporta y se deja.
+            homonimo = db.query(m.Taller).filter(m.Taller.nombre == nombre).first()
+            if homonimo is not None and homonimo.planta_id is None and not central:
+                homonimo.planta_id = pl.id
+                t = homonimo
+            elif homonimo is not None and homonimo.planta_id is not None:
+                creadas["no_se_pudo"].append(
+                    f"{nombre}: ya hay un taller con ese nombre en otra planta")
+                continue
         if not t and central:
             # El taller huerfano del prototipo v1.1 es Alamos: se adopta con
             # todo y su plano en vez de duplicarlo.
@@ -695,6 +723,9 @@ def asegurar_plantas(db: Session) -> dict:
             for i in range(1, n + 1):
                 db.add(m.Espacio(zona_id=z.id, numero="T-%02d" % i, pos_x=i - 1, pos_y=0))
                 creadas["espacios"] += 1
+            registrar_bitacora(db, None, "taller_creado", "taller", t.id,
+                               datos_despues=f"{nombre}: zona TALLER con {n} casillas "
+                                             f"(T-01 a T-{n:02d})")
 
     db.commit()
     return creadas
@@ -758,8 +789,7 @@ def sembrar(db: Session):
     choferes = [c for c in db.query(m.Chofer).all()]
 
     # --------------------------------------------- plantas y talleres (v2.0) -- #
-    # El taller toma el nombre de su planta. LIBERTAD es sucursal pero NO tiene
-    # taller: sus unidades se atienden en Alamos (confirmado con el cliente).
+    # El taller toma el nombre de su planta. Las siete tienen taller (ver PLANTAS).
     plantas_creadas, talleres = {}, {}
     for clave, nombre, central, con_taller, lat, lng in PLANTAS:
         pl = m.Planta(clave=clave, nombre=nombre, es_central=central,

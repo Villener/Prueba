@@ -132,6 +132,7 @@ def unidad_out(db: Session, u: m.Unidad) -> dict:
         "poseedor": nombre_chofer(db, poseedor_actual(db, u)),
         "es_prestada": bool(prest and prest.estado == "activo"),
         "taller_actual": taller.nombre if taller else None,
+        "taller_asignado_id": u.taller_asignado_id,
     }
 
 def prestamo_out(db: Session, p: m.PrestamoUnidad) -> dict:

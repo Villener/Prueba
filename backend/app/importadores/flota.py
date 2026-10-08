@@ -61,8 +61,9 @@ SUCURSAL_A_PLANTA = {
     "CARRANZA": "CARRANZA", "VALLEREDONDO": "VALLEREDONDO",
     "GUAYCURA": "GUAYCURA", "LIBERTAD": "LIBERTAD",
 }
-# Sucursales sin taller propio: a donde va la unidad si se vara.
-TALLER_SUSTITUTO = {"LIBERTAD": "ALAMOS"}
+# Ya no hay sucursales sin taller: LIBERTAD tiene el suyo desde 2026-10-08. Su
+# copia de TALLER_SUSTITUTO mandaba sus unidades a Alamos cada noche, y el paso
+# "catalogo" (catalogo_unidades) las regresaba a Libertad acto seguido.
 
 
 def _tipo_explicito(canal: str):
@@ -134,7 +135,6 @@ def importar(db: Session, carpeta: str = CARPETA_DATOS) -> dict:
         clave = SUCURSAL_A_PLANTA.get(sucursal)
         if clave is None:
             return None
-        clave = TALLER_SUSTITUTO.get(clave, clave)
         return talleres.get(plantas.get(clave))
 
     # Placas y VIN que YA estan tomados, para no chocar contra el indice unico.

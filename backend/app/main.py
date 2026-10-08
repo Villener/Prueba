@@ -31,7 +31,7 @@ from .core.security import require_roles
 from .core.migraciones import (asegurar_candados_bitacora, asegurar_columnas,
                                asegurar_indices, asegurar_renombres)
 from .seed import (asegurar_asientos_de_reportes, asegurar_parametros, asegurar_plano,
-                   asegurar_reportes_de_ordenes_abiertas,
+                   asegurar_plantas, asegurar_reportes_de_ordenes_abiertas,
                    asegurar_preventivo_real, asegurar_rol_mecanicos, asegurar_roles,
                    asegurar_tipos_servicio,
                    asegurar_usuarios_demo, reconciliar_cuentas, sembrar)
@@ -118,6 +118,11 @@ def startup():
         # Despues de sembrar, porque necesita los planes: el preventivo dura
         # horas (no 8 dias de bahia) y ningun plan pasa de 90 dias.
         log.info("preventivo: %s", asegurar_preventivo_real(db))
+        # Despues de sembrar (que crea las plantas en una base nueva; al reves
+        # chocaria contra `planta.clave` unica) y antes del plano: el taller que
+        # le falte a una planta -- Libertad, 2026-10-08 -- nace aqui y no hasta
+        # la carga nocturna de las areas.
+        log.info("plantas: %s", asegurar_plantas(db))
         # Despues de sembrar: pone al dia el plano de una base que ya existia
         # (etiquetas por fila y que zonas admiten unidad). En una base nueva no
         # encuentra nada que arreglar.

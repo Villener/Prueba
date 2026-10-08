@@ -49,6 +49,10 @@ export function Solicitudes({ esMecanico = false }) {
                     ? 'danger' : ''}>{s.urgencia}</Badge>
                 </div>
                 <div className="s">{s.chofer} · {s.tipo}</div>
+                <div className="s">
+                  Pide {s.taller}
+                  {s.planta_madre && s.planta_madre !== s.taller && ` · la unidad es de ${s.planta_madre}`}
+                </div>
                 <div className="s">{s.descripcion_falla}</div>
                 <div className="s">{fmtFechaHora(s.fecha_solicitud)}</div>
                 <div className="s">
@@ -56,6 +60,9 @@ export function Solicitudes({ esMecanico = false }) {
                     ? <span style={{ color: 'var(--ok)' }}>
                         {s.espacios_libres_compatibles} espacio(s) compatible(s) libre(s)</span>
                     : <span style={{ color: 'var(--danger)' }}>Sin espacio compatible</span>}
+                  {s.espacios_libres_compatibles === 0 && !esMecanico && s.otras_plantas?.length > 0 && (
+                    <span> · hay lugar en {s.otras_plantas.map((o) => o.nombre).join(', ')}</span>
+                  )}
                 </div>
               </div>
               {/* Rechazar a la vista, junto a Atender. Antes vivia al final de la
@@ -146,11 +153,25 @@ function ModalResolver({ solicitud, esMecanico, onCerrar, onListo }) {
   const navegar = useNavigate()
   const [motivo, setMotivo] = useState('')
   const [espacioId, setEspacioId] = useState(null)
+  // Donde se atiende. Arranca en la planta que pidio el chofer; el
+  // administrador la puede mandar a otra con lugar y la unidad sigue siendo de
+  // su planta madre (regla de Baja Gas, 2026-10-08).
+  const opciones = [
+    { taller_id: solicitud.taller_id, nombre: solicitud.taller,
+      libres: solicitud.espacios_libres_compatibles },
+    ...(esMecanico ? [] : solicitud.otras_plantas || []),
+  ]
+  const [tallerId, setTallerId] = useState(solicitud.taller_id)
+  const actual = opciones.find((o) => o.taller_id === tallerId) || opciones[0]
+  const otraPlanta = actual.taller_id !== solicitud.taller_id
   // CU-ADM-01 «include» CU-ADM-02: el plano se ve AQUI, al momento de decidir,
   // para elegir la casilla en vez de aceptar a ciegas.
-  const { data: taller, cargando } = useApi(
-    () => api.get(`/admin/taller/${solicitud.taller_id}`), [solicitud.taller_id])
-  const hayEspacio = solicitud.espacios_libres_compatibles > 0
+  const { data: cargado, cargando, error, recargar } = useApi(
+    () => api.get(`/admin/taller/${actual.taller_id}`), [actual.taller_id])
+  // Solo el plano de la planta ELEGIDA: useApi conserva el anterior mientras
+  // carga (o si falla), y elegir una casilla de otra planta acabaria en un 409.
+  const taller = cargado?.id === actual.taller_id ? cargado : null
+  const hayEspacio = actual.libres > 0
 
   const enviar = async (payload, ok) => {
     try {
@@ -174,9 +195,30 @@ function ModalResolver({ solicitud, esMecanico, onCerrar, onListo }) {
       <p className="sub">{solicitud.chofer} · {solicitud.tipo} · urgencia {solicitud.urgencia}</p>
       <p>{solicitud.descripcion_falla}</p>
 
+      {opciones.length > 1 && (
+        <div className="field">
+          <label>Dónde se atiende</label>
+          <select value={actual.taller_id}
+                  onChange={(e) => { setTallerId(Number(e.target.value)); setEspacioId(null) }}>
+            {opciones.map((o) => (
+              <option key={o.taller_id} value={o.taller_id}>
+                {o.nombre} · {o.libres ? `${o.libres} libre(s)` : 'sin lugar'}
+                {o.taller_id === solicitud.taller_id ? ' (la que pidió)' : ''}
+              </option>
+            ))}
+          </select>
+          <p className="hint">
+            {otraPlanta
+              ? `Se atiende en ${actual.nombre}; la unidad sigue siendo de `
+                + `${solicitud.planta_madre || solicitud.taller}. Al chofer le llega el aviso.`
+              : 'Si en esta planta no hay lugar, puedes mandarla a otra que sí tenga.'}
+          </p>
+        </div>
+      )}
+
       {hayEspacio ? (
         <Aviso tipo="ok">
-          {solicitud.espacios_libres_compatibles} espacio(s) compatible(s) disponible(s).
+          {actual.libres} espacio(s) compatible(s) disponible(s) en {actual.nombre}.
         </Aviso>
       ) : (
         <Aviso tipo="err">
@@ -190,12 +232,17 @@ function ModalResolver({ solicitud, esMecanico, onCerrar, onListo }) {
           <h3 style={{ margin: '14px 0 8px' }}>
             {elegido ? `Espacio elegido: ${elegido.numero}` : 'Elige el espacio'}
           </h3>
-          {cargando ? <Spinner /> : (
+          {taller && !cargando ? (
             <div style={{ maxHeight: 260, overflowY: 'auto' }}>
               <PlanoTaller taller={taller} soloLibres seleccionado={espacioId}
                            onEspacio={(e) => setEspacioId(e.id)} />
             </div>
-          )}
+          ) : error && !cargando ? (
+            <Aviso tipo="err">
+              No cargó el plano de {actual.nombre}: {error}{' '}
+              <button type="button" className="btn sm" onClick={recargar}>Reintentar</button>
+            </Aviso>
+          ) : <Spinner />}
           <p className="sub">
             Si no eliges ninguno, el sistema toma el primer espacio compatible libre.
           </p>
@@ -203,8 +250,10 @@ function ModalResolver({ solicitud, esMecanico, onCerrar, onListo }) {
       )}
 
       <button className="btn primary block" disabled={!hayEspacio}
-              onClick={() => enviar({ aceptar: true, espacio_id: espacioId || undefined },
-                                    'Ingreso aceptado · se abrió el formato')}>
+              onClick={() => enviar({ aceptar: true, espacio_id: espacioId || undefined,
+                                      taller_id: otraPlanta ? actual.taller_id : undefined },
+                                    otraPlanta ? `Ingreso aceptado en ${actual.nombre} · se abrió el formato`
+                                               : 'Ingreso aceptado · se abrió el formato')}>
         {elegido
           ? `Colocar en ${elegido.numero} y abrir el formato`
           : 'Asignar espacio y abrir el formato'}
@@ -236,4 +285,4 @@ function ModalResolver({ solicitud, esMecanico, onCerrar, onListo }) {
 
 /* ================================================= CU-ADM-03/04: el plano ==== */
 
-/** Selector de taller. Ya son 6 plantas, no una sola. */
+/** Selector de taller. Ya son 7 plantas, no una sola. */
