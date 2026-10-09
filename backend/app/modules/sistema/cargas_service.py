@@ -34,7 +34,7 @@ import threading
 
 from ... import importador
 from ...core.tiempo import TZ_OPERACION, ahora_utc
-from ...importadores import flota, personal, sincronizar, taller
+from ...importadores import padron, personal, sincronizar, taller
 
 AREAS = {"logistica": "Logistica", "almacen": "Almacen", "compras": "Compras",
          "taller": "Taller"}
@@ -45,8 +45,9 @@ ROLES_DE_CARGA = ("administrador", *ROL_DE_AREA.values())
 # sincronizar lo leen. `patron`: el libro REQUIS trae la version en el nombre y
 # el importador lo busca por pedazo, no por nombre exacto.
 TIPOS = {
-    "unidades": {"area": "logistica", "archivo": flota.ARCHIVO,
-                 "pasos": ("flota", "catalogo")},
+    # El padron: el control de GPS de Logistica (antes UNIDADES BAJA GAS).
+    "unidades": {"area": "logistica", "archivo": padron.ARCHIVO,
+                 "pasos": ("padron",)},
     "choferes": {"area": "logistica", "archivo": personal.ARCHIVO_INFO,
                  "pasos": ("base", "personal")},
     "choferes_lan": {"area": "logistica", "archivo": personal.ARCHIVO_LAN,

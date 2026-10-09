@@ -74,7 +74,7 @@ class Motor:
         self.llamadas.append({"carpeta": carpeta, "simular": simular, "archivos": archivos})
         pasos = [{"paso": p, "que": "", "estado": "error" if p == self.error_en else "ok",
                   "motivo": "ValueError: hoja equivocada" if p == self.error_en else None}
-                 for p in ("base", "limpieza", "flota", "catalogo", "personal", "taller")]
+                 for p in ("base", "limpieza", "personal", "taller", "padron")]
         inf = {"pasos": pasos, "cambios": json.loads(json.dumps(self.cambios)),
                "ejemplos": {}, "cuentas_nuevas": []}
         if not simular:
@@ -139,16 +139,16 @@ def _():
 @caso("revisar no toca la carpeta real y prueba con el archivo nuevo en su lugar")
 def _():
     viejo, nuevo = excel("viejo"), excel("nuevo")
-    areas = carpeta_con(**{"UNIDADES BAJA GAS.xlsx": viejo, "RESUMEN.xlsx": excel("resumen")})
+    areas = carpeta_con(**{"CONTROL GPS.xlsx": viejo, "RESUMEN.xlsx": excel("resumen")})
     with motor() as mt:
-        r = cs.simular(areas, "unidades", "catalogo octubre.xlsx", nuevo, 7)
-    assert r["puede_aplicar"] and r["archivo"] == "UNIDADES BAJA GAS.xlsx"
+        r = cs.simular(areas, "unidades", "Control gps actualizado 16.7.26.xlsx", nuevo, 7)
+    assert r["puede_aplicar"] and r["archivo"] == "CONTROL GPS.xlsx"
     llam = mt.llamadas[0]
     assert llam["simular"] is True
     assert llam["carpeta"] != areas, "el simulacro corrio sobre la carpeta real"
-    assert llam["archivos"]["UNIDADES BAJA GAS.xlsx"] == nuevo
+    assert llam["archivos"]["CONTROL GPS.xlsx"] == nuevo
     assert "RESUMEN.xlsx" in llam["archivos"], "faltan los archivos de las otras areas"
-    assert open(os.path.join(areas, "UNIDADES BAJA GAS.xlsx"), "rb").read() == viejo
+    assert open(os.path.join(areas, "CONTROL GPS.xlsx"), "rb").read() == viejo
     assert not os.path.exists(llam["carpeta"]), "la carpeta de prueba no se borro"
 
 
@@ -218,13 +218,13 @@ def _():
 @caso("si al aplicar de verdad falla su paso, regresa el archivo anterior")
 def _():
     viejo = excel("viejo")
-    areas = carpeta_con(**{"UNIDADES BAJA GAS.xlsx": viejo})
+    areas = carpeta_con(**{"CONTROL GPS.xlsx": viejo})
     with motor() as mt:
         r = cs.simular(areas, "unidades", "u.xlsx", excel("nuevo"), 1)
-    with motor(error_en="catalogo"):
+    with motor(error_en="padron"):
         msg = espera_error(lambda: cs.aplicar(areas, r["carga_id"], LOGISTICA), 422)
     assert "anterior" in msg
-    assert open(os.path.join(areas, "UNIDADES BAJA GAS.xlsx"), "rb").read() == viejo
+    assert open(os.path.join(areas, "CONTROL GPS.xlsx"), "rb").read() == viejo
     assert os.listdir(os.path.join(areas, "historial")) == []
 
 

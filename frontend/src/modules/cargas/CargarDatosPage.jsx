@@ -17,8 +17,8 @@ import { useToast } from '../../ui/Toast.jsx'
 const AREA = { logistica: 'Logística', almacen: 'Almacén', compras: 'Compras', taller: 'Taller' }
 
 const ARCHIVO = {
-  unidades: { titulo: 'Catálogo de unidades', nombre: 'UNIDADES BAJA GAS',
-              que: 'Placas, VIN, tipo de unidad, si está activa y su sucursal.' },
+  unidades: { titulo: 'Padrón de unidades', nombre: 'Control de GPS',
+              que: 'Qué unidades están activas, su planta, su canal y su número de permiso.' },
   choferes: { titulo: 'Información de choferes', nombre: 'INFO CHOFERES 2026 ACTUAL',
               que: 'Plantas, supervisores, choferes y la unidad que trae cada uno.' },
   choferes_lan: { titulo: 'Choferes LAN y estacionario', nombre: 'CHOFERES LAN ESTACIONARIO 1',
@@ -41,8 +41,11 @@ const TABLA = {
   bitacora_auditoria: 'Auditoría', proveedor: 'Proveedores',
 }
 const PASO = {
-  base: 'Catálogo base', limpieza: 'Unidades duplicadas', flota: 'Placas y VIN',
-  catalogo: 'Activas y sucursal', personal: 'Teléfonos y turnos', taller: 'Historial del taller',
+  base: 'Catálogo base', limpieza: 'Unidades duplicadas', padron: 'Padrón de unidades',
+  personal: 'Teléfonos y turnos', taller: 'Historial del taller',
+  // Pasos que ya no corren (el padrón los reemplazó el 2026-10-09); se quedan
+  // para que el historial de cargas viejas se siga leyendo.
+  flota: 'Placas y VIN', catalogo: 'Activas y sucursal',
 }
 const nombreTabla = (t) => TABLA[t] || t.replaceAll('_', ' ')
 const titulo = (tipo) => ARCHIVO[tipo]?.titulo || tipo

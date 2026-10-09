@@ -1382,13 +1382,18 @@ def buscar_unidades(q: str = "", limite: int = 10, usuario=Depends(solo_admin),
     Busca sin guiones ni espacios porque el papel escribe "BG-354P" y el
     catalogo "BG354P". Devuelve el poseedor porque es el nombre que va en la
     raya de "NOMBRE DEL CHOFER" (RN-01), no el del titular.
+
+    Tambien las dadas de baja (marcadas): desde el 2026-10-09 el padron de
+    Logistica es el control de GPS y deja fuera ~300 utilitarios y vehiculos
+    de planta. Si uno llega al taller, se le tiene que poder hacer su formato.
+    Por eso la exacta va primero aunque este de baja: si no, al escribir
+    'BG-35' las BG351P, BG352P... activas llenan la lista y la BG-35 no sale.
     """
     plano = "".join(c for c in (q or "").upper() if c.isalnum())
     if not plano:
         return []
     candidatas = (db.query(m.Unidad)
-                  .filter(m.Unidad.num_economico.isnot(None),
-                          m.Unidad.activo.is_(True))
+                  .filter(m.Unidad.num_economico.isnot(None))
                   .order_by(m.Unidad.num_economico).all())
     tope = max(1, min(limite, 50))
     out = []
@@ -1403,9 +1408,9 @@ def buscar_unidades(q: str = "", limite: int = 10, usuario=Depends(solo_admin),
             "estado": u.estado, "km_actual": u.km_actual,
             "chofer_id": chofer_id, "chofer": svc.nombre_chofer(db, chofer_id),
             "taller_id": u.taller_actual_id or u.taller_asignado_id,
-            "exacto": clave == plano,
+            "exacto": clave == plano, "activo": bool(u.activo),
         })
-    out.sort(key=lambda x: (not x["exacto"], len(x["num_economico"])))
+    out.sort(key=lambda x: (not x["exacto"], not x["activo"], len(x["num_economico"])))
     return out[:tope]
 
 

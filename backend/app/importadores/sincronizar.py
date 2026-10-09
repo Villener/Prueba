@@ -10,12 +10,18 @@ EL ORDEN NO ES CAPRICHO:
 
   1. base       INFO CHOFERES + REQUIS + CODIGOS: plantas, supervisores,
                 choferes, unidades, tecnicos y refacciones con su codigo de SAP
-  2. limpieza   funde las unidades duplicadas ANTES de que entre el catalogo;
+  2. limpieza   funde las unidades duplicadas ANTES de que entre el padron;
                 al reves quedan seis escrituras del mismo camion
-  3. flota      UNIDADES BAJA GAS: placas y VIN
-  4. catalogo   UNIDADES BAJA GAS: activa/inactiva y sucursal (el 628)
-  5. personal   CHOFERES LAN + INFO CHOFERES: telefonos, turnos, rutas
-  6. taller     RESUMEN: el historial de entradas y el patio
+  3. personal   CHOFERES LAN + INFO CHOFERES: telefonos, turnos, rutas
+  4. taller     RESUMEN: el historial de entradas y el patio
+  5. padron     CONTROL GPS: que unidades estan activas, su planta, su canal y
+                su permiso. Va AL FINAL porque es la ultima palabra sobre quien
+                esta activa: `base` y `taller` dan de alta (activas) unidades que
+                ven en sus Excel, y el padron da de baja las que no trae.
+
+Hasta el 2026-10-09 el padron era UNIDADES BAJA GAS (pasos `flota` y
+`catalogo`). Logistica lo actualizo en su control de GPS y ese es el que manda
+ahora (ver padron.py).
 
 CADA PASO VA POR SU LADO. Si el archivo de un area no llego, ese paso se salta y
 los demas corren: que Logistica no mande su catalogo no es razon para dejar al
@@ -57,7 +63,7 @@ from sqlalchemy.orm import sessionmaker
 
 from .. import importador
 from ..core.database import DATABASE_URL, SessionLocal
-from . import catalogo_unidades, flota, limpieza, personal, taller
+from . import limpieza, padron, personal, taller
 
 # Lo que cada paso necesita encontrar en la carpeta. Los nombres se toman de
 # cada importador y no se repiten aqui: si un importador cambia de archivo,
@@ -65,10 +71,9 @@ from . import catalogo_unidades, flota, limpieza, personal, taller
 ARCHIVOS = {
     "base": [personal.ARCHIVO_INFO],
     "limpieza": [],
-    "flota": [flota.ARCHIVO],
-    "catalogo": [flota.ARCHIVO],
     "personal": [personal.ARCHIVO_LAN, personal.ARCHIVO_INFO],
     "taller": [taller.ARCHIVO],
+    "padron": [padron.ARCHIVO],
 }
 
 RESPALDOS_A_GUARDAR = 7
@@ -83,15 +88,12 @@ def _pasos(carpeta: str):
          lambda db: importador.importar(db, carpeta, contrasena=None)),
         ("limpieza", "funde unidades duplicadas",
          lambda db: limpieza.limpiar(db)),
-        ("flota", "placas y VIN",
-         lambda db: flota.importar(db, carpeta)),
-        ("catalogo", "unidades activas y su sucursal",
-         lambda db: catalogo_unidades.aplicar(
-             db, catalogo_unidades.leer(os.path.join(carpeta, flota.ARCHIVO)))),
         ("personal", "telefonos, turnos y rutas",
          lambda db: personal.importar(db, carpeta)),
         ("taller", "historial de entradas y patio",
          lambda db: taller.importar(db, carpeta)),
+        ("padron", "unidades activas, su planta y su permiso",
+         lambda db: padron.importar(db, carpeta)),
     ]
 
 

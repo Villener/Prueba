@@ -15,9 +15,7 @@ madre aunque a veces la atienda otra planta que tenga lugar en ese momento.
 - La requisicion cuenta en el taller del mecanico que pidio las piezas.
 """
 import os
-import shutil
 import sys
-import tempfile
 import traceback
 from datetime import date, timedelta
 
@@ -25,7 +23,6 @@ BACKEND = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BACKEND)
 os.environ["DATABASE_URL"] = "sqlite://"
 
-import openpyxl                                             # noqa: E402
 from fastapi import HTTPException                           # noqa: E402
 from sqlalchemy import create_engine                        # noqa: E402
 from sqlalchemy.orm import sessionmaker                     # noqa: E402
@@ -34,7 +31,7 @@ from app import models as m                                 # noqa: E402
 from app import seed                                        # noqa: E402
 from app.core.database import Base                          # noqa: E402
 from app.core.tiempo import ahora_utc                       # noqa: E402
-from app.importadores import catalogo_unidades, flota       # noqa: E402
+from app.importadores import padron                         # noqa: E402
 from app.modules.mantenimiento import agenda_service as ag  # noqa: E402
 from app.modules.piezas import capturista_controller as cc  # noqa: E402
 from app.modules.taller import administrador_controller as ac  # noqa: E402
@@ -134,62 +131,47 @@ def _():
     assert ("LIBERTAD", "Libertad", False, True) == seed.PLANTAS[-1][:4]
     assert seed.ESPACIOS_SATELITE["LIBERTAD"] == 2
     assert not hasattr(seed, "TALLER_POR_DEFECTO")
-    assert not hasattr(flota, "TALLER_SUSTITUTO")
     from app import importador
     assert not hasattr(importador, "TALLER_SUSTITUTO")
 
 
 # ------------------------------------------------- la carga de las areas -- #
-def catalogo_xlsx(carpeta, filas):
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = flota.HOJA
-    ws.append(["Unidad", "Matricula", "Estatus", "Sucursal", "Canal_Unidad"])
-    for f in filas:
-        ws.append(f)
-    ruta = os.path.join(carpeta, flota.ARCHIVO)
-    wb.save(ruta)
-    return ruta
-
-
-@caso("la carga diaria deja las unidades de Libertad en Libertad, y otra carga no cambia nada")
+@caso("el padron deja las unidades de Libertad en Libertad, y otra carga no cambia nada")
 def _():
+    # Desde el 2026-10-09 la planta de cada unidad sale del padron (el control
+    # de GPS, ver prueba_padron.py); antes, de UNIDADES BAJA GAS.
     db = nueva_db()
     base_como_produccion(db)
     seed.asegurar_plantas(db)
     alamos, lib = taller(db, "Alamos"), taller(db, "Libertad")
-    tipo = m.TipoUnidad(nombre="utilitario")
-    db.add_all([tipo, m.TipoUnidad(nombre="reparto")])
+    tipo = m.TipoUnidad(nombre="reparto")
+    db.add(tipo)
     db.flush()
     # Como estaban en produccion: las de Libertad, asignadas a Alamos.
-    for num in ("1191", "1483", "1001"):
+    for num in ("2154", "BG384", "1001"):
         db.add(m.Unidad(num_economico=num, tipo_unidad_id=tipo.id,
                         taller_asignado_id=alamos.id, activo=True))
     db.commit()
-    carpeta = tempfile.mkdtemp()
+    def fila(num, planta):
+        return {"clave": num, "texto": num, "canal": "REPARTO", "planta": planta,
+                "supervisor": None, "placa": "", "vin": "", "modelo": "", "hojas": [],
+                "permiso": "LP/14586/DIST/PLA/2016"}
+    p = {"unidades": {"2154": fila("2154", "LIBERTAD"), "BG384": fila("BG384", "LIBERTAD"),
+                      "1001": fila("1001", "ALAMOS")}, "avisos": []}
+
+    def asignado():
+        return {u.num_economico: u.taller_asignado_id for u in db.query(m.Unidad)}
+
+    original = padron.MINIMO_DE_UNIDADES
+    padron.MINIMO_DE_UNIDADES = 1
     try:
-        ruta = catalogo_xlsx(carpeta, [
-            ("1191", None, "Activa", "LIBERTAD", "Reparto"),
-            ("1483", None, "Inactiva", "LIBERTAD", "Reparto"),
-            ("1001", None, "Activa", "ALAMOS", "Reparto"),
-        ])
-
-        def asignado():
-            return {u.num_economico: u.taller_asignado_id for u in db.query(m.Unidad)}
-
-        flota.importar(db, carpeta)
-        # El paso "flota" solo ya las deja en Libertad (antes las mandaba a Alamos).
-        assert asignado() == {"1191": lib.id, "1483": lib.id, "1001": alamos.id}, asignado()
-        r = catalogo_unidades.aplicar(db, catalogo_unidades.leer(ruta))
-        assert r["sucursal_puesta"] == 0 and not r["sucursal_desconocida"], r
-
-        # Otra noche igual: ni vaiven ni cambios.
-        flota.importar(db, carpeta)
-        assert asignado() == {"1191": lib.id, "1483": lib.id, "1001": alamos.id}
-        r = catalogo_unidades.aplicar(db, catalogo_unidades.leer(ruta))
-        assert r["sucursal_puesta"] == 0, r
+        r = padron.aplicar(db, p)
+        assert asignado() == {"2154": lib.id, "BG384": lib.id, "1001": alamos.id}, asignado()
+        assert r["planta_cambiada"] == 2, r
+        r = padron.aplicar(db, p)                      # otra noche igual: nada
+        assert r["planta_cambiada"] == 0 and asignado()["2154"] == lib.id, r
     finally:
-        shutil.rmtree(carpeta, ignore_errors=True)
+        padron.MINIMO_DE_UNIDADES = original
 
 
 # --------------------------------------------------------------- agenda ---- #
