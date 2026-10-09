@@ -37,6 +37,8 @@ QUE HACE (aplicar):
     expendio, modulos...) traen de todo, asi que no tocan el tipo.
   - Las activas que NO vienen en el padron se dan de baja. Siguen en la base y
     el taller las puede seguir recibiendo; si vuelven a aparecer, se reactivan.
+  - Las nuevas y las que vuelven reciben su programa de preventivo, para que
+    la agenda las cite.
   - Cuando las hojas no coinciden en la planta o el canal, se dice en
     `a_revisar`.
 
@@ -52,6 +54,10 @@ QUE NO HACE, A PROPOSITO:
   con el mismo alias de la P que ya usaban los demas importadores. Las del
   taller que la base guarda con nombre ('GRUA 718') van en NOMBRES_EN_LA_BASE.
 
+  No pisa un permiso que un administrador corrigio a mano en la bitacora de la
+  unidad: la diferencia va a `a_revisar`. Si no, la sincronizacion de cada
+  noche lo regresaria y el libro de la NOM-030 se llenaria de idas y vueltas.
+
   No crea una unidad que se parece a otra que ya esta ('PLAT 900' y un '900R'
   nuevo): la manda a revisar y no da de baja a la parecida. Crearla partiria
   el historial de un mismo vehiculo en dos.
@@ -62,6 +68,7 @@ QUE NO HACE, A PROPOSITO:
 
 Se ejecuta con:  python -m app.importadores.padron [carpeta]
 """
+import ast
 import collections
 import datetime
 import logging
@@ -99,7 +106,7 @@ SUCURSAL_A_PLANTA = {
 # mismo; 'A. COMERCIAL' y 'A- COMERCIAL' tambien.
 CANALES = {
     "REPARTO": "REPARTO", "ESTACIONARIO": "ESTACIONARIO", "FRANQUICIA": "FRANQUICIA",
-    "EXPENDIO": "EXPENDIO", "MODULOS": "MODULOS", "MODULO": "MODULOS",
+    "EXPENDIO": "EXPENDIO", "EXPENDIOS": "EXPENDIO", "MODULOS": "MODULOS", "MODULO": "MODULOS",
     "OPERACION": "OPERACIONES", "OPERACIONES": "OPERACIONES",
     "ACOMERCIAL": "AREA COMERCIAL", "AREACOMERCIAL": "AREA COMERCIAL",
     "TESORERIA": "TESORERIA", "TALLER": "TALLER",
@@ -183,33 +190,47 @@ def _filas(wb, hoja, max_col=20):
 def _permisos(wb, avisos):
     """{(canal, planta): permiso} y {(supervisor, canal): planta} de PORCENTAJE.
 
-    La tabla no tiene encabezado para el canal: va en la columna de la izquierda
-    del permiso, escrito solo en el primer renglon de cada grupo.
+    La tabla de supervisores trae ZONA y SUPERVISOR en su encabezado. El permiso
+    y el canal no: el permiso dice 'PERMISO' un renglon abajo y el canal no
+    dice nada (va solo en el primer renglon de cada grupo). Las dos columnas se
+    reconocen por lo que traen, no por su lugar, para que una columna de mas o
+    un encabezado reescrito no las cambie de sitio.
+
+    Sin supervisores no se sabe la planta de GPS LISTADO, y entonces mandaria
+    FLOTILLA, que esta vieja: eso no se aplica a medias, se detiene.
     """
-    filas = _filas(wb, HOJA_PERMISOS, 12)
-    col_perm = fila_perm = None
+    filas = _filas(wb, HOJA_PERMISOS, 20)
+    h = cols = None
     for i, fila in enumerate(filas):
-        for j, v in enumerate(fila):
-            if _plano(v) == "PERMISO":
-                fila_perm, col_perm = i, j
-                break
-        if col_perm is not None:
+        nombres = {_plano(v): j for j, v in enumerate(fila) if v is not None}
+        if "ZONA" in nombres and "SUPERVISOR" in nombres:
+            h, cols = i, nombres
             break
-    h, cols = _encabezado(filas[max(0, (fila_perm or 0) - 3):], "ZONA", "SUPERVISOR")
-    if col_perm is None or cols is None:
-        avisos.append("La hoja PORCENTAJE no trae la tabla de permisos: no se puso ninguno.")
-        return {}, {}
-    c_zona, c_sup, c_canal = cols["ZONA"], cols["SUPERVISOR"], max(0, col_perm - 1)
+    if h is None:
+        raise RuntimeError("La hoja PORCENTAJE no trae la tabla de supervisores (ZONA y "
+                           "SUPERVISOR): sin ella no se sabe la planta de cada unidad. No se "
+                           "aplico el padron.")
+    c_zona, c_sup = cols["ZONA"], cols["SUPERVISOR"]
+    datos = [f for f in filas[h + 1:] if c_zona < len(f) and planta(f[c_zona])]
+
+    def la_que_mas(prueba):
+        cuenta = collections.Counter(
+            j for f in datos for j, v in enumerate(f) if j not in (c_zona, c_sup) and prueba(v))
+        return cuenta.most_common(1)[0][0] if cuenta else None
+    c_perm = la_que_mas(lambda v: bool(re.match(r"[A-Z]{1,3}/\d+/", n.texto(v).upper())))
+    c_canal = la_que_mas(lambda v: canal(v) is not None)
+
     permisos, supervisores = {}, {}
     actual = None
-    for fila in filas[fila_perm + 1:]:
-        if c_canal < len(fila) and fila[c_canal] is not None:
+    for fila in filas[h + 1:]:
+        if c_canal is not None and c_canal < len(fila) and fila[c_canal] is not None:
             actual = canal(fila[c_canal]) or actual
         zona = planta(fila[c_zona]) if c_zona < len(fila) else None
         sup = _persona(fila[c_sup]) if c_sup < len(fila) else ""
         if not (zona and actual):
             continue
-        perm = n.texto(fila[col_perm]).upper() if col_perm < len(fila) else ""
+        perm = (n.texto(fila[c_perm]).upper()
+                if c_perm is not None and c_perm < len(fila) else "")
         if perm:
             previo = permisos.setdefault((actual, zona), perm)
             if previo != perm:
@@ -217,37 +238,60 @@ def _permisos(wb, avisos):
                               "se usa el primero.")
         if sup:
             supervisores[(sup, actual)] = zona
+    if not supervisores:
+        raise RuntimeError("La tabla de supervisores de PORCENTAJE no trae su canal o sus "
+                           "nombres: sin ella no se sabe la planta de cada unidad. No se "
+                           "aplico el padron.")
+    if not permisos:
+        avisos.append("La hoja PORCENTAJE no trae los permisos: no se puso ninguno.")
     return permisos, supervisores
 
 
 def _base_de_datos(wb, avisos):
-    """Las listas de BASE DE DATOS: [(clave, texto, marcada_baja, lista)].
+    """Las listas de BASE DE DATOS: ([(clave, texto, marcada_baja, lista)], {lista: titulo}).
 
     Cada lista es una columna UNIDAD, con el STATUS y una nota a su derecha,
     bajo el nombre del supervisor. Una columna puede traer varias listas: cada
     una empieza en su renglon UNIDAD y acaba en el nombre del siguiente
     supervisor (lo unico de la columna que no lleva numero). `lista` las
-    distingue para saber de que canal y planta son sus unidades.
+    distingue para saber de que canal y planta son sus unidades; el titulo es
+    lo que dice arriba de ella ('ARTURO MENDEZ (ESTACIONARIO').
     """
     if HOJA_BASE not in wb.sheetnames:
         avisos.append("El control de GPS no trae la hoja BASE DE DATOS: no se leyeron las "
                       "unidades pendientes de GPS ni las marcadas BAJA.")
-        return []
-    filas = _filas(wb, HOJA_BASE, 60)
+        return [], {}
+    filas = _filas(wb, HOJA_BASE, min(wb[HOJA_BASE].max_column or 1, 300))
 
     def celda(i, j):
-        return filas[i][j] if j < len(filas[i]) else None
+        return filas[i][j] if 0 <= i < len(filas) and 0 <= j < len(filas[i]) else None
+
+    def es_texto(v):
+        return v is not None and not any(ch.isdigit() for ch in n.texto(v))
+
+    def titulo(i, j):
+        # Lo de arriba de UNIDAD en su columna. Si solo dice el canal (las dos
+        # listas pegadas de un supervisor), el nombre va en el primer renglon,
+        # sobre la primera de las dos.
+        partes = [n.texto(celda(k, j)) for k in (i - 2, i - 1) if es_texto(celda(k, j))]
+        if all(canal(p) for p in partes) and i <= 4:
+            for k in range(j, max(-1, j - 5), -1):
+                if es_texto(celda(0, k)) and not canal(celda(0, k)):
+                    partes.insert(0, n.texto(celda(0, k)))
+                    break
+        return " ".join(dict.fromkeys(partes))
 
     ancho = max((len(f) for f in filas), default=0)
     columnas = sorted({j for i in range(len(filas)) for j in range(ancho)
                        if _plano(celda(i, j)) == "UNIDAD"})
-    salida = []
+    salida, titulos = [], {}
     for j in columnas:
         lista = None
         for i in range(len(filas)):
             v = celda(i, j)
             if _plano(v) == "UNIDAD":
                 lista = (j, i)
+                titulos[lista] = titulo(i, j)
                 continue
             if lista is None or v is None:
                 continue
@@ -261,7 +305,26 @@ def _base_de_datos(wb, avisos):
             c = _clave(v)
             if c:
                 salida.append((c, texto, any(_plano(x) == "BAJA" for x in notas), lista))
-    return salida
+    return salida, titulos
+
+
+def _del_titulo(titulo, supervisores):
+    """(canal, planta) que dice el titulo de una lista, o None donde no se sabe.
+
+    El canal va entre parentesis ('JOSE NICOLAS (FRANQUICIA)'); la planta sale
+    del supervisor, si todo su nombre corto de PORCENTAJE esta en el titulo
+    ('CARLOS CALDERON' en 'CARLOS ANTONIO CALDERON').
+    """
+    palabras = set(re.findall(r"[A-Z]+", _persona(titulo)))
+    c = next((canal(p) for p in palabras if canal(p)), None)
+    def nombre(sup):
+        return {p for p in re.findall(r"[A-Z]+", sup) if len(p) >= 3}
+    zonas = {(can, zona) for (sup, can), zona in supervisores.items()
+             if (c is None or can == c) and nombre(sup) and nombre(sup) <= palabras}
+    if len({z for _c, z in zonas}) == 1:
+        can, zona = next(iter(zonas))
+        return c or (can if len(zonas) == 1 else None), zona
+    return c, None
 
 
 def leer(ruta: str) -> dict:
@@ -359,7 +422,7 @@ def leer(ruta: str) -> dict:
 
     # BASE DE DATOS. Las marcadas BAJA salen del padron aunque FLOTILLA las
     # siga trayendo.
-    listas = _base_de_datos(wb, avisos)
+    listas, titulos = _base_de_datos(wb, avisos)
     marcadas = set()
     for c, texto, baja, _lista in listas:
         if baja:
@@ -376,11 +439,19 @@ def leer(ruta: str) -> dict:
         k = buscar(c)
         if k:
             votos[lista][(unidades[k]["canal"], unidades[k]["planta"])] += 1
+    sin_gps = collections.Counter()
     for c, texto, _baja, lista in listas:
-        if c in marcadas or not votos[lista]:
+        if c in marcadas:
             continue
+        if votos[lista]:
+            canal_lista, planta_lista = votos[lista].most_common(1)[0][0]
+        else:
+            # Ninguna de sus unidades trae GPS todavia (un supervisor nuevo, una
+            # lista de pura unidad nueva): manda lo que dice su titulo. Sin
+            # esto se quedarian fuera del padron y se darian de baja.
+            canal_lista, planta_lista = _del_titulo(titulos.get(lista, ""), supervisores)
+            sin_gps[lista] += 1
         k = buscar(c)
-        canal_lista, planta_lista = votos[lista].most_common(1)[0][0]
         if k is None:
             k = c
             u = unidad(c, texto)
@@ -389,6 +460,13 @@ def leer(ruta: str) -> dict:
         if HOJA_BASE not in u["hojas"]:
             u["hojas"].append(HOJA_BASE)
             u["b_planta"] = planta_lista
+    for lista, cuantas in sin_gps.items():
+        canal_lista, planta_lista = _del_titulo(titulos.get(lista, ""), supervisores)
+        avisos.append(
+            f"La lista «{titulos.get(lista) or 'sin titulo'}» de BASE DE DATOS no trae "
+            f"ninguna unidad con GPS: sus {cuantas} unidades entran con "
+            f"{'canal ' + canal_lista if canal_lista else 'canal sin saber'} y "
+            f"{'planta ' + planta_lista if planta_lista else 'sin planta'}, segun su titulo.")
 
     # La planta, cuando las hojas no coinciden: la que digan dos de las tres.
     # FLOTILLA esta vieja en 8 (2310-2313, BG-362, BG-363, BG-717, BG-733) y el
@@ -426,6 +504,30 @@ def _asentar_permiso(db, u, antes, despues):
         bit.asentar_identificacion(db, u, {"permiso_hidrocarburos": antes},
                                    {"permiso_hidrocarburos": despues}, None,
                                    "padrón de Logística")
+
+
+def _permisos_a_mano(db) -> dict:
+    """{unidad_id: permiso} del ultimo cambio de permiso hecho a mano.
+
+    Sale de la auditoria de la pantalla de bitacora (nom030_identificacion_unidad),
+    que guarda el antes y el despues de los tres datos de identificacion; cuenta
+    solo si ahi cambio el permiso, no si se corrigio otro dato.
+    """
+    salida = {}
+    for a in (db.query(m.BitacoraAuditoria)
+              .filter(m.BitacoraAuditoria.accion == "nom030_identificacion_unidad",
+                      m.BitacoraAuditoria.entidad_tipo == "unidad")
+              .order_by(m.BitacoraAuditoria.id)):
+        try:
+            antes = ast.literal_eval(a.datos_antes or "{}")
+            despues = ast.literal_eval(a.datos_despues or "{}")
+        except (ValueError, SyntaxError):
+            continue
+        if not (isinstance(antes, dict) and isinstance(despues, dict)):
+            continue
+        if (antes.get("permiso_hidrocarburos") or None) != (despues.get("permiso_hidrocarburos") or None):
+            salida[a.entidad_id] = despues.get("permiso_hidrocarburos")
+    return salida
 
 
 def _parecidas(clave, existentes, excluidas):
@@ -469,6 +571,7 @@ def aplicar(db: Session, padron: dict, hoy: datetime.date | None = None) -> dict
             por_clave.setdefault(c, u)
     placas = {u.placas: u.id for u in existentes if u.placas}
     vins = {u.vin: u.id for u in existentes if u.vin}
+    a_mano = _permisos_a_mano(db)
 
     r = {"padron": len(unidades), "encontradas": 0, "creadas": [], "activadas": [],
          "dadas_de_baja": [], "planta_cambiada": 0, "tipo_corregido": 0,
@@ -530,10 +633,19 @@ def aplicar(db: Session, padron: dict, hoy: datetime.date | None = None) -> dict
             r["tipo_corregido"] += 1
 
         if fila["permiso"]:
-            if (u.permiso_hidrocarburos or "") != fila["permiso"]:
-                antes = u.permiso_hidrocarburos
+            actual = u.permiso_hidrocarburos or ""
+            if actual == fila["permiso"]:
+                pass
+            elif u.id in a_mano and (a_mano[u.id] or "") == actual:
+                # Lo puso a mano un administrador en la bitacora de la unidad:
+                # no se pisa cada noche (y el libro no se llena de idas y
+                # vueltas). Se reporta, como las placas y el VIN.
+                r["a_revisar"].append(f"{u.num_economico}: permiso {actual or '(vacio)'} "
+                                      f"puesto a mano en su bitacora, {fila['permiso']} en "
+                                      "el padron; no se cambio")
+            else:
                 u.permiso_hidrocarburos = fila["permiso"]
-                _asentar_permiso(db, u, antes, fila["permiso"])
+                _asentar_permiso(db, u, actual or None, fila["permiso"])
                 r["permiso_puesto"] += 1
         elif fila["canal"] not in ("TALLER", "AREA COMERCIAL", "TESORERIA"):
             r["sin_permiso"].append(fila["texto"])
@@ -568,6 +680,14 @@ def aplicar(db: Session, padron: dict, hoy: datetime.date | None = None) -> dict
             r["dadas_de_baja"].append(u.num_economico)
 
     db.commit()
+
+    # Una unidad nueva o que vuelve no trae programa de preventivo, y sin
+    # programa la agenda nunca la cita: el 2026-10-09 fueron 22 (las pipas
+    # nuevas de Rosarito entre ellas). Se les crea igual que a toda la flota.
+    from ..modules.mantenimiento import meta_preventivo
+    r["programas_creados"] = meta_preventivo.generar_programas(
+        db, hoy=hoy, simular=False)["total"]
+
     # Los conteos arriba (son los que ensenan la consola y la pantalla de
     # Datos) y las listas aparte, en `detalle`, para quien quiera revisarlas.
     listas = ("creadas", "activadas", "dadas_de_baja", "sin_planta", "sin_permiso",

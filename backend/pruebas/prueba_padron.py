@@ -36,6 +36,7 @@ from app import models as m                                 # noqa: E402
 from app import seed                                        # noqa: E402
 from app.core.database import Base                          # noqa: E402
 from app.importadores import padron, sincronizar            # noqa: E402
+from app.modules.bitacora import bitacora_controller as bc  # noqa: E402
 from app.modules.bitacora import bitacora_service as bs     # noqa: E402
 from app.modules.sistema import cargas_service as cs        # noqa: E402
 from app.modules.taller import administrador_controller as ac  # noqa: E402
@@ -132,7 +133,7 @@ BASE_DOBLE = ("BRUNO CASTRO", [
     ("REPARTO", [(2310, "LISTO"), ("BG-813", "LISTO")])])
 
 
-def _hoja_base(wb):
+def _hoja_base(wb, extra=()):
     b = wb.create_sheet("BASE DE DATOS")
     col = 1
     for titulo, listas in BASE:
@@ -157,17 +158,29 @@ def _hoja_base(wb):
         for k, r in enumerate(renglones, start=5):
             for e, v in enumerate(r):
                 b.cell(k, c + e, v)
+    # Bloques de mas, a la derecha, como los pondria Logistica: (titulo, renglones).
+    col += 5
+    for titulo, renglones in extra:
+        b.cell(1, col, titulo)
+        b.cell(3, col, "UNIDAD "), b.cell(3, col + 1, "STATUS")
+        for k, r in enumerate(renglones, start=4):
+            for e, v in enumerate(r):
+                b.cell(k, col + e, v)
+        col += 3
 
 
-def libro(carpeta, flotilla=FLOTILLA, gps=GPS, permisos=PERMISOS, sin=()):
+def libro(carpeta, flotilla=FLOTILLA, gps=GPS, permisos=PERMISOS, sin=(), base_extra=(),
+          permiso_en="B", permiso_dice="PERMISO ", con_canal=True):
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "PORCENTAJE"
     ws["C2"] = "TOTALES PROYECTO GPS"
     ws["C21"], ws["D21"], ws["G21"] = "ZONA", "SUPERVISOR", "TOTAL UNIDADES"
-    ws["B22"] = "PERMISO "
+    ws[f"{permiso_en}22"] = permiso_dice
+    col_perm = openpyxl.utils.column_index_from_string(permiso_en)
     for i, (canal, perm, zona, sup) in enumerate(permisos, start=23):
-        ws.cell(i, 1, canal), ws.cell(i, 2, perm), ws.cell(i, 3, zona), ws.cell(i, 4, sup)
+        ws.cell(i, 1, canal if con_canal else None), ws.cell(i, col_perm, perm)
+        ws.cell(i, 3, zona), ws.cell(i, 4, sup)
     ws.cell(23 + len(permisos), 6, "SUB TOTAL")
     f = wb.create_sheet("FLOTILLA")
     f.append([None] * 6)
@@ -183,7 +196,7 @@ def libro(carpeta, flotilla=FLOTILLA, gps=GPS, permisos=PERMISOS, sin=()):
     for i, (u, mod, vin, pl, can, sup) in enumerate(gps, start=1):
         g.append([i, i + 0.1, 6630000000 + i, "TOPFLYTECH", "8696160606", u, mod, vin, pl,
                   datetime.datetime(2026, 2, 2), i, "N/A", can, sup])
-    _hoja_base(wb)
+    _hoja_base(wb, base_extra)
     for h in sin:
         del wb[h]
     ruta = os.path.join(carpeta, padron.ARCHIVO)
@@ -382,6 +395,17 @@ def _():
     assert r["creadas"] == 0, r
 
 
+@caso("la base y el padron se cruzan con la misma clave: la 'GB-308' de la base es la BG-308")
+def _():
+    db = base()
+    tipo = db.query(m.TipoUnidad).filter_by(nombre="reparto").one()
+    db.add(m.Unidad(num_economico="GB-308", tipo_unidad_id=tipo.id, activo=True))
+    db.commit()
+    r = aplicar(db, con_libro(gps=GPS + [("BG-308", "CNJ", None, None, "REPARTO",
+                                          "DANIEL ESPINO")]))
+    assert "BG-308" not in r["detalle"]["creadas"] and "GB-308" not in r["detalle"]["dadas_de_baja"]
+    assert u(db, "GB-308").activo and u(db, "GB-308").permiso_hidrocarburos == P_VALLE
+
 @caso("placas y VIN: solo los que faltan; lo distinto se reporta y no se pisa")
 def _():
     db = base()
@@ -405,7 +429,106 @@ def _():
                 x.permiso_hidrocarburos, x.placas, x.vin) for x in db.query(m.Unidad).order_by(m.Unidad.id)]
     assert antes == despues
     assert not (r["creadas"] or r["activadas"] or r["dadas_de_baja"]
-                or r["planta_cambiada"] or r["permiso_puesto"] or r["tipo_corregido"]), r
+                or r["planta_cambiada"] or r["permiso_puesto"] or r["tipo_corregido"]
+                or r["programas_creados"]), r
+
+
+@caso("las nuevas y las que vuelven reciben su programa de preventivo; las demas no otro")
+def _():
+    db = base()
+    tipos = {x.nombre: x.id for x in db.query(m.TipoUnidad)}
+    planes = {t: m.PlanMantenimiento(nombre=f"prev {t}", tipo_unidad_id=tipos[t],
+                                     periodicidad_dias=d, activo=True)
+              for t, d in (("pipa", 60), ("reparto", 90))}
+    db.add_all(planes.values())
+    db.flush()
+    # La flota que ya estaba tiene su programa abierto, como en produccion.
+    for x in db.query(m.Unidad).filter(m.Unidad.activo.is_(True)):
+        plan = next((p for p in planes.values() if p.tipo_unidad_id == x.tipo_unidad_id), None)
+        if plan:
+            db.add(m.ProgramaMantenimiento(unidad_id=x.id, plan_id=plan.id,
+                                           fecha_limite=HOY, estado="pendiente"))
+    db.commit()
+    r = aplicar(db, con_libro())
+
+    def programas(num):
+        return (db.query(m.ProgramaMantenimiento)
+                .filter(m.ProgramaMantenimiento.unidad_id == u(db, num).id).all())
+    # BG834 vuelve y BG-829 es nueva (pipas); BG-306 es nueva de reparto.
+    for num in ("BG834", "BG-829", "BG-306"):
+        assert len(programas(num)) == 1 and programas(num)[0].fecha_limite > HOY, num
+    assert len(programas("2154")) == 1                 # ya tenia: no se le crea otro
+    assert not programas("T-822")                      # utilitario: sin plan
+    assert r["programas_creados"] == 3, r
+    assert aplicar(db, con_libro())["programas_creados"] == 0
+
+
+@caso("PORCENTAJE: el permiso y el canal se reconocen por lo que traen, no por su lugar")
+def _():
+    # Encabezado reescrito y el permiso en otra columna: antes se perdian los
+    # supervisores y FLOTILLA (vieja) volvia a mandar la planta.
+    r = con_libro(permiso_en="E", permiso_dice="PERMISO CRE")
+    p = r["unidades"]
+    assert p["2310"]["permiso"] == P_VALLE and p["BG733P"]["permiso"] == P_ALAMOS
+    assert p["2311"]["planta"] == "ALAMOS", p["2311"]       # el supervisor sigue contando
+    assert not any("permiso" in a.lower() for a in r["avisos"] if "BAJA" not in a), r["avisos"]
+
+
+@caso("PORCENTAJE sin el canal de sus supervisores: no se aplica a medias, se detiene")
+def _():
+    try:
+        con_libro(con_canal=False)
+    except RuntimeError as e:
+        assert "supervisores" in str(e) and "No se" in str(e), e
+    else:
+        raise AssertionError("leyo un PORCENTAJE sin canal y siguio")
+
+
+@caso("una lista de BASE DE DATOS sin ninguna unidad con GPS entra con lo que dice su titulo")
+def _():
+    r = con_libro(base_extra=[
+        ("BRUNO CASTRO (ESTACIONARIO)", [("BG-950", "PENDIENTE"), ("BG-951", "PENDIENTE")]),
+        ("PERSONA NUEVA (REPARTO)", [("BG-960", "PENDIENTE")])])
+    p = r["unidades"]
+    assert (p["BG950"]["canal"], p["BG950"]["planta"], p["BG950"]["permiso"]) ==         ("ESTACIONARIO", "ROSARITO", P_ALAMOS), p["BG950"]
+    assert "BG951" in p
+    # Un supervisor que PORCENTAJE no conoce: el canal si, la planta no (se avisa).
+    assert (p["BG960"]["canal"], p["BG960"]["planta"]) == ("REPARTO", None), p["BG960"]
+    sin_gps = [a for a in r["avisos"] if "ninguna unidad con GPS" in a]
+    assert len(sin_gps) == 2 and any("sin planta" in a for a in sin_gps), r["avisos"]
+
+
+@caso("un permiso corregido a mano en la bitacora no se pisa en la siguiente sincronizacion")
+def _():
+    db = base()
+    aplicar(db, con_libro())
+    bg813 = u(db, "BG813")
+    assert bg813.permiso_hidrocarburos == P_VALLE
+    admin = m.Usuario(nombre="Admin", apellidos="Prueba", email="admin@prueba.test",
+                      password_hash="x")
+    rol = m.Rol(nombre="administrador")
+    db.add_all([admin, rol])
+    db.flush()
+    db.add(m.UsuarioRol(usuario_id=admin.id, rol_id=rol.id))
+    db.commit()
+    # El administrador lo corrige (la BG-813 tiene el canal en duda).
+    bc.fijar_identificacion(bg813.id, bc.IdentificacionUnidadIn(permiso_hidrocarburos=P_ALAMOS),
+                            usuario=admin, db=db)
+    asientos = db.query(m.AsientoBitacora).filter(m.AsientoBitacora.unidad_id == bg813.id).count()
+    r = aplicar(db, con_libro())
+    assert u(db, "BG813").permiso_hidrocarburos == P_ALAMOS
+    assert r["permiso_puesto"] == 0, r
+    assert any(x.startswith("BG813: permiso") and "a mano" in x for x in r["detalle"]["a_revisar"])
+    assert db.query(m.AsientoBitacora).filter(
+        m.AsientoBitacora.unidad_id == bg813.id).count() == asientos   # sin idas y vueltas
+    # Otro dato corregido a mano (el auxiliar) no congela el permiso.
+    otra = u(db, "2154")
+    otra.permiso_hidrocarburos = None
+    db.commit()
+    bc.fijar_identificacion(otra.id, bc.IdentificacionUnidadIn(personal_auxiliar="Ayudante"),
+                            usuario=admin, db=db)
+    aplicar(db, con_libro())
+    assert u(db, "2154").permiso_hidrocarburos == P_ALAMOS
 
 
 @caso("el permiso nuevo se asienta en el libro de la NOM-030 de la unidad que ya tiene uno")
